@@ -667,6 +667,12 @@ class NodeDriver(BaseDriver):
         if password:
             node.extra['password'] = password
 
+        if not ip_addresses:
+            if node.private_ips:
+                ip_addresses = node.private_ips
+            else:
+                raise DeploymentError(node=node, original_exception='No IP address found for node', driver=self)
+
         ssh_username = kwargs.get('ssh_username', 'root')
         ssh_alternate_usernames = kwargs.get('ssh_alternate_usernames', [])
         ssh_port = kwargs.get('ssh_port', 22)
