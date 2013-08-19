@@ -158,7 +158,7 @@ class RackspaceNodeDriver(OpenStack_1_1_NodeDriver):
 
         if datacenter in ['dfw', 'ord', 'syd']:
             self.connectionCls.auth_url = AUTH_URL_US
-            self.api_name = 'rackspacenovaus'
+            self.api_name = 'rackspacenova%s' % datacenter
         elif datacenter == 'lon':
             self.connectionCls.auth_url = AUTH_URL_UK
             self.api_name = 'rackspacenovalon'
