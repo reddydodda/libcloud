@@ -35,6 +35,13 @@ from libcloud.compute.base import Node, NodeDriver, NodeImage, NodeSize, NodeLoc
 
 API_HOST = "api.nephoscale.com"
 
+NODE_STATE_MAP = {
+    'on': NodeState.RUNNING,
+    'off': NodeState.TERMINATED,
+    'unknown': NodeState.UNKNOWN,    
+}
+#FIXME: rebooting/destroying states
+
 class NephoscaleResponse(JsonResponse):
     """
     Nephoscale response class.
@@ -45,7 +52,7 @@ class NephoscaleResponse(JsonResponse):
 
     def parse_error(self):
         if self.status == 401:
-            raise InvalidCredsError('Authorization Required')
+            raise InvalidCredsError('Authorization Failed')
         if self.status == 404:
             raise Exception("The resource you are looking for is not found.")
 
@@ -118,7 +125,7 @@ class NephoscaleNodeDriver(NodeDriver):
         return sizes
 
     def list_nodes(self):
-        result = self.connection.request('/server/').object
+        result = self.connection.request('/server/cloud/').object
         nodes = []
         for value in result.get('data', []):
             node = self._to_node(value)
@@ -147,11 +154,23 @@ class NephoscaleNodeDriver(NodeDriver):
 
         
     def _to_node(self, data):
-        #state = NODE_STATE_MAP[data['state']]
-        state='OK'
+        state = NODE_STATE_MAP.get(data.get('power_status'), '4')
         public_ips = []
         private_ips = []
-        extra = {}
+        ip_addresses = data.get('ipaddresses', '')
+        #"ipaddresses": "198.120.14.6, 10.132.60.1",
+        if ip_addresses:
+            ip_addresses_list = ip_addresses.split(',')
+            for ip in ip_addresses_list:
+                ip = ip.replace(' ','')
+                if ip.startswith('10.') or ip.startswith('192.168'):
+                    private_ips.append(ip)
+                else:
+                    public_ips.append(ip)
+        extra = {'zone': data.get('zone'), 'image': data.get('image'),
+         'create_time': data.get('create_time'), 'network_ports': data.get('network_ports'), 'is_console_enabled': data.get('is_console_enabled'), 
+         'service_type': data.get('service_type'), 'hostname': data.get('hostname')
+        }
 
         node = Node(id=data.get('id'), name=data.get('name'), state=state,
                     public_ips=public_ips, private_ips=private_ips,
