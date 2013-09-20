@@ -42,7 +42,7 @@ API_HOST = "api.nephoscale.com"
 
 NODE_STATE_MAP = {
     'on': NodeState.RUNNING,
-    'off': NodeState.TERMINATED,
+    'off': NodeState.UNKNOWN,
     'unknown': NodeState.UNKNOWN,    
 }
 
