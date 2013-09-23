@@ -73,7 +73,6 @@ def get_pricing(driver_type, driver_name, pricing_file_path=None):
 
     with open(pricing_file_path) as fp:
         content = fp.read()
-
     pricing_data = json.loads(content)
     size_pricing = pricing_data[driver_type][driver_name]
 
@@ -120,7 +119,7 @@ def get_size_price(driver_type, driver_name, size_id):
     @return: Size price.
     """
     pricing = get_pricing(driver_type=driver_type, driver_name=driver_name)
-    price = pricing[size_id]
+    price = pricing.get(size_id)
     return price
 
 

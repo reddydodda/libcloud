@@ -83,6 +83,7 @@ class NephoscaleNodeDriver(NodeDriver):
     """
 
     type = Provider.NEPHOSCALE
+    api_name = 'nephoscale'    
     name = 'NephoScale'
     website = 'http://www.nephoscale.com'
     connectionCls = NephoscaleConnection
@@ -112,12 +113,12 @@ class NephoscaleNodeDriver(NodeDriver):
         return images
 
     def list_sizes(self):
-        result = self.connection.request('/server/type/').object
+        result = self.connection.request('/server/type/cloud/').object
         sizes = []
         for value in result.get('data', []):
             size = NodeSize(id=value.get('id'), name=value.get('friendly_name'),
                             ram=value.get('ram'), disk=value.get('storage'),
-                            bandwidth=None, price=0.0,
+                            bandwidth=None, price=self._get_size_price(size_id=str(value.get('id'))),
                             driver=self.connection.driver)
             sizes.append(size)
 
