@@ -51,7 +51,7 @@ VALID_RESPONSE_CODES = [httplib.OK, httplib.ACCEPTED, httplib.CREATED, httplib.N
 
 class NephoscaleResponse(JsonResponse):
     """
-    Nephoscale response class.
+    Nephoscale API Response
     """
 
     def parse_error(self):
@@ -74,6 +74,9 @@ class NephoscaleConnection(ConnectionUserAndKey):
     responseCls = NephoscaleResponse
 
     def add_default_headers(self, headers):
+        """
+        Add parameters that are necessary for every request
+        """        
         user_b64 = base64.b64encode(b('%s:%s' % (self.user_id, self.key)))
         headers['Authorization'] = 'Basic %s' % (user_b64.decode('utf-8'))
         return headers
@@ -81,6 +84,12 @@ class NephoscaleConnection(ConnectionUserAndKey):
 class NephoscaleNodeDriver(NodeDriver):
     """
     Nephoscale node driver class.
+
+    >>> from libcloud.compute.types import Provider
+    >>> from libcloud.compute.providers import get_driver
+    >>> driver = get_driver('nephoscale')
+    >>> conn = driver('nepho_user','nepho_password')
+    >>> conn.list_nodes()
     """
 
     type = Provider.NEPHOSCALE
@@ -91,45 +100,54 @@ class NephoscaleNodeDriver(NodeDriver):
     features = {'create_node': ['ssh_key']}    
 
     def __init__(self, *args, **kwargs):
+        """Instantiate the driver with nephoscale's user and password
+        """    
         super(NephoscaleNodeDriver, self).__init__(*args, **kwargs)
-
 
     def list_locations(self):
         result = self.connection.request('/datacenter/').object    
         locations = []
         for value in result.get('data', []):
-            location = NodeLocation(id=value.get('id'), name=value.get('name'),
-                              country='US', driver=self.connection.driver)
+            location = NodeLocation(id=value.get('id'),
+                                    name=value.get('name'),
+                                    country='US',
+                                    driver=self.connection.driver)
             locations.append(location)
-
         return locations
 
-
-        return [
-            NodeLocation(1, 'SJC-1', 'US', self)
-        ]
-
     def list_images(self):
+        """
+        List available Images
+        """
         result = self.connection.request('/image/server/').object
         images = []
         for value in result.get('data', []):
-            extra = {'architecture': value.get('architecture'), 'disks': value.get('disks'),
-                     'billable_type': value.get('billable_type'), 'pcpus': value.get('pcpus'), 
-                     'cores': value.get('cores'), 'uri': value.get('uri'), 'storage': value.get('storage'), 
-                    }
+            extra = {'architecture': value.get('architecture'),
+                     'disks': value.get('disks'),
+                     'billable_type': value.get('billable_type'), 
+                     'pcpus': value.get('pcpus'), 
+                     'cores': value.get('cores'),
+                     'uri': value.get('uri'), 
+                     'storage': value.get('storage'), 
+            }
             image = NodeImage(id=value.get('id'), name=value.get('friendly_name'),
-                              driver=self.connection.driver, extra=extra)
+                  driver=self.connection.driver, extra=extra)
             images.append(image)
-
         return images
 
     def list_sizes(self):
+        """
+        List available Sizes
+        """
         result = self.connection.request('/server/type/cloud/').object
         sizes = []
         for value in result.get('data', []):
-            size = NodeSize(id=value.get('id'), name=value.get('friendly_name'),
-                            ram=value.get('ram'), disk=value.get('storage'),
-                            bandwidth=None, price=self._get_size_price(size_id=str(value.get('id'))),
+            size = NodeSize(id=value.get('id'), 
+                            name=value.get('friendly_name'),
+                            ram=value.get('ram'), 
+                            disk=value.get('storage'),
+                            bandwidth=None,
+                            price=self._get_size_price(size_id=str(value.get('id'))),
                             driver=self.connection.driver)
             sizes.append(size)
         
@@ -137,6 +155,9 @@ class NephoscaleNodeDriver(NodeDriver):
 
 
     def list_nodes(self):
+        """
+        List available Nodes
+        """    
         result = self.connection.request('/server/cloud/').object
         nodes = [self._to_node(value) for value in result.get('data', [])]
         return nodes
@@ -151,23 +172,30 @@ class NephoscaleNodeDriver(NodeDriver):
         return result.get('response') in VALID_RESPONSE_CODES
 
     def reboot_node(self, node):
+        "reboot a running node"
         result = self.connection.request('/server/cloud/%s/initiator/restart/' % node.id, method='POST').object
         return result.get('response') in VALID_RESPONSE_CODES
        
     def ex_start_node(self, node):
+        "start a stopped node"    
         result = self.connection.request('/server/cloud/%s/initiator/start/' % node.id, method='POST').object
         return result.get('response') in VALID_RESPONSE_CODES
 
     def ex_stop_node(self, node):
+        "stop a running node"    
         result = self.connection.request('/server/cloud/%s/initiator/stop/' % node.id, method='POST').object
         return result.get('response') in VALID_RESPONSE_CODES
 
     def destroy_node(self, node):
+        "destroy a node"        
         result = self.connection.request('/server/cloud/%s/' % node.id, method='DELETE').object
         return result.get('response') in VALID_RESPONSE_CODES
 
     def list_all_keys(self, key_group=None):
-        "list console and server keys"
+        """list console and server keys
+           if key_group is specified, show keys with this key_group only
+           eg key_group=4 for console password keys
+        """
         result = self.connection.request('/key/').object
         keys = [self._to_ssh_key(value) for value in result.get('data', [])]
         if key_group:
@@ -175,23 +203,26 @@ class NephoscaleNodeDriver(NodeDriver):
         return keys
 
     def list_ssh_keys(self):
+        "list ssh keys keys"  
         result = self.connection.request('/key/sshrsa/').object
         keys = [self._to_ssh_key(value) for value in result.get('data', [])]
         return keys
 
     def list_password_keys(self):
-        "password console and server keys"
+        "list password console and password server keys"
         result = self.connection.request('/key/password/').object
         keys = [self._to_ssh_key(value) for value in result.get('data', [])]
         return keys
 
     def add_ssh_key(self, name, public_key, key_group=1):
+        """Add an ssh key, given the public key and name
+           Returns the id of the created ssh key
+        """    
         data = {
             'name': name,
             'public_key': public_key,
             'key_group': key_group #key_group: The group for the key, where Server=1 and Console=4
-        }
-    
+        }    
         params = urlencode(data)
         try:
             result = self.connection.request('/key/sshrsa/', data=params, method='POST').object
@@ -201,14 +232,18 @@ class NephoscaleNodeDriver(NodeDriver):
         return result.get('data', {}).get('id','')
 
     def add_password_key(self, name, password=None, key_group=4):
+        """Add a password key, given the name and password
+           If password not specified, create a random password with lowercase strings and numbers
+           
+           Returns the id of the created ssh key
+        """        
         if not password:
             password = self.random_password()            
         data = {
             'name': name,
             'password': password,
             'key_group': key_group #key_group: The group for the key, where Server=1 and Console=4
-        }
-    
+        }    
         params = urlencode(data)
         try:
             result = self.connection.request('/key/password/', data=params, method='POST').object
@@ -218,6 +253,8 @@ class NephoscaleNodeDriver(NodeDriver):
         return result.get('data', {}).get('id','')
 
     def delete_ssh_key(self, key_id):
+        """Delete an ssh key, given it's id
+        """
         try:
             result = self.connection.request('/key/sshrsa/%s/' % key_id, method='DELETE').object
         except Exception:
@@ -226,6 +263,8 @@ class NephoscaleNodeDriver(NodeDriver):
         return result.get('response') in VALID_RESPONSE_CODES
 
     def delete_password_key(self, key_id):
+        """Delete a password, given it's id
+        """
         try:
             result = self.connection.request('/key/password/%s/' % key_id, method='DELETE').object
         except Exception:
@@ -234,39 +273,46 @@ class NephoscaleNodeDriver(NodeDriver):
         return result.get('response') in VALID_RESPONSE_CODES
 
     def create_node(self, **kwargs):   
-        """creates the node, and sets the ssh key, console key
-        name = 'server'
-        size = conn.list_sizes()[0]
-            <NodeSize: id=27, name=CS025 - 0.25GB, 10GB, ram=256 disk=15 bandwidth=None price=0.0 driver=NephoScale ...>
-        image = conn.list_images()[9]
-            <NodeImage: id=49, name=Linux Ubuntu Server 10.04 LTS 64-bit, driver=NephoScale  ...>
-        server_key_dict = conn.list_all_keys(1)[0]
-            {u'create_time': u'2013-09-17 04:55:42',
-            u'id': 70867,
-            u'key_group': 1,
-            u'key_type': 2,
-            u'name': u'nephoscalekey',
-            u'uri': u'https://api.nephoscale.com/key/sshrsa/70867/'}        
-        server_key = server_key_dict.get('id')
-            70867
-        console_key_dict = conn.list_all_keys(4)[0]
-            {u'create_time': u'2013-09-17 07:30:09',
-             u'id': 70907,
-             u'key_group': 4,
-             u'key_type': 1,
-             u'name': u'apo-mistio_07a6b018',
-             u'uri': u'https://api.nephoscale.com/key/password/70907/'}
-        console_key = console_key_dict.get('id')        
-            70907
-        node = conn.deploy_node(name=name, size=size, image=image, console_key=console_key, server_key=server_key)
+        """Creates the node, and sets the ssh key, console key
+        NephoScale will respond with a 200-200 response after sending a valid request
+        We then ask a few times until the server is created and assigned a public IP address, so that
+        deploy_node can be run         
+
+        >>> from libcloud.compute.types import Provider
+        >>> from libcloud.compute.providers import get_driver
+        >>> driver = get_driver('nephoscale')
+        >>> conn = driver('nepho_user','nepho_password')
+        >>> conn.list_nodes()
+        >>> name = 'staging-server'
+        >>> size = conn.list_sizes()[0]
+        <NodeSize: id=27, name=CS025 - 0.25GB, 10GB, ram=256 disk=15 bandwidth=None price=0.0 driver=NephoScale ...>
+        >>> image = conn.list_images()[9]
+        <NodeImage: id=49, name=Linux Ubuntu Server 10.04 LTS 64-bit, driver=NephoScale  ...>
+        >>> server_key_dict = conn.list_all_keys(1)[0]
+        {u'create_time': u'2013-09-17 04:55:42',
+        u'id': 70867,
+        u'key_group': 1,
+        u'key_type': 2,
+        u'name': u'nephoscalekey',
+        u'uri': u'https://api.nephoscale.com/key/sshrsa/70867/'}        
+        >>> server_key = server_key_dict.get('id')
+        70867
+        >>> console_key_dict = conn.list_all_keys(4)[0]
+        {u'create_time': u'2013-09-17 07:30:09',
+        u'id': 70907,
+        u'key_group': 4,
+        u'key_type': 1,
+        u'name': u'apo-mistio_07a6b018',
+        u'uri': u'https://api.nephoscale.com/key/password/70907/'}
+        >>> console_key = console_key_dict.get('id')        
+        70907
+        node = conn.create_node(name=name, size=size, image=image, console_key=console_key, server_key=server_key)
         
         We can also create an ssh key, plus a console key and deploy node with them
-        server_key = conn.add_ssh_key(name, key)
+        >>> server_key = conn.add_ssh_key(name, key)
         71211        
-        import random
-        console_key = conn.add_password_key(name+str(random.randint(1,100000)))
+        >>> console_key = conn.add_password_key(name)
         71213
-        node = conn.deploy_node(name=name, size=size, image=image, console_key=console_key, server_key=server_key)
         """    
         try: 
             name = kwargs.get('name')
@@ -303,7 +349,7 @@ class NephoscaleNodeDriver(NodeDriver):
             raise Exception("Failed to create node %s" % e)   
         node = Node(id='', name=name, state='', public_ips='', private_ips='', driver=self.connection.driver)      
         #try to get the created node public ips, for use in deploy_node 
-        #At this point we don't have the id of the newly created Node, 
+        #At this point we don't have the id of the newly created Node, so search name in nodes
         LOGIN_ATTEMPTS = 20
         created_node = False
         while LOGIN_ATTEMPTS > 0:
@@ -317,11 +363,14 @@ class NephoscaleNodeDriver(NodeDriver):
         return node                                 
 
     def _to_node(self, data):
+        """Convert node in Node instances
+        """
+    
         state = NODE_STATE_MAP.get(data.get('power_status'), '4')
         public_ips = []
         private_ips = []
         ip_addresses = data.get('ipaddresses', '')
-        #"ipaddresses": "198.120.14.6, 10.132.60.1",
+        #E.g. "ipaddresses": "198.120.14.6, 10.132.60.1"
         if ip_addresses:
             ip_addresses_list = ip_addresses.split(',')
             for ip in ip_addresses_list:
@@ -349,4 +398,4 @@ class NephoscaleNodeDriver(NodeDriver):
         return data
         
     def random_password(self, size=8, chars=string.ascii_lowercase + string.digits):
-        return ''.join(random.choice(chars) for x in range(size))   
+        return ''.join(random.choice(chars) for x in range(size))
