@@ -23,6 +23,7 @@ import base64
 import sys
 import string
 import random
+import time
 
 try:
     import simplejson as json
@@ -87,13 +88,23 @@ class NephoscaleNodeDriver(NodeDriver):
     name = 'NephoScale'
     website = 'http://www.nephoscale.com'
     connectionCls = NephoscaleConnection
+    features = {'create_node': ['ssh_key']}    
 
     def __init__(self, *args, **kwargs):
         super(NephoscaleNodeDriver, self).__init__(*args, **kwargs)
 
 
     def list_locations(self):
-        #result = self.connection.request('/datacenter/').object    
+        result = self.connection.request('/datacenter/').object    
+        locations = []
+        for value in result.get('data', []):
+            location = NodeLocation(id=value.get('id'), name=value.get('name'),
+                              country='US', driver=self.connection.driver)
+            locations.append(location)
+
+        return locations
+
+
         return [
             NodeLocation(1, 'SJC-1', 'US', self)
         ]
@@ -121,8 +132,9 @@ class NephoscaleNodeDriver(NodeDriver):
                             bandwidth=None, price=self._get_size_price(size_id=str(value.get('id'))),
                             driver=self.connection.driver)
             sizes.append(size)
+        
+        return sorted(sizes, key=lambda k: k.price)
 
-        return sizes
 
     def list_nodes(self):
         result = self.connection.request('/server/cloud/').object
@@ -222,45 +234,9 @@ class NephoscaleNodeDriver(NodeDriver):
         return result.get('response') in VALID_RESPONSE_CODES
 
     def create_node(self, **kwargs):   
-        try: 
-            name = kwargs.get('name')
-            if not name:
-                raise Exception("Name cannot be blank")      
-            hostname = kwargs.get('hostname', name)
-            service_type = kwargs.get('size')
-            if not service_type:
-                raise Exception("Service type cannot be blank")      
-            service_type = service_type.id
-            image = kwargs.get('image')
-            if not image:
-                raise Exception("Image cannot be blank")      
-            image = image.id
-        except Exception:
-            e = sys.exc_info()[1]
-            raise Exception("Error on create node: %s" % e)      
-        
-        data = {'name': name, 
-                'hostname': hostname,
-                'service_type': service_type,
-                'image': image,
-        }
-        
-        params = urlencode(data)
-        try:
-            node = self.connection.request('/server/cloud/', data=params, method='POST')        
-        except Exception:
-            e = sys.exc_info()[1]
-            raise Exception("Failed to create node %s" % e)   
-        node_id = node.object['data']['id']
-        created_node = Node(id=node_id, name=name, state='', public_ips='', private_ips='', driver=self.connection.driver)               
-        return created_node
-                    
-
-            
-    def deploy_node(self, **kwargs):  
         """creates the node, and sets the ssh key, console key
         name = 'server'
-        size = conn.list_sizes()[6]
+        size = conn.list_sizes()[0]
             <NodeSize: id=27, name=CS025 - 0.25GB, 10GB, ram=256 disk=15 bandwidth=None price=0.0 driver=NephoScale ...>
         image = conn.list_images()[9]
             <NodeImage: id=49, name=Linux Ubuntu Server 10.04 LTS 64-bit, driver=NephoScale  ...>
@@ -291,11 +267,11 @@ class NephoscaleNodeDriver(NodeDriver):
         console_key = conn.add_password_key(name+str(random.randint(1,100000)))
         71213
         node = conn.deploy_node(name=name, size=size, image=image, console_key=console_key, server_key=server_key)
-        """
+        """    
         try: 
             name = kwargs.get('name')
             if not name:
-                raise Exception("Name cannot be blank")                  
+                raise Exception("Name cannot be blank")      
             hostname = kwargs.get('hostname', name)
             service_type = kwargs.get('size')
             if not service_type:
@@ -306,7 +282,7 @@ class NephoscaleNodeDriver(NodeDriver):
                 raise Exception("Image cannot be blank")      
             image = image.id
             server_key = kwargs.get('server_key', '')
-            console_key = kwargs.get('console_key', '')
+            console_key = kwargs.get('console_key', '')            
         except Exception:
             e = sys.exc_info()[1]
             raise Exception("Error on create node: %s" % e)      
@@ -316,7 +292,7 @@ class NephoscaleNodeDriver(NodeDriver):
                 'service_type': service_type,
                 'image': image,
                 'server_key': server_key,
-                'console_key': console_key
+                'console_key': console_key                
         }
         
         params = urlencode(data)
@@ -324,11 +300,21 @@ class NephoscaleNodeDriver(NodeDriver):
             node = self.connection.request('/server/cloud/', data=params, method='POST')        
         except Exception:
             e = sys.exc_info()[1]
-            raise Exception("Failed to create node %s" % e)      
-        node_id = node.object['data']['id']
-        created_node = Node(id=node_id, name=name, state='', public_ips='', private_ips='', driver=self.connection.driver)               
-        return created_node
-
+            raise Exception("Failed to create node %s" % e)   
+        node = Node(id='', name=name, state='', public_ips='', private_ips='', driver=self.connection.driver)      
+        #try to get the created node public ips, for use in deploy_node 
+        #At this point we don't have the id of the newly created Node, 
+        LOGIN_ATTEMPTS = 20
+        created_node = False
+        while LOGIN_ATTEMPTS > 0:
+            nodes = self.list_nodes()
+            created_node = [c_node for c_node in nodes if c_node.name == name]
+            if created_node:
+                return created_node[0]
+            else:
+                time.sleep(10)                     
+                LOGIN_ATTEMPTS-=1
+        return node                                 
 
     def _to_node(self, data):
         state = NODE_STATE_MAP.get(data.get('power_status'), '4')
