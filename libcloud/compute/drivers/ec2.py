@@ -644,7 +644,7 @@ class BaseEC2NodeDriver(NodeDriver):
             sizes.append(NodeSize(driver=self, **attributes))
         return sizes
 
-    def list_images(self, location=None, ex_image_ids=None):
+    def list_images(self, location=None, ex_image_ids=None, ex_owner=None):
         """
         List all images
 
@@ -658,9 +658,13 @@ class BaseEC2NodeDriver(NodeDriver):
         @rtype: C{list} of L{NodeImage}
         """
         params = {'Action': 'DescribeImages'}
+        if ex_owner:
+            params["Owner"] = ex_owner
 
-        if ex_image_ids:
+        if ex_image_ids != None:
             params.update(self._pathlist('ImageId', ex_image_ids))
+        #import pdb; pdb.set_trace()
+        #params.update(self._pathlist('Owner.n', ["amazon"]))
 
         images = self._to_images(
             self.connection.request(self.path, params=params).object
