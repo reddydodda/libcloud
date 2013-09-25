@@ -552,10 +552,15 @@ class BaseEC2NodeDriver(NodeDriver):
         ]
 
     def _to_image(self, element):
+        name = findtext(element=element, xpath='name',
+                          namespace=NAMESPACE) or ''
+        description = findtext(element=element, xpath='description',
+                          namespace=NAMESPACE) or ''
+        location = findtext(element=element, xpath='imageLocation',
+                          namespace=NAMESPACE)
         n = NodeImage(
             id=findtext(element=element, xpath='imageId', namespace=NAMESPACE),
-            name=findtext(element=element, xpath='imageLocation',
-                          namespace=NAMESPACE),
+            name= ('%s %s %s' % (description, name, location)).strip(),
             driver=self.connection.driver,
             extra={
                 'state': findattr(element=element, xpath="imageState",
