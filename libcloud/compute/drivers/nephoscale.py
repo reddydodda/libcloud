@@ -49,6 +49,12 @@ NODE_STATE_MAP = {
 
 VALID_RESPONSE_CODES = [httplib.OK, httplib.ACCEPTED, httplib.CREATED, httplib.NO_CONTENT]
 
+#used in create_node and specifies how many times to get the list of nodes and see
+#if the newly created node is there. This is because when a request is sent to create
+#a node, NephoScale replies with the job id, and not the node itself 
+#thus we don't have the ip addresses, that are required in deploy_node
+CONNECT_ATTEMPTS = 2
+
 class NephoscaleResponse(JsonResponse):
     """
     Nephoscale API Response
@@ -105,7 +111,7 @@ class NephoscaleNodeDriver(NodeDriver):
         super(NephoscaleNodeDriver, self).__init__(*args, **kwargs)
 
     def list_locations(self):
-        result = self.connection.request('/datacenter/').object    
+        result = self.connection.request('/datacenter/zone/').object    
         locations = []
         for value in result.get('data', []):
             location = NodeLocation(id=value.get('id'),
@@ -328,7 +334,9 @@ class NephoscaleNodeDriver(NodeDriver):
                 raise Exception("Image cannot be blank")      
             image = image.id
             server_key = kwargs.get('server_key', '')
-            console_key = kwargs.get('console_key', '')            
+            console_key = kwargs.get('console_key', '')  
+            zone = kwargs.get('location', '')              
+            connect_attempts = int(kwargs.get('connect_attempts', CONNECT_ATTEMPTS))
         except Exception:
             e = sys.exc_info()[1]
             raise Exception("Error on create node: %s" % e)      
@@ -338,7 +346,8 @@ class NephoscaleNodeDriver(NodeDriver):
                 'service_type': service_type,
                 'image': image,
                 'server_key': server_key,
-                'console_key': console_key                
+                'console_key': console_key,
+                'zone': zone                             
         }
         
         params = urlencode(data)
@@ -350,16 +359,16 @@ class NephoscaleNodeDriver(NodeDriver):
         node = Node(id='', name=name, state='', public_ips='', private_ips='', driver=self.connection.driver)      
         #try to get the created node public ips, for use in deploy_node 
         #At this point we don't have the id of the newly created Node, so search name in nodes
-        LOGIN_ATTEMPTS = 20
+
         created_node = False
-        while LOGIN_ATTEMPTS > 0:
+        while connect_attempts > 0:
             nodes = self.list_nodes()
             created_node = [c_node for c_node in nodes if c_node.name == name]
             if created_node:
                 return created_node[0]
             else:
                 time.sleep(10)                     
-                LOGIN_ATTEMPTS-=1
+                connect_attempts = connect_attempts-1
         return node                                 
 
     def _to_node(self, data):
