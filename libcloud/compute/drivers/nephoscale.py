@@ -367,7 +367,7 @@ class NephoscaleNodeDriver(NodeDriver):
             if created_node:
                 return created_node[0]
             else:
-                time.sleep(10)                     
+                time.sleep(30)                     
                 connect_attempts = connect_attempts-1
         return node                                 
 
