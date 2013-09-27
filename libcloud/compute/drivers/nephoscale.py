@@ -53,7 +53,7 @@ VALID_RESPONSE_CODES = [httplib.OK, httplib.ACCEPTED, httplib.CREATED, httplib.N
 #if the newly created node is there. This is because when a request is sent to create
 #a node, NephoScale replies with the job id, and not the node itself 
 #thus we don't have the ip addresses, that are required in deploy_node
-CONNECT_ATTEMPTS = 2
+CONNECT_ATTEMPTS = 10
 
 class NephoscaleResponse(JsonResponse):
     """
@@ -312,13 +312,21 @@ class NephoscaleNodeDriver(NodeDriver):
         u'uri': u'https://api.nephoscale.com/key/password/70907/'}
         >>> console_key = console_key_dict.get('id')        
         70907
-        node = conn.create_node(name=name, size=size, image=image, console_key=console_key, server_key=server_key)
+        >>> node = conn.create_node(name=name, size=size, image=image, \
+                console_key=console_key, server_key=server_key)
         
         We can also create an ssh key, plus a console key and deploy node with them
         >>> server_key = conn.add_ssh_key(name, key)
         71211        
         >>> console_key = conn.add_password_key(name)
         71213
+        
+        We can increase the number of connect attempts to wait until the node is created,
+        so that deploy_node has ip address to deploy the script
+        We can also specify the location
+        >>> location = conn.list_locations()[0]
+        >>> node = conn.create_node(name=name, size=size, image=image, console_key=console_key, \
+                server_key=server_key, connect_attempts=10, location=location.id)
         """    
         try: 
             name = kwargs.get('name')
@@ -367,7 +375,7 @@ class NephoscaleNodeDriver(NodeDriver):
             if created_node:
                 return created_node[0]
             else:
-                time.sleep(30)                     
+                time.sleep(60)                     
                 connect_attempts = connect_attempts-1
         return node                                 
 
