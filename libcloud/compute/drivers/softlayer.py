@@ -32,23 +32,23 @@ from libcloud.compute.base import NodeDriver, Node, NodeLocation, NodeSize, \
 
 DATACENTERS = {
     'hou02': {'country': 'US'},
-    'sea01': {'country': 'US'},
-    'wdc01': {'country': 'US'},
+    'sea01': {'country': 'US', 'name': 'Seattle - West Coast U.S.'},
+    'wdc01': {'country': 'US', 'name': 'Washington, DC - East Coast U.S.'},
     'dal01': {'country': 'US'},
     'dal02': {'country': 'US'},
     'dal04': {'country': 'US'},
-    'dal05': {'country': 'US'},
+    'dal05': {'country': 'US', 'name': 'Dallas - Central U.S.'},
     'dal06': {'country': 'US'},
     'dal07': {'country': 'US'},
-    'sjc01': {'country': 'US'},
-    'sng01': {'country': 'SG'},
-    'ams01': {'country': 'NL'},
+    'sjc01': {'country': 'US', 'name': 'San Jose - West Coast U.S.'},
+    'sng01': {'country': 'SG', 'name': 'Singapore - Southeast Asia'},
+    'ams01': {'country': 'NL', 'name': 'Amsterdam - Western Europe'},
 }
 
 NODE_STATE_MAP = {
     'RUNNING': NodeState.RUNNING,
-    'HALTED': NodeState.TERMINATED,
-    'PAUSED': NodeState.TERMINATED,
+    'HALTED': NodeState.UNKNOWN,
+    'PAUSED': NodeState.UNKNOWN,
 }
 
 SL_BASE_TEMPLATES = [
@@ -194,6 +194,12 @@ class SoftLayerNodeDriver(NodeDriver):
             driver=self,
             extra={
                 'password': password,
+                'maxCpu': host.get('maxCpu', None),
+                'datacenter': host.get('datacenter', {}).get('longName', None),
+                'maxMemory': host.get('maxMemory', None),
+                'image': host['operatingSystem'].get('softwareLicense',
+                         {}).get('softwareDescription',
+                         {}).get('longDescription', None),
                 'hourlyRecurringFee': hourlyRecurringFee,
                 'recurringFee': recurringFee,
                 'recurringMonths': recurringMonths,
@@ -210,6 +216,18 @@ class SoftLayerNodeDriver(NodeDriver):
     def reboot_node(self, node):
         self.connection.request(
             'SoftLayer_Virtual_Guest', 'rebootSoft', id=node.id
+        )
+        return True
+
+    def ex_stop_node(self, node):
+        self.connection.request(
+            'SoftLayer_Virtual_Guest', 'powerOff', id=node.id
+        )
+        return True
+
+    def ex_start_node(self, node):
+        self.connection.request(
+            'SoftLayer_Virtual_Guest', 'powerOn', id=node.id
         )
         return True
 
@@ -239,24 +257,24 @@ class SoftLayerNodeDriver(NodeDriver):
     def create_node(self, **kwargs):
         """Create a new SoftLayer node
 
-        @inherits: L{NodeDriver.create_node}
+        @inherits: :class:`NodeDriver.create_node`
 
-        @keyword    ex_domain: e.g. libcloud.org
-        @type       ex_domain: C{str}
-        @keyword    ex_cpus: e.g. 2
-        @type       ex_cpus: C{int}
-        @keyword    ex_disk: e.g. 100
-        @type       ex_disk: C{int}
-        @keyword    ex_ram: e.g. 2048
-        @type       ex_ram: C{int}
-        @keyword    ex_bandwidth: e.g. 100
-        @type       ex_bandwidth: C{int}
-        @keyword    ex_local_disk: e.g. True
-        @type       ex_local_disk: C{bool}
-        @keyword    ex_datacenter: e.g. Dal05
-        @type       ex_datacenter: C{str}
-        @keyword    ex_os: e.g. UBUNTU_LATEST
-        @type       ex_os: C{str}
+        :keyword    ex_domain: e.g. libcloud.org
+        :type       ex_domain: ``str``
+        :keyword    ex_cpus: e.g. 2
+        :type       ex_cpus: ``int``
+        :keyword    ex_disk: e.g. 100
+        :type       ex_disk: ``int``
+        :keyword    ex_ram: e.g. 2048
+        :type       ex_ram: ``int``
+        :keyword    ex_bandwidth: e.g. 100
+        :type       ex_bandwidth: ``int``
+        :keyword    ex_local_disk: e.g. True
+        :type       ex_local_disk: ``bool``
+        :keyword    ex_datacenter: e.g. Dal05
+        :type       ex_datacenter: ``str``
+        :keyword    ex_os: e.g. UBUNTU_LATEST
+        :type       ex_os: ``str``
         """
         name = kwargs['name']
         os = 'DEBIAN_LATEST'
@@ -365,21 +383,28 @@ class SoftLayerNodeDriver(NodeDriver):
 
     def _to_loc(self, loc):
         country = 'UNKNOWN'
-        if loc['name'] in DATACENTERS:
-            country = DATACENTERS[loc['name']]['country']
-        return NodeLocation(id=loc['name'], name=loc['longName'],
+        loc_id = loc['template']['datacenter']['name']
+        name = loc_id
+
+        if loc_id in DATACENTERS:
+            country = DATACENTERS[loc_id]['country']
+            name = DATACENTERS[loc_id].get('name', loc_id)
+        return NodeLocation(id=loc_id, name=name,
                             country=country, driver=self)
 
     def list_locations(self):
         res = self.connection.request(
-            'SoftLayer_Location_Datacenter', 'getDatacenters'
+            'SoftLayer_Virtual_Guest', 'getCreateObjectOptions'
         ).object
-        return [self._to_loc(l) for l in res]
+        return [self._to_loc(l) for l in res['datacenters']]
 
     def list_nodes(self):
         mask = {
             'virtualGuests': {
                 'powerState': '',
+                'hostname': '',
+                'maxMemory': '',
+                'datacenter': '',
                 'operatingSystem': {'passwords': ''},
                 'billingItem': '',
             },
