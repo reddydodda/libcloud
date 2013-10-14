@@ -47,7 +47,7 @@ DATACENTERS = {
 
 NODE_STATE_MAP = {
     'RUNNING': NodeState.RUNNING,
-    'HALTED': NodeState.UNKNOWN,
+    'HALTED': NodeState.PENDING,
     'PAUSED': NodeState.UNKNOWN,
 }
 
@@ -63,8 +63,28 @@ SL_BASE_TEMPLATES = [
         'disk': 100,
         'cpus': 1,
     }, {
-        'name': '2 CPU, 2GB ram, 100GB',
+        'name': '1 CPU, 2GB ram, 100GB',
+        'ram': 2 * 1024,
+        'disk': 100,
+        'cpus': 1,
+    }, {
+        'name': '1 CPU, 4GB ram, 100GB',
         'ram': 4 * 1024,
+        'disk': 100,
+        'cpus': 1,
+    }, {
+        'name': '2 CPU, 2GB ram, 100GB',
+        'ram': 2 * 1024,
+        'disk': 100,
+        'cpus': 2,
+    }, {
+        'name': '2 CPU, 4GB ram, 100GB',
+        'ram': 4 * 1024,
+        'disk': 100,
+        'cpus': 2,
+    }, {
+        'name': '2 CPU, 8GB ram, 100GB',
+        'ram': 8 * 1024,
         'disk': 100,
         'cpus': 2,
     }, {
@@ -73,8 +93,28 @@ SL_BASE_TEMPLATES = [
         'disk': 100,
         'cpus': 4,
     }, {
+        'name': '4 CPU, 8GB ram, 100GB',
+        'ram': 8 * 1024,
+        'disk': 100,
+        'cpus': 4,
+    }, {
+        'name': '6 CPU, 4GB ram, 100GB',
+        'ram': 4 * 1024,
+        'disk': 100,
+        'cpus': 6,
+    }, {
+        'name': '6 CPU, 8GB ram, 100GB',
+        'ram': 8 * 1024,
+        'disk': 100,
+        'cpus': 6,
+    }, {
         'name': '8 CPU, 8GB ram, 100GB',
         'ram': 8 * 1024,
+        'disk': 100,
+        'cpus': 8,
+    }, {
+        'name': '8 CPU, 16GB ram, 100GB',
+        'ram': 16 * 1024,
         'disk': 100,
         'cpus': 8,
     }]
@@ -84,12 +124,7 @@ for i, template in enumerate(SL_BASE_TEMPLATES):
     # Add local disk templates
     local = template.copy()
     local['local_disk'] = True
-    SL_TEMPLATES['sl%s_local_disk' % (i + 1,)] = local
-
-    # Add san disk templates
-    san = template.copy()
-    san['local_disk'] = False
-    SL_TEMPLATES['sl%s_san_disk' % (i + 1,)] = san
+    SL_TEMPLATES[i] = local
 
 
 class SoftLayerException(LibcloudError):
@@ -189,15 +224,15 @@ class SoftLayerNodeDriver(NodeDriver):
             state=NODE_STATE_MAP.get(
                 host['powerState']['keyName'], NodeState.UNKNOWN
             ),
-            public_ips=[host['primaryIpAddress']],
-            private_ips=[host['primaryBackendIpAddress']],
+            public_ips=[host.get('primaryIpAddress')],
+            private_ips=[host.get('primaryBackendIpAddress')],
             driver=self,
             extra={
                 'password': password,
                 'maxCpu': host.get('maxCpu', None),
                 'datacenter': host.get('datacenter', {}).get('longName', None),
                 'maxMemory': host.get('maxMemory', None),
-                'image': host['operatingSystem'].get('softwareLicense',
+                'image': host.get('operatingSystem', {}).get('softwareLicense',
                          {}).get('softwareDescription',
                          {}).get('longDescription', None),
                 'hourlyRecurringFee': hourlyRecurringFee,
