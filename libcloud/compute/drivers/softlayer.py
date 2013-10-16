@@ -47,8 +47,9 @@ DATACENTERS = {
 
 NODE_STATE_MAP = {
     'RUNNING': NodeState.RUNNING,
-    'HALTED': NodeState.PENDING,
+    'HALTED': NodeState.UNKNOWN,
     'PAUSED': NodeState.UNKNOWN,
+    'INITIATING': NodeState.PENDING
 }
 
 SL_BASE_TEMPLATES = [
@@ -217,13 +218,16 @@ class SoftLayerNodeDriver(NodeDriver):
         recurringFee = host.get('billingItem', {}).get('recurringFee', 0)
         recurringMonths = host.get('billingItem', {}).get('recurringMonths', 0)
         createDate = host.get('createDate', None)
-
+        state = NODE_STATE_MAP.get(
+                host['powerState']['keyName'], NodeState.UNKNOWN)
+        if not password and state == NodeState.UNKNOWN:
+            state = NODE_STATE_MAP['INITIATING']
+        #When machine is launching it gets state halted
+        #we change this to pending
         return Node(
             id=host['id'],
             name=host['hostname'],
-            state=NODE_STATE_MAP.get(
-                host['powerState']['keyName'], NodeState.UNKNOWN
-            ),
+            state=state,
             public_ips=[host.get('primaryIpAddress')],
             private_ips=[host.get('primaryBackendIpAddress')],
             driver=self,
