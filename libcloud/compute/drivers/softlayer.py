@@ -322,14 +322,14 @@ class SoftLayerNodeDriver(NodeDriver):
         elif 'image' in kwargs:
             os = kwargs['image'].id
 
-        size = kwargs.get('size', NodeSize(id=None, name='Custom', ram=None,
+        size = kwargs.get('size', NodeSize(id=123, name='Custom', ram=None,
                                            disk=None, bandwidth=None,
                                            price=None,
                                            driver=self.connection.driver))
-
-        ex_size_data = SL_TEMPLATES.get(size.id) or {}
+        ex_size_data = SL_TEMPLATES.get(int(size.id)) or {}
+        #plan keys are ints
         cpu_count = kwargs.get('ex_cpus') or ex_size_data.get('cpus') or 1
-        ram = kwargs.get('ex_ram') or size.ram or 2048
+        ram = kwargs.get('ex_ram') or ex_size_data.get('ram') or 2048
         bandwidth = kwargs.get('ex_bandwidth') or size.bandwidth or 10
         hourly = 'true' if kwargs.get('ex_hourly', True) else 'false'
 
@@ -359,7 +359,7 @@ class SoftLayerNodeDriver(NodeDriver):
         if domain is None:
             # TODO: domain is a required argument for the Sofylayer API, but it
             # it shouldn't be.
-            domain = 'example.com'
+            domain = 'mist.io'
 
         newCCI = {
             'hostname': name,
