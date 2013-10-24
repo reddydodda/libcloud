@@ -28,11 +28,12 @@ class DigitalOceanResponse(JsonResponse):
     def parse_error(self):
         if self.status == httplib.FOUND and '/api/error' in self.body:
             # Hacky, but DigitalOcean error responses are awful
-            raise InvalidCredsError(self.body)
+            raise InvalidCredsError(self.body['message'])
         elif self.status == httplib.UNAUTHORIZED:
             body = self.parse_body()
             raise InvalidCredsError(body['message'])
 
+        return self.body.get('message')
 
 class SSHKey(object):
     def __init__(self, id, name, pub_key):
@@ -116,6 +117,9 @@ class DigitalOceanNodeDriver(NodeDriver):
             params['ssh_key_ids'] = ','.join(ex_ssh_key_ids)
 
         data = self.connection.request('/droplets/new', params=params).object
+        if data.get('status') == 'ERROR':
+            raise Exception(data.get('message'))
+            
         return self._to_node(data=data['droplet'])
 
     def reboot_node(self, node):
@@ -163,7 +167,7 @@ class DigitalOceanNodeDriver(NodeDriver):
         return res.status == httplib.OK
 
     def _to_node(self, data):
-        extra_keys = ['backups_active', 'region_id']
+        extra_keys = ['image_id', 'ip_address', 'private_ip_address', 'backups_active', 'region_id']
         if 'status' in data:
             state = self.NODE_STATE_MAP.get(data['status'], NodeState.UNKNOWN)
         else:
@@ -200,9 +204,9 @@ class DigitalOceanNodeDriver(NodeDriver):
             ram = int(ram.replace('mb', ''))
         elif 'gb' in ram:
             ram = int(ram.replace('gb', '')) * 1024
-
+        price = "$%s/hour, $%s/month" % (data.get('cost_per_hour'), data.get('cost_per_month'))
         return NodeSize(id=data['id'], name=data['name'], ram=ram, disk=0,
-                        bandwidth=0, price=0, driver=self)
+                        bandwidth=0, price=price, driver=self)
 
     def _to_ssh_key(self, data):
         return SSHKey(id=data['id'], name=data['name'],
