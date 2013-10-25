@@ -186,13 +186,18 @@ class DigitalOceanNodeDriver(NodeDriver):
         else:
             public_ips = []
 
+        if 'private_ip_address' in data and data['private_ip_address'] is not None:
+            private_ips = [data['private_ip_address']]
+        else:
+            private_ips = []
+
         extra = {}
         for key in extra_keys:
             if key in data:
                 extra[key] = data[key]
 
         node = Node(id=data['id'], name=data['name'], state=state,
-                    public_ips=public_ips, private_ips=None, extra=extra,
+                    public_ips=public_ips, private_ips=private_ips, extra=extra,
                     driver=self)
         return node
 
