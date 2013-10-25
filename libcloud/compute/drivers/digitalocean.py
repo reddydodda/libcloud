@@ -37,10 +37,11 @@ class DigitalOceanResponse(JsonResponse):
         elif self.status == httplib.UNAUTHORIZED:
             body = self.parse_body()
             raise InvalidCredsError(body['message'])
-        if type(self.body) == str:        
+        if type(self.body) == str:
             return json.loads(self.body).get('message')
         elif type(self.body) == dict:
             return self.body.get('message')
+
 
 class SSHKey(object):
     def __init__(self, id, name, pub_key):
@@ -86,7 +87,7 @@ class DigitalOceanNodeDriver(NodeDriver):
     features = {'create_node': ['ssh_key']}
 
     NODE_STATE_MAP = {'new': NodeState.PENDING,
-                      'off': NodeState.REBOOTING,
+                      'off': NodeState.UNKNOWN,
                       'active': NodeState.RUNNING}
 
     def list_nodes(self):
@@ -127,8 +128,16 @@ class DigitalOceanNodeDriver(NodeDriver):
         data = self.connection.request('/droplets/new', params=params).object
         if data.get('status') == 'ERROR':
             raise Exception(data.get('message'))
-            
+
         return self._to_node(data=data['droplet'])
+
+    def ex_start_node(self, node):
+        res = self.connection.request('/droplets/%s/power_on/' % (node.id))
+        return res.status == httplib.OK
+
+    def ex_stop_node(self, node):
+        res = self.connection.request('/droplets/%s/power_off/' % (node.id))
+        return res.status == httplib.OK
 
     def reboot_node(self, node):
         res = self.connection.request('/droplets/%s/reboot/' % (node.id))
@@ -175,7 +184,7 @@ class DigitalOceanNodeDriver(NodeDriver):
         return res.status == httplib.OK
 
     def _to_node(self, data):
-        extra_keys = ['image_id', 'ip_address', 'private_ip_address', 'backups_active', 'region_id']
+        extra_keys = ['image_id', 'backups_active', 'region_id']
         if 'status' in data:
             state = self.NODE_STATE_MAP.get(data['status'], NodeState.UNKNOWN)
         else:
@@ -186,7 +195,8 @@ class DigitalOceanNodeDriver(NodeDriver):
         else:
             public_ips = []
 
-        if 'private_ip_address' in data and data['private_ip_address'] is not None:
+        if 'private_ip_address' in data \
+            and data['private_ip_address'] is not None:
             private_ips = [data['private_ip_address']]
         else:
             private_ips = []
@@ -196,8 +206,12 @@ class DigitalOceanNodeDriver(NodeDriver):
             if key in data:
                 extra[key] = data[key]
 
-        node = Node(id=data['id'], name=data['name'], state=state,
-                    public_ips=public_ips, private_ips=private_ips, extra=extra,
+        node = Node(id=data['id'],
+                    name=data['name'],
+                    state=state,
+                    public_ips=public_ips,
+                    private_ips=private_ips,
+                    extra=extra,
                     driver=self)
         return node
 
@@ -217,7 +231,8 @@ class DigitalOceanNodeDriver(NodeDriver):
             ram = int(ram.replace('mb', ''))
         elif 'gb' in ram:
             ram = int(ram.replace('gb', '')) * 1024
-        price = "$%s/hour, $%s/month" % (data.get('cost_per_hour'), data.get('cost_per_month'))
+        price = "$%s/hour, $%s/month" % \
+               (data.get('cost_per_hour'), data.get('cost_per_month'))
         return NodeSize(id=data['id'], name=data['name'], ram=ram, disk=0,
                         bandwidth=0, price=price, driver=self)
 
