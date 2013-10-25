@@ -16,6 +16,11 @@
 Digital Ocean Driver
 """
 
+try:
+    import simplejson as json
+except ImportError:
+    import json
+
 from libcloud.utils.py3 import httplib
 
 from libcloud.common.base import ConnectionUserAndKey, JsonResponse
@@ -28,10 +33,14 @@ class DigitalOceanResponse(JsonResponse):
     def parse_error(self):
         if self.status == httplib.FOUND and '/api/error' in self.body:
             # Hacky, but DigitalOcean error responses are awful
-            raise InvalidCredsError(self.body)
+            raise InvalidCredsError(self.body['message'])
         elif self.status == httplib.UNAUTHORIZED:
             body = self.parse_body()
             raise InvalidCredsError(body['message'])
+        if type(self.body) == str:
+            return json.loads(self.body).get('message')
+        elif type(self.body) == dict:
+            return self.body.get('message')
 
 
 class SSHKey(object):
@@ -78,7 +87,7 @@ class DigitalOceanNodeDriver(NodeDriver):
     features = {'create_node': ['ssh_key']}
 
     NODE_STATE_MAP = {'new': NodeState.PENDING,
-                      'off': NodeState.REBOOTING,
+                      'off': NodeState.UNKNOWN,
                       'active': NodeState.RUNNING}
 
     def list_nodes(self):
@@ -114,9 +123,21 @@ class DigitalOceanNodeDriver(NodeDriver):
 
         if ex_ssh_key_ids:
             params['ssh_key_ids'] = ','.join(ex_ssh_key_ids)
-
+        private_networking = kwargs.get('private_networking', False)
+        params['private_networking'] = private_networking
         data = self.connection.request('/droplets/new', params=params).object
+        if data.get('status') == 'ERROR':
+            raise Exception(data.get('message'))
+
         return self._to_node(data=data['droplet'])
+
+    def ex_start_node(self, node):
+        res = self.connection.request('/droplets/%s/power_on/' % (node.id))
+        return res.status == httplib.OK
+
+    def ex_stop_node(self, node):
+        res = self.connection.request('/droplets/%s/power_off/' % (node.id))
+        return res.status == httplib.OK
 
     def reboot_node(self, node):
         res = self.connection.request('/droplets/%s/reboot/' % (node.id))
@@ -163,7 +184,7 @@ class DigitalOceanNodeDriver(NodeDriver):
         return res.status == httplib.OK
 
     def _to_node(self, data):
-        extra_keys = ['backups_active', 'region_id']
+        extra_keys = ['image_id', 'backups_active', 'region_id']
         if 'status' in data:
             state = self.NODE_STATE_MAP.get(data['status'], NodeState.UNKNOWN)
         else:
@@ -174,13 +195,23 @@ class DigitalOceanNodeDriver(NodeDriver):
         else:
             public_ips = []
 
+        if 'private_ip_address' in data \
+            and data['private_ip_address'] is not None:
+            private_ips = [data['private_ip_address']]
+        else:
+            private_ips = []
+
         extra = {}
         for key in extra_keys:
             if key in data:
                 extra[key] = data[key]
 
-        node = Node(id=data['id'], name=data['name'], state=state,
-                    public_ips=public_ips, private_ips=None, extra=extra,
+        node = Node(id=data['id'],
+                    name=data['name'],
+                    state=state,
+                    public_ips=public_ips,
+                    private_ips=private_ips,
+                    extra=extra,
                     driver=self)
         return node
 
@@ -200,9 +231,10 @@ class DigitalOceanNodeDriver(NodeDriver):
             ram = int(ram.replace('mb', ''))
         elif 'gb' in ram:
             ram = int(ram.replace('gb', '')) * 1024
-
+        price = "$%s/hour, $%s/month" % \
+               (data.get('cost_per_hour'), data.get('cost_per_month'))
         return NodeSize(id=data['id'], name=data['name'], ram=ram, disk=0,
-                        bandwidth=0, price=0, driver=self)
+                        bandwidth=0, price=price, driver=self)
 
     def _to_ssh_key(self, data):
         return SSHKey(id=data['id'], name=data['name'],
