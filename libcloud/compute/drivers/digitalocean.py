@@ -16,6 +16,11 @@
 Digital Ocean Driver
 """
 
+try:
+    import simplejson as json
+except ImportError:
+    import json
+
 from libcloud.utils.py3 import httplib
 
 from libcloud.common.base import ConnectionUserAndKey, JsonResponse
@@ -32,8 +37,10 @@ class DigitalOceanResponse(JsonResponse):
         elif self.status == httplib.UNAUTHORIZED:
             body = self.parse_body()
             raise InvalidCredsError(body['message'])
-
-        return self.body.get('message')
+        if type(self.body) == str:        
+            return json.loads(self.body).get('message')
+        elif type(self.body) == dict:
+            return self.body.get('message')
 
 class SSHKey(object):
     def __init__(self, id, name, pub_key):
@@ -115,7 +122,8 @@ class DigitalOceanNodeDriver(NodeDriver):
 
         if ex_ssh_key_ids:
             params['ssh_key_ids'] = ','.join(ex_ssh_key_ids)
-
+        private_networking = kwargs.get('private_networking', False)
+        params['private_networking'] = private_networking
         data = self.connection.request('/droplets/new', params=params).object
         if data.get('status') == 'ERROR':
             raise Exception(data.get('message'))
