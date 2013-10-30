@@ -21,16 +21,9 @@ Created by Markos Gogoulos (https://mist.io)
 
 import base64
 import sys
-import string
-import random
 import time
 import os
 import binascii
-
-try:
-    import simplejson as json
-except:
-    import json
 
 from libcloud.utils.py3 import httplib
 from libcloud.utils.py3 import b
@@ -39,9 +32,10 @@ from libcloud.utils.py3 import urlencode
 from libcloud.compute.providers import Provider
 from libcloud.compute.base import is_private_subnet
 from libcloud.common.base import JsonResponse, ConnectionUserAndKey
-from libcloud.compute.types import NodeState, InvalidCredsError
+from libcloud.compute.types import (NodeState, InvalidCredsError,
+                                    LibcloudError)
 from libcloud.compute.base import (Node, NodeDriver, NodeImage, NodeSize,
-                                    NodeLocation)
+                                   NodeLocation)
 
 API_HOST = 'api.nephoscale.com'
 
@@ -114,7 +108,6 @@ class NephoscaleNodeDriver(NodeDriver):
     """
     Nephoscale node driver class.
 
-    >>> from libcloud.compute.types import Provider
     >>> from libcloud.compute.providers import get_driver
     >>> driver = get_driver('nephoscale')
     >>> conn = driver('nepho_user','nepho_password')
@@ -160,7 +153,7 @@ class NephoscaleNodeDriver(NodeDriver):
                      'cores': value.get('cores'),
                      'uri': value.get('uri'),
                      'storage': value.get('storage'),
-            }
+                     }
             image = NodeImage(id=value.get('id'),
                               name=value.get('friendly_name'),
                               driver=self,
@@ -236,24 +229,33 @@ class NephoscaleNodeDriver(NodeDriver):
     def ex_list_keypairs(self, ssh=False, password=False, key_group=None):
         """
         List available console and server keys
+        There are two types of keys for NephoScale, ssh and password keys.
+        If run without arguments, lists all keys. Otherwise list only
+        ssh keys, or only password keys.
+        Password keys with key_group 4 are console keys. When a server
+        is created, it has two keys, one password or ssh key, and
+        one password console key.
 
-        :keyword ssh: if specified, show ssh keys only
+        :keyword ssh: if specified, show ssh keys only (optional)
         :type    ssh: ``bool``
 
-        :keyword password: if specified, show password keys only
+        :keyword password: if specified, show password keys only (optional)
         :type    password: ``bool``
 
         :keyword key_group: if specified, show keys with this key_group only
-                            eg key_group=4 for console password keys
+                            eg key_group=4 for console password keys (optional)
         :type    key_group: ``int``
 
         :rtype: ``list`` of :class:`NodeKey`
         """
+        if (ssh and password):
+            raise LibcloudError('You can only supply ssh or password. To \
+get all keys call with no arguments')
         if ssh:
             result = self.connection.request('/key/sshrsa/').object
-        if password:
+        elif password:
             result = self.connection.request('/key/password/').object
-        if not (ssh or password):
+        else:
             result = self.connection.request('/key/').object
         keys = [self._to_key(value) for value in result.get('data', [])]
 
@@ -263,7 +265,7 @@ class NephoscaleNodeDriver(NodeDriver):
         return keys
 
     def ex_create_keypair(self, name, public_key=None, password=None,
-                       key_group=None):
+                          key_group=None):
         """Creates a key, ssh or password, for server or console
            The group for the key (key_group) is 1 for Server and 4 for Console
            Returns the id of the created key
@@ -279,7 +281,7 @@ class NephoscaleNodeDriver(NodeDriver):
             }
             params = urlencode(data)
             result = self.connection.request('/key/sshrsa/', data=params,
-                                         method='POST').object
+                                             method='POST').object
         else:
             if not key_group:
                 key_group = 4
@@ -292,7 +294,7 @@ class NephoscaleNodeDriver(NodeDriver):
                 }
             params = urlencode(data)
             result = self.connection.request('/key/password/', data=params,
-                                         method='POST').object
+                                             method='POST').object
         return result.get('data', {}).get('id', '')
 
     def ex_delete_keypair(self, key_id, ssh=False):
@@ -303,7 +305,7 @@ class NephoscaleNodeDriver(NodeDriver):
                                              method='DELETE').object
         else:
             result = self.connection.request('/key/password/%s/' % key_id,
-                                         method='DELETE').object
+                                             method='DELETE').object
         return result.get('response') in VALID_RESPONSE_CODES
 
     def create_node(self, name, size, image, server_key=None,
@@ -314,7 +316,6 @@ class NephoscaleNodeDriver(NodeDriver):
         times until the server is created and assigned a public IP address,
         so that deploy_node can be run
 
-        >>> from libcloud.compute.types import Provider
         >>> from libcloud.compute.providers import get_driver
         >>> driver = get_driver('nephoscale')
         >>> conn = driver('nepho_user','nepho_password')
@@ -337,7 +338,7 @@ class NephoscaleNodeDriver(NodeDriver):
 
         We can also create an ssh key, plus a console key and
         deploy node with them
-        >>> server_key = conn.ex_create_keypair(name, public_key=key)
+        >>> server_key = conn.ex_create_keypair(name, public_key='123')
         71211
         >>> console_key = conn.ex_create_keypair(name, key_group=4)
         71213
@@ -348,23 +349,19 @@ class NephoscaleNodeDriver(NodeDriver):
         We can also specify the location
         >>> location = conn.list_locations()[0]
         >>> node = conn.create_node(name=name,
-                                    size=size,
-                                    image=image,
-                                    console_key=console_key,
-                                    server_key=server_key,
-                                    connect_attempts=10,
-                                    nowait=True,
-                                    zone=location.id)
+            ...                     size=size,
+            ...                     image=image,
+            ...                     console_key=console_key,
+            ...                     server_key=server_key,
+            ...                     connect_attempts=10,
+            ...                     nowait=True,
+            ...                     zone=location.id)
         """
-        try:
-            hostname = kwargs.get('hostname', name)
-            service_type = size.id
-            image = image.id
-            connect_attempts = int(kwargs.get('connect_attempts',
-                                   CONNECT_ATTEMPTS))
-        except Exception:
-            e = sys.exc_info()[1]
-            raise Exception("Error on create node: %s" % e)
+        hostname = kwargs.get('hostname', name)
+        service_type = size.id
+        image = image.id
+        connect_attempts = int(kwargs.get('connect_attempts',
+                               CONNECT_ATTEMPTS))
 
         data = {'name': name,
                 'hostname': hostname,
@@ -373,7 +370,7 @@ class NephoscaleNodeDriver(NodeDriver):
                 'server_key': server_key,
                 'console_key': console_key,
                 'zone': zone
-        }
+                }
 
         params = urlencode(data)
         try:
@@ -382,8 +379,8 @@ class NephoscaleNodeDriver(NodeDriver):
         except Exception:
             e = sys.exc_info()[1]
             raise Exception("Failed to create node %s" % e)
-        node = Node(id='', name=name, state='', public_ips='', private_ips='',
-                    driver=self)
+        node = Node(id='', name=name, state=NodeState.UNKNOWN, public_ips=[],
+                    private_ips=[], driver=self)
 
         nowait = kwargs.get('ex_wait', False)
         if not nowait:
@@ -396,7 +393,7 @@ class NephoscaleNodeDriver(NodeDriver):
             while connect_attempts > 0:
                 nodes = self.list_nodes()
                 created_node = [c_node for c_node in nodes if
-                                         c_node.name == name]
+                                c_node.name == name]
                 if created_node:
                     return created_node[0]
                 else:
@@ -438,10 +435,10 @@ class NephoscaleNodeDriver(NodeDriver):
 
     def _to_key(self, data):
         return NodeKey(id=data.get('id'),
-                      name=data.get('name'),
-                      password=data.get('password'),
-                      key_group=data.get('key_group'),
-                      public_key=data.get('public_key'))
+                       name=data.get('name'),
+                       password=data.get('password'),
+                       key_group=data.get('key_group'),
+                       public_key=data.get('public_key'))
 
     def random_password(self, size=8):
         value = os.urandom(size)

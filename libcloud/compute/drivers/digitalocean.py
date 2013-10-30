@@ -66,7 +66,7 @@ class DigitalOceanConnection(ConnectionUserAndKey):
         """
         Add parameters that are necessary for every request
 
-        This method adds C{api_key} and C{api_responseFormat} to
+        This method adds ``client_id`` and ``api_key`` to
         the request.
         """
         params['client_id'] = self.user_id
@@ -84,7 +84,6 @@ class DigitalOceanNodeDriver(NodeDriver):
     type = Provider.DIGITAL_OCEAN
     name = 'Digital Ocean'
     website = 'https://www.digitalocean.com'
-    features = {'create_node': ['ssh_key']}
 
     NODE_STATE_MAP = {'new': NodeState.PENDING,
                       'off': NodeState.UNKNOWN,
@@ -111,12 +110,12 @@ class DigitalOceanNodeDriver(NodeDriver):
         """
         Create a node.
 
-        @keyword    ex_ssh_key_ids: A list of ssh key ids which will be added
+        :keyword    ex_ssh_key_ids: A list of ssh key ids which will be added
                                    to the server. (optional)
-        @type       ex_ssh_key_ids: C{list} of C{str}
+        :type       ex_ssh_key_ids: ``list`` of ``str``
 
-        @return: The newly created node.
-        @rtype: L{Node}
+        :return: The newly created node.
+        :rtype: :class:`Node`
         """
         params = {'name': name, 'size_id': size.id, 'image_id': image.id,
                   'region_id': location.id}
@@ -151,8 +150,8 @@ class DigitalOceanNodeDriver(NodeDriver):
         """
         List all the available SSH keys.
 
-        @return: Available SSH keys.
-        @rtype: C{list} of L{SSHKey}
+        :return: Available SSH keys.
+        :rtype: ``list`` of :class:`SSHKey`
         """
         data = self.connection.request('/ssh_keys').object['ssh_keys']
         return list(map(self._to_ssh_key, data))
@@ -161,11 +160,11 @@ class DigitalOceanNodeDriver(NodeDriver):
         """
         Create a new SSH key.
 
-        @param      name: Key name (required)
-        @type       name: C{str}
+        :param      name: Key name (required)
+        :type       name: ``str``
 
-        @param      name: Valid public key string (required)
-        @type       name: C{str}
+        :param      name: Valid public key string (required)
+        :type       name: ``str``
         """
         params = {'name': name, 'ssh_pub_key': ssh_key_pub}
         data = self.connection.request('/ssh_keys/new/', method='GET',
@@ -177,8 +176,8 @@ class DigitalOceanNodeDriver(NodeDriver):
         """
         Delete an existing SSH key.
 
-        @param      key_id: SSH key id (required)
-        @type       key_id: C{str}
+        :param      key_id: SSH key id (required)
+        :type       key_id: ``str``
         """
         res = self.connection.request('/ssh_keys/%s/destroy/' % (key_id))
         return res.status == httplib.OK
