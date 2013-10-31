@@ -232,7 +232,8 @@ class DigitalOceanNodeDriver(NodeDriver):
             ram = int(ram.replace('gb', '')) * 1024
         price = "$%s/hour, $%s/month" % \
                (data.get('cost_per_hour'), data.get('cost_per_month'))
-        return NodeSize(id=data['id'], name=data['name'], ram=ram, disk=0,
+        disk = "%sGB SSD" % data.get('disk')
+        return NodeSize(id=data['id'], name=data['name'], ram=ram, disk=disk,
                         bandwidth=0, price=price, driver=self)
 
     def _to_ssh_key(self, data):
