@@ -127,7 +127,14 @@ class SoftLayerException(LibcloudError):
     """
     Exception class for SoftLayer driver
     """
-    pass
+    def __init__(self, original_exception=None):
+        self.value = original_exception
+
+    def __str__(self):
+        return self.__repr__()
+
+    def __repr__(self):
+        return repr(self.value.strip('SoftLayer_Exception: '))
 
 
 class SoftLayerResponse(XMLRPCResponse):
