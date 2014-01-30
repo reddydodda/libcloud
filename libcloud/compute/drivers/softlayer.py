@@ -25,7 +25,7 @@ from libcloud.compute.types import Provider, NodeState
 from libcloud.compute.base import NodeDriver, Node, NodeLocation, NodeSize, \
     NodeImage
 
-DEFAULT_DOMAIN = 'example.com'
+DEFAULT_DOMAIN = 'mist.io'
 DEFAULT_CPU_SIZE = 1
 DEFAULT_RAM_SIZE = 2048
 DEFAULT_DISK_SIZE = 100
@@ -132,7 +132,14 @@ class SoftLayerException(LibcloudError):
     """
     Exception class for SoftLayer driver
     """
-    pass
+    def __init__(self, original_exception=None):
+        self.value = original_exception
+
+    def __str__(self):
+        return self.__repr__()
+
+    def __repr__(self):
+        return repr(self.value.strip('SoftLayer_Exception: '))
 
 
 class SoftLayerResponse(XMLRPCResponse):

@@ -199,7 +199,7 @@ class RackspaceNodeDriver(OpenStack_1_1_NodeDriver):
         elif region == 'syd':
             self.api_name = 'rackspacenovasyd'
         else:
-            self.api_name = 'rackspacenovaus'
+            self.api_name = 'rackspacenova%s' % region        
 
         super(RackspaceNodeDriver, self).__init__(key=key, secret=secret,
                                                   secure=secure, host=host,
