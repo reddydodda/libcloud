@@ -138,6 +138,14 @@ class CloudFilesTests(unittest.TestCase):
             self.driver.connection.get_endpoint())
         self.driver.connection.cdn_request = False
 
+    def test_endpoint_pointer(self):
+        kwargs = {'use_internal_url': False}
+        driver = CloudFilesStorageDriver('driver', 'dummy', **kwargs)
+        self.assertEquals(driver.connection.endpoint_url, 'publicURL')
+        kwargs = {'use_internal_url': True}
+        driver = CloudFilesStorageDriver('driver', 'dummy', **kwargs)
+        self.assertEquals(driver.connection.endpoint_url, 'internalURL')
+
     def test_list_containers(self):
         CloudFilesMockHttp.type = 'EMPTY'
         containers = self.driver.list_containers()
@@ -439,17 +447,13 @@ class CloudFilesTests(unittest.TestCase):
         file_path = os.path.abspath(__file__)
         container = Container(name='foo_bar_container', extra={}, driver=self)
         object_name = 'foo_test_upload'
-        try:
-            self.driver.upload_object(file_path=file_path, container=container,
-                                      object_name=object_name)
-        except AttributeError:
-            pass
-        else:
-            self.fail(
-                'File content type not provided'
-                ' but an exception was not thrown')
-        finally:
-            libcloud.utils.files.guess_file_mime_type = old_func
+
+        obj = self.driver.upload_object(file_path=file_path, verify_hash=False,
+                                        container=container,
+                                        object_name=object_name)
+
+        self.assertEqual(obj.name, object_name)
+        libcloud.utils.files.guess_file_mime_type = old_func
 
     def test_upload_object_error(self):
         def dummy_content_type(name):

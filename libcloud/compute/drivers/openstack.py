@@ -16,32 +16,30 @@
 OpenStack driver
 """
 
-from __future__ import with_statement
-
 try:
     import simplejson as json
 except ImportError:
     import json
 
 import warnings
+import base64
 
 from libcloud.utils.py3 import httplib
 from libcloud.utils.py3 import b
 from libcloud.utils.py3 import next
 from libcloud.utils.py3 import urlparse
 
-import os
-import base64
-
 from xml.etree import ElementTree as ET
 
 from libcloud.common.openstack import OpenStackBaseConnection
 from libcloud.common.openstack import OpenStackDriverMixin
 from libcloud.common.types import MalformedResponseError, ProviderError
-from libcloud.compute.types import NodeState, Provider
-from libcloud.compute.base import is_private_subnet
+from libcloud.utils.networking import is_private_subnet
 from libcloud.compute.base import NodeSize, NodeImage
 from libcloud.compute.base import NodeDriver, Node, NodeLocation, StorageVolume
+from libcloud.compute.base import KeyPair
+from libcloud.compute.types import NodeState, Provider
+from libcloud.compute.types import KeyPairDoesNotExistError
 from libcloud.pricing import get_size_price
 from libcloud.common.base import Response
 from libcloud.utils.xml import findall
@@ -110,12 +108,19 @@ class OpenStackResponse(Response):
         body = self.parse_body()
 
         if self.has_content_type('application/xml'):
-            text = "; ".join([err.text or '' for err in body.getiterator()
+            text = '; '.join([err.text or '' for err in body.getiterator()
                               if err.text])
         elif self.has_content_type('application/json'):
-            values = body.values()
+            values = list(body.values())
 
-            if len(values) > 0 and 'message' in values[0]:
+            context = self.connection.context
+            driver = self.connection.driver
+            key_pair_name = context.get('key_pair_name', None)
+
+            if len(values) > 0 and values[0]['code'] == 404 and key_pair_name:
+                raise KeyPairDoesNotExistError(name=key_pair_name,
+                                               driver=driver)
+            elif len(values) > 0 and 'message' in values[0]:
                 text = ';'.join([fault_data['message'] for fault_data
                                  in values])
             else:
@@ -145,9 +150,6 @@ class OpenStackComputeConnection(OpenStackBaseConnection):
 
         if method in ("POST", "PUT"):
             headers = {'Content-Type': self.default_content_type}
-
-        if method == "GET":
-            self._add_cache_busting_to_params(params)
 
         return super(OpenStackComputeConnection, self).request(
             action=action,
@@ -1192,15 +1194,7 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
 
         @inherits:  :class:`NodeDriver.create_node`
 
-        :keyword    ex_metadata: Key/Value metadata to associate with a node
-        :type       ex_metadata: ``dict``
-
-        :keyword    ex_files:   File Path => File contents to create on
-                                the no  de
-        :type       ex_files:   ``dict``
-
-        :keyword    ex_keyname:  Name of existing public key to inject into
-                                 instance
+        :keyword    ex_keyname:  The name of the key pair
         :type       ex_keyname:  ``str``
 
         :keyword    ex_userdata: String containing user data
@@ -1208,13 +1202,21 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
                                  https://help.ubuntu.com/community/CloudInit
         :type       ex_userdata: ``str``
 
-        :keyword    networks: The server is launched into a set of Networks.
-        :type       networks: :class:`OpenStackNetwork`
-
         :keyword    ex_security_groups: List of security groups to assign to
                                         the node
         :type       ex_security_groups: ``list`` of
                                        :class:`OpenStackSecurityGroup`
+
+        :keyword    ex_metadata: Key/Value metadata to associate with a node
+        :type       ex_metadata: ``dict``
+
+        :keyword    ex_files:   File Path => File contents to create on
+                                the no  de
+        :type       ex_files:   ``dict``
+
+
+        :keyword    networks: The server is launched into a set of Networks.
+        :type       networks: :class:`OpenStackNetwork`
 
         :keyword    ex_disk_config: Name of the disk configuration.
                                     Can be either ``AUTO`` or ``MANUAL``.
@@ -1714,16 +1716,58 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
                                        (rule.id), method='DELETE')
         return resp.status == httplib.NO_CONTENT
 
-    def _to_keypairs(self, obj):
-        keypairs = obj['keypairs']
-        return [self._to_keypair(keypair['keypair']) for keypair in keypairs]
+    def _to_key_pairs(self, obj):
+        key_pairs = obj['keypairs']
+        key_pairs = [self._to_key_pair(key_pair['keypair']) for key_pair in
+                     key_pairs]
+        return key_pairs
 
-    def _to_keypair(self, obj):
-        return OpenStackKeyPair(name=obj['name'],
-                                fingerprint=obj['fingerprint'],
-                                public_key=obj['public_key'],
-                                private_key=obj.get('private_key', None),
-                                driver=self)
+    def _to_key_pair(self, obj):
+        key_pair = KeyPair(name=obj['name'],
+                           fingerprint=obj['fingerprint'],
+                           public_key=obj['public_key'],
+                           private_key=obj.get('private_key', None),
+                           driver=self)
+        return key_pair
+
+    def list_key_pairs(self):
+        response = self.connection.request('/os-keypairs')
+        key_pairs = self._to_key_pairs(response.object)
+        return key_pairs
+
+    def get_key_pair(self, name):
+        self.connection.set_context({'key_pair_name': name})
+
+        response = self.connection.request('/os-keypairs/%s' % (name))
+        key_pair = self._to_key_pair(response.object['keypair'])
+        return key_pair
+
+    def create_key_pair(self, name):
+        data = {'keypair': {'name': name}}
+        response = self.connection.request('/os-keypairs', method='POST',
+                                           data=data)
+        key_pair = self._to_key_pair(response.object['keypair'])
+        return key_pair
+
+    def import_key_pair_from_string(self, name, key_material):
+        data = {'keypair': {'name': name, 'public_key': key_material}}
+        response = self.connection.request('/os-keypairs', method='POST',
+                                           data=data)
+        key_pair = self._to_key_pair(response.object['keypair'])
+        return key_pair
+
+    def delete_key_pair(self, key_pair):
+        """
+        Delete a KeyPair.
+
+        :param keypair: KeyPair to delete
+        :type  keypair: :class:`OpenStackKeyPair`
+
+        :rtype: ``bool``
+        """
+        response = self.connection.request('/os-keypairs/%s' % (key_pair.name),
+                                           method='DELETE')
+        return response.status == httplib.ACCEPTED
 
     def ex_list_keypairs(self):
         """
@@ -1731,8 +1775,10 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
 
         :rtype: ``list`` of :class:`OpenStackKeyPair`
         """
-        return self._to_keypairs(
-            self.connection.request('/os-keypairs').object)
+        warnings.warn('This method has been deprecated in favor of '
+                      'list_key_pairs method')
+
+        return self.list_key_pairs()
 
     def ex_create_keypair(self, name, public_key=None):
         """
@@ -1743,13 +1789,10 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
 
         :rtype: :class:`OpenStackKeyPair`
         """
-        data = {'keypair': {'name': name}}
-        if public_key:
-            data['keypair']['public_key'] = public_key
-        return self._to_keypair(self.connection.request(
-            '/os-keypairs', method='POST',
-            data=data
-        ).object['keypair'])
+        warnings.warn('This method has been deprecated in favor of '
+                      'create_key_pair method')
+
+        return self.create_key_pair(name=name)
 
     def ex_import_keypair(self, name, keyfile):
         """
@@ -1763,10 +1806,10 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
 
         :rtype: :class:`OpenStackKeyPair`
         """
-        with open(os.path.expanduser(keyfile), 'r') as fp:
-            public_key = fp.read()
+        warnings.warn('This method has been deprecated in favor of '
+                      'import_key_pair_from_file method')
 
-        return self.ex_import_keypair_from_string(name, public_key)
+        return self.import_key_pair_from_file(name=name, key_file_path=keyfile)
 
     def ex_import_keypair_from_string(self, name, key_material):
         """
@@ -1780,10 +1823,11 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
 
         :rtype: :class:`OpenStackKeyPair`
         """
-        return self._to_keypair(self.connection.request(
-            '/os-keypairs', method='POST',
-            data={'keypair': {'name': name, 'public_key': key_material}}
-        ).object['keypair'])
+        warnings.warn('This method has been deprecated in favor of '
+                      'import_key_pair_from_string method')
+
+        return self.import_key_pair_from_string(name=name,
+                                                key_material=key_material)
 
     def ex_delete_keypair(self, keypair):
         """
@@ -1794,9 +1838,10 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
 
         :rtype: ``bool``
         """
-        resp = self.connection.request('/os-keypairs/%s' % (keypair.name),
-                                       method='DELETE')
-        return resp.status == httplib.ACCEPTED
+        warnings.warn('This method has been deprecated in favor of '
+                      'delete_key_pair method')
+
+        return self.delete_key_pair(key_pair=keypair)
 
     def ex_get_size(self, size_id):
         """
@@ -1876,6 +1921,11 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
                     except:
                         private_ips.append(ip)
 
+        # Sometimes 'image' attribute is not present if the node is in an error
+        # state
+        image = api_node.get('image', None)
+        image_id = image.get('id', None) if image else None
+
         return Node(
             id=api_node['id'],
             name=api_node['name'],
@@ -1890,7 +1940,7 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
                 # Docs says "tenantId", but actual is "tenant_id". *sigh*
                 # Best handle both.
                 tenantId=api_node.get('tenant_id') or api_node['tenantId'],
-                imageId=api_node['image']['id'],
+                imageId=image_id,
                 flavorId=api_node['flavor']['id'],
                 uri=next(link['href'] for link in api_node['links'] if
                          link['rel'] == 'self'),
@@ -2037,6 +2087,19 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         resp = self.connection.request('/servers/%s/action' % node.id,
                                        method='POST', data=data)
         return resp.status == httplib.ACCEPTED
+
+    def ex_get_metadata_for_node(self, node):
+        """
+        Return the metadata associated with the node.
+
+        :param      node: Node instance
+        :type       node: :class:`Node`
+
+        :return: A dictionary or other mapping of strings to strings,
+                 associating tag names with tag values.
+        :type tags: ``dict``
+        """
+        return node.extra['metadata']
 
 
 class OpenStack_1_1_FloatingIpPool(object):

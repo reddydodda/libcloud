@@ -106,12 +106,14 @@ class CloudFilesConnection(OpenStackBaseConnection):
     auth_url = AUTH_URL
     _auth_version = '2.0'
 
-    def __init__(self, user_id, key, secure=True, **kwargs):
+    def __init__(self, user_id, key, secure=True,
+                 use_internal_url=False, **kwargs):
         super(CloudFilesConnection, self).__init__(user_id, key, secure=secure,
                                                    **kwargs)
         self.api_version = API_VERSION
         self.accept_format = 'application/json'
         self.cdn_request = False
+        self.endpoint_url = 'internalURL' if use_internal_url else 'publicURL'
 
     def get_endpoint(self):
         region = self._ex_force_service_region.upper()
@@ -122,7 +124,7 @@ class CloudFilesConnection(OpenStackBaseConnection):
                 name='cloudFiles',
                 region=region)
             cdn_ep = self.service_catalog.get_endpoint(
-                service_type='object-store',
+                service_type='rax:object-cdn',
                 name='cloudFilesCDN',
                 region=region)
         else:
@@ -136,8 +138,8 @@ class CloudFilesConnection(OpenStackBaseConnection):
         if not ep:
             raise LibcloudError('Could not find specified endpoint')
 
-        if 'publicURL' in ep:
-            return ep['publicURL']
+        if self.endpoint_url in ep:
+            return ep[self.endpoint_url]
         else:
             raise LibcloudError('Could not find specified endpoint')
 
@@ -161,27 +163,29 @@ class CloudFilesConnection(OpenStackBaseConnection):
             raw=raw)
 
 
-class CloudFilesSwiftConnection(CloudFilesConnection):
+class OpenStackSwiftConnection(CloudFilesConnection):
     """
-    Connection class for the Cloudfiles Swift endpoint.
+    Connection class for the OpenStack Swift endpoint.
     """
 
     def __init__(self, *args, **kwargs):
-        self.region_name = kwargs.pop('ex_region_name', None)
-        super(CloudFilesSwiftConnection, self).__init__(*args, **kwargs)
+        super(OpenStackSwiftConnection, self).__init__(*args, **kwargs)
+        self._service_type = self._ex_force_service_type or 'object-store'
+        self._service_name = self._ex_force_service_name or 'swift'
+        self._service_region = self._ex_force_service_region.upper()
 
     def get_endpoint(self, *args, **kwargs):
         if '2.0' in self._auth_version:
             endpoint = self.service_catalog.get_endpoint(
-                service_type='object-store',
-                name='swift',
-                region=self.region_name)
+                service_type=self._service_type,
+                name=self._service_name,
+                region=self._service_region)
         elif ('1.1' in self._auth_version) or ('1.0' in self._auth_version):
             endpoint = self.service_catalog.get_endpoint(
-                name='swift', region=self.region_name)
+                name=self._service_name, region=self._region_name)
 
-        if 'publicURL' in endpoint:
-            return endpoint['publicURL']
+        if self.endpoint_url in endpoint:
+            return endpoint[self.endpoint_url]
         else:
             raise LibcloudError('Could not find specified endpoint')
 
@@ -198,7 +202,7 @@ class CloudFilesStorageDriver(StorageDriver, OpenStackDriverMixin):
     supports_chunked_encoding = True
 
     def __init__(self, key, secret=None, secure=True, host=None, port=None,
-                 region='ord', **kwargs):
+                 region='ord', use_internal_url=False, **kwargs):
         """
         @inherits:  :class:`StorageDriver.__init__`
 
@@ -209,6 +213,7 @@ class CloudFilesStorageDriver(StorageDriver, OpenStackDriverMixin):
         if 'ex_force_service_region' in kwargs:
             region = kwargs['ex_force_service_region']
 
+        self.use_internal_url = use_internal_url
         OpenStackDriverMixin.__init__(self, (), **kwargs)
         super(CloudFilesStorageDriver, self).__init__(key=key, secret=secret,
                                                       secure=secure, host=host,
@@ -697,12 +702,16 @@ class CloudFilesStorageDriver(StorageDriver, OpenStackDriverMixin):
         object_name_encoded = self._encode_object_name(object_name)
         content_type = extra.get('content_type', None)
         meta_data = extra.get('meta_data', None)
+        content_disposition = extra.get('content_disposition', None)
 
         headers = {}
         if meta_data:
             for key, value in list(meta_data.items()):
                 key = 'X-Object-Meta-%s' % (key)
                 headers[key] = value
+
+        if content_disposition is not None:
+            headers['Content-Disposition'] = content_disposition
 
         request_path = '/%s/%s' % (container_name_encoded, object_name_encoded)
         result_dict = self._upload_object(
@@ -814,6 +823,7 @@ class CloudFilesStorageDriver(StorageDriver, OpenStackDriverMixin):
     def _ex_connection_class_kwargs(self):
         kwargs = self.openstack_connection_kwargs()
         kwargs['ex_force_service_region'] = self.region
+        kwargs['use_internal_url'] = self.use_internal_url
         return kwargs
 
 
@@ -830,23 +840,16 @@ class CloudFilesUSStorageDriver(CloudFilesStorageDriver):
         super(CloudFilesUSStorageDriver, self).__init__(*args, **kwargs)
 
 
-class CloudFilesSwiftStorageDriver(CloudFilesStorageDriver):
+class OpenStackSwiftStorageDriver(CloudFilesStorageDriver):
     """
-    Cloudfiles storage driver for the OpenStack Swift.
+    Storage driver for the OpenStack Swift.
     """
     type = Provider.CLOUDFILES_SWIFT
-    name = 'CloudFiles (SWIFT)'
-    connectionCls = CloudFilesSwiftConnection
+    name = 'OpenStack Swift'
+    connectionCls = OpenStackSwiftConnection
 
     def __init__(self, *args, **kwargs):
-        self._ex_region_name = kwargs.get('ex_region_name', 'RegionOne')
-        super(CloudFilesSwiftStorageDriver, self).__init__(*args, **kwargs)
-
-    def openstack_connection_kwargs(self):
-        rv = super(CloudFilesSwiftStorageDriver,
-                   self).openstack_connection_kwargs()
-        rv['ex_region_name'] = self._ex_region_name
-        return rv
+        super(OpenStackSwiftStorageDriver, self).__init__(*args, **kwargs)
 
 
 class CloudFilesUKStorageDriver(CloudFilesStorageDriver):

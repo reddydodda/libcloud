@@ -15,6 +15,7 @@
 # limitations under the License.
 
 import sys
+import ssl
 
 from mock import Mock, call
 
@@ -29,10 +30,23 @@ class ConnectionClassTestCase(unittest.TestCase):
 
         Connection.connect = Mock()
         Connection.responseCls = Mock()
+        Connection.allow_insecure = True
 
     def tearDown(self):
         Connection.connect = self.originalConnect
         Connection.responseCls = Connection.responseCls
+        Connection.allow_insecure = True
+
+    def test_dont_allow_insecure(self):
+        Connection.allow_insecure = True
+        Connection(secure=False)
+
+        Connection.allow_insecure = False
+
+        expected_msg = (r'Non https connections are not allowed \(use '
+                        'secure=True\)')
+        self.assertRaisesRegexp(ValueError, expected_msg, Connection,
+                                secure=False)
 
     def test_content_length(self):
         con = Connection()
@@ -88,6 +102,85 @@ class ConnectionClassTestCase(unittest.TestCase):
             call_kwargs = con.connection.request.call_args[1]
             self.assertEqual(call_kwargs['headers']['Content-Length'], '1')
 
+    def test_cache_busting(self):
+        params1 = {'foo1': 'bar1', 'foo2': 'bar2'}
+        params2 = [('foo1', 'bar1'), ('foo2', 'bar2')]
+
+        con = Connection()
+        con.connection = Mock()
+        con.pre_connect_hook = Mock()
+        con.pre_connect_hook.return_value = {}, {}
+        con.cache_busting = False
+
+        con.request(action='/path', params=params1)
+        args, kwargs = con.pre_connect_hook.call_args
+        self.assertFalse('cache-busting' in args[0])
+        self.assertEqual(args[0], params1)
+
+        con.request(action='/path', params=params2)
+        args, kwargs = con.pre_connect_hook.call_args
+        self.assertFalse('cache-busting' in args[0])
+        self.assertEqual(args[0], params2)
+
+        con.cache_busting = True
+
+        con.request(action='/path', params=params1)
+        args, kwargs = con.pre_connect_hook.call_args
+        self.assertTrue('cache-busting' in args[0])
+
+        con.request(action='/path', params=params2)
+        args, kwargs = con.pre_connect_hook.call_args
+        self.assertTrue('cache-busting' in args[0][len(params2)])
+
+    def test_context_is_reset_after_request_has_finished(self):
+        context = {'foo': 'bar'}
+
+        def responseCls(connection, response):
+            connection.called = True
+            self.assertEqual(connection.context, context)
+
+        con = Connection()
+        con.called = False
+        con.connection = Mock()
+        con.responseCls = responseCls
+
+        con.set_context(context)
+        self.assertEqual(con.context, context)
+
+        con.request('/')
+
+        # Context should have been reset
+        self.assertTrue(con.called)
+        self.assertEqual(con.context, {})
+
+        # Context should also be reset if a method inside request throws
+        con = Connection()
+        con.connection = Mock()
+
+        con.set_context(context)
+        self.assertEqual(con.context, context)
+
+        con.connection.request = Mock(side_effect=ssl.SSLError())
+
+        try:
+            con.request('/')
+        except ssl.SSLError:
+            pass
+
+        self.assertEqual(con.context, {})
+
+        con.connection = Mock()
+        con.set_context(context)
+        self.assertEqual(con.context, context)
+
+        con.responseCls = Mock(side_effect=ValueError())
+
+        try:
+            con.request('/')
+        except ValueError:
+            pass
+
+        self.assertEqual(con.context, {})
 
 if __name__ == '__main__':
     sys.exit(unittest.main())

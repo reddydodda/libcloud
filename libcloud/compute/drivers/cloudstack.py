@@ -15,50 +15,103 @@
 
 from __future__ import with_statement
 
-import os
 import base64
+import warnings
 
 from libcloud.utils.py3 import b
+from libcloud.utils.py3 import urlparse
 
 from libcloud.compute.providers import Provider
 from libcloud.common.cloudstack import CloudStackDriverMixIn
-from libcloud.compute.base import Node, NodeDriver, NodeImage, NodeLocation,\
-    NodeSize, StorageVolume, is_private_subnet
+from libcloud.compute.base import Node, NodeDriver, NodeImage, NodeLocation
+from libcloud.compute.base import NodeSize, StorageVolume
+from libcloud.compute.base import KeyPair
 from libcloud.compute.types import NodeState, LibcloudError
+from libcloud.compute.types import KeyPairDoesNotExistError
+from libcloud.utils.networking import is_private_subnet
 
 
 class CloudStackNode(Node):
-    "Subclass of Node so we can expose our extension methods."
+    """
+    Subclass of Node so we can expose our extension methods.
+    """
 
     def ex_allocate_public_ip(self):
-        "Allocate a public IP and bind it to this node."
+        """
+        Allocate a public IP and bind it to this node.
+        """
         return self.driver.ex_allocate_public_ip(self)
 
     def ex_release_public_ip(self, address):
-        "Release a public IP that this node holds."
+        """
+        Release a public IP that this node holds.
+        """
         return self.driver.ex_release_public_ip(self, address)
 
-    def ex_add_ip_forwarding_rule(self, address, protocol, start_port,
-                                  end_port=None):
-        "Add a NAT/firewall forwarding rule for a port or ports."
-        return self.driver.ex_add_ip_forwarding_rule(self, address, protocol,
-                                                     start_port, end_port)
+    def ex_create_ip_forwarding_rule(self, address, protocol,
+                                     start_port, end_port=None):
+        """
+        Add a NAT/firewall forwarding rule for a port or ports.
+        """
+        return self.driver.ex_create_ip_forwarding_rule(node=self,
+                                                        address=address,
+                                                        protocol=protocol,
+                                                        start_port=start_port,
+                                                        end_port=end_port)
+
+    def ex_create_port_forwarding_rule(self, address,
+                                       private_port, public_port,
+                                       protocol,
+                                       public_end_port=None,
+                                       private_end_port=None,
+                                       openfirewall=True):
+        """
+        Add a port forwarding rule for port or ports.
+        """
+        return self.driver.ex_create_port_forwarding_rule(node=self,
+                                                          address=
+                                                          address,
+                                                          private_port=
+                                                          private_port,
+                                                          public_port=
+                                                          public_port,
+                                                          protocol=protocol,
+                                                          public_end_port=
+                                                          public_end_port,
+                                                          private_end_port=
+                                                          private_end_port,
+                                                          openfirewall=
+                                                          openfirewall)
 
     def ex_delete_ip_forwarding_rule(self, rule):
-        "Delete a NAT/firewall rule."
-        return self.driver.ex_delete_ip_forwarding_rule(self, rule)
+        """
+        Delete a port forwarding rule.
+        """
+        return self.driver.ex_delete_ip_forwarding_rule(node=self, rule=rule)
+
+    def ex_delete_port_forwarding_rule(self, rule):
+        """
+        Delete a NAT/firewall rule.
+        """
+        return self.driver.ex_delete_port_forwarding_rule(node=self, rule=rule)
 
     def ex_start(self):
-        "Starts a stopped virtual machine"
-        return self.driver.ex_start(self)
+        """
+        Starts a stopped virtual machine.
+        """
+        return self.driver.ex_start(node=self)
 
     def ex_stop(self):
-        "Stops a running virtual machine"
-        return self.driver.ex_stop(self)
+        """
+        Stops a running virtual machine.
+        """
+        return self.driver.ex_stop(node=self)
 
 
 class CloudStackAddress(object):
-    "A public IP address."
+    """
+    A public IP address.
+    """
 
     def __init__(self, id, address, driver):
         self.id = id
@@ -66,7 +119,7 @@ class CloudStackAddress(object):
         self.driver = driver
 
     def release(self):
-        self.driver.ex_release_public_ip(self)
+        self.driver.ex_release_public_ip(address=self)
 
     def __str__(self):
         return self.address
@@ -76,7 +129,9 @@ class CloudStackAddress(object):
 
 
 class CloudStackIPForwardingRule(object):
-    "A NAT/firewall forwarding rule."
+    """
+    A NAT/firewall forwarding rule.
+    """
 
     def __init__(self, node, id, address, protocol, start_port, end_port=None):
         self.node = node
@@ -87,14 +142,16 @@ class CloudStackIPForwardingRule(object):
         self.end_port = end_port
 
     def delete(self):
-        self.node.ex_delete_ip_forwarding_rule(self)
+        self.node.ex_delete_ip_forwarding_rule(rule=self)
 
     def __eq__(self, other):
         return self.__class__ is other.__class__ and self.id == other.id
 
 
 class CloudStackPortForwardingRule(object):
-    "A Port forwarding rule for Source NAT."
+    """
+    A Port forwarding rule for Source NAT.
+    """
 
     def __init__(self, node, rule_id, address, protocol, public_port,
                  private_port, public_end_port=None, private_end_port=None):
@@ -141,14 +198,16 @@ class CloudStackPortForwardingRule(object):
         self.private_end_port = private_end_port
 
     def delete(self):
-        self.node.ex_delete_port_forwarding_rule(self)
+        self.node.ex_delete_port_forwarding_rule(rule=self)
 
     def __eq__(self, other):
         return self.__class__ is other.__class__ and self.id == other.id
 
 
 class CloudStackDiskOffering(object):
-    """A disk offering within CloudStack."""
+    """
+    A disk offering within CloudStack.
+    """
 
     def __init__(self, id, name, size, customizable):
         self.id = id
@@ -161,7 +220,9 @@ class CloudStackDiskOffering(object):
 
 
 class CloudStackNetwork(object):
-    """Class representing a CloudStack Network"""
+    """
+    Class representing a CloudStack Network.
+    """
 
     def __init__(self, displaytext, name, networkofferingid, id, zoneid,
                  driver):
@@ -180,7 +241,8 @@ class CloudStackNetwork(object):
 
 
 class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
-    """Driver for the CloudStack API.
+    """
+    Driver for the CloudStack API.
 
     :cvar host: The host where the API can be reached.
     :cvar path: The path where the API can be reached.
@@ -193,7 +255,7 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
     website = 'http://cloudstack.org/'
     type = Provider.CLOUDSTACK
 
-    features = {"create_node": ["generates_password", ]}
+    features = {'create_node': ['generates_password']}
 
     NODE_STATE_MAP = {
         'Running': NodeState.RUNNING,
@@ -206,17 +268,38 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
     }
 
     def __init__(self, key, secret=None, secure=True, host=None,
-                 path=None, port=None, *args, **kwargs):
+                 path=None, port=None, url=None, *args, **kwargs):
         """
-        @inherits: :class:`NodeDriver.__init__`
+        :inherits: :class:`NodeDriver.__init__`
 
         :param    host: The host where the API can be reached. (required)
         :type     host: ``str``
 
-        :param    path: The host where the API can be reached. (required)
+        :param    path: The path where the API can be reached. (required)
         :type     path: ``str``
+
+        :param url: Full URL to the API endpoint. Mutually exclusive with host
+                    and path argument.
+        :type url: ``str``
         """
-        host = host if host else self.host
+        if url:
+            parsed = urlparse.urlparse(url)
+
+            path = parsed.path
+
+            scheme = parsed.scheme
+            split = parsed.netloc.split(':')
+
+            if len(split) == 1:
+                # No port provided, use the default one
+                host = parsed.netloc
+                port = 443 if scheme == 'https' else 80
+            else:
+                host = split[0]
+                port = int(split[1])
+        else:
+            host = host if host else self.host
+            path = path if path else self.path
 
         if path is not None:
             self.path = path
@@ -225,11 +308,15 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
             self.host = host
 
         if (self.type == Provider.CLOUDSTACK) and (not host or not path):
-            raise Exception('When instantiating CloudStack driver directly ' +
-                            'you also need to provide host and path argument')
+            raise Exception('When instantiating CloudStack driver directly '
+                            'you also need to provide url or host and path '
+                            'argument')
 
-        NodeDriver.__init__(self, key=key, secret=secret, secure=secure,
-                            host=host, port=port)
+        super(CloudStackNodeDriver, self).__init__(key=key,
+                                                   secret=secret,
+                                                   secure=secure,
+                                                   host=host,
+                                                   port=port)
 
     def list_images(self, location=None):
         args = {
@@ -237,7 +324,9 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         }
         if location is not None:
             args['zoneid'] = location.id
-        imgs = self._sync_request('listTemplates', **args)
+        imgs = self._sync_request(command='listTemplates',
+                                  params=args,
+                                  method='GET')
         images = []
         for img in imgs.get('template', []):
             images.append(NodeImage(
@@ -256,9 +345,13 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         :rtype ``list`` of :class:`NodeLocation`
         """
         locs = self._sync_request('listZones')
+
         locations = []
         for loc in locs['zone']:
-            locations.append(NodeLocation(loc['id'], loc['name'], 'AU', self))
+            location = NodeLocation(str(loc['id']), loc['name'], 'Unknown',
+                                    self)
+            locations.append(location)
+
         return locations
 
     def list_nodes(self):
@@ -281,42 +374,9 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         nodes = []
 
         for vm in vms.get('virtualmachine', []):
-            state = self.NODE_STATE_MAP[vm['state']]
-
-            public_ips = []
-            private_ips = []
-
-            for nic in vm['nic']:
-                if 'ipaddress' in nic:
-                    private_ips.append(nic['ipaddress'])
-
-            public_ips = public_ips_map.get(vm['id'], {}).keys()
+            public_ips = public_ips_map.get(str(vm['id']), {}).keys()
             public_ips = list(public_ips)
-            public_ips.extend([ip for ip in private_ips
-                              if not is_private_subnet(ip)])
-
-            keypair, password, securitygroup = None, None, None
-            if 'keypair' in vm.keys():
-                keypair = vm['keypair']
-            if 'password' in vm.keys():
-                password = vm['password']
-            if 'securitygroup' in vm.keys():
-                securitygroup = [sg['name'] for sg in vm['securitygroup']]
-
-            node = CloudStackNode(
-                id=vm['id'],
-                name=vm.get('displayname', None),
-                state=state,
-                public_ips=public_ips,
-                private_ips=private_ips,
-                driver=self,
-                extra={'zoneid': vm['zoneid'],
-                       'password': password,
-                       'keyname': keypair,
-                       'securitygroup': securitygroup,
-                       'created': vm['created']
-                       }
-            )
+            node = self._to_node(data=vm, public_ips=public_ips)
 
             addresses = public_ips_map.get(vm['id'], {}).items()
             addresses = [CloudStackAddress(node, v, k) for k, v in addresses]
@@ -363,7 +423,8 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         """
         :rtype ``list`` of :class:`NodeSize`
         """
-        szs = self._sync_request('listServiceOfferings')
+        szs = self._sync_request(command='listServiceOfferings',
+                                 method='GET')
         sizes = []
         for sz in szs['serviceoffering']:
             sizes.append(NodeSize(sz['id'], sz['name'], sz['memory'], 0, 0,
@@ -376,96 +437,75 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
 
         @inherits: :class:`NodeDriver.create_node`
 
+        :keyword    networks: Optional list of networks to launch the server
+                              into.
+        :type       networks: ``list`` of :class:`.CloudStackNetwork`
+
         :keyword    ex_keyname:  Name of existing keypair
         :type       ex_keyname:  ``str``
 
         :keyword    ex_userdata: String containing user data
         :type       ex_userdata: ``str``
 
-        :keyword    networks: The server is launched into a set of Networks.
-        :type       networks: :class:`CloudStackNetwork`
-
         :keyword    ex_security_groups: List of security groups to assign to
                                         the node
         :type       ex_security_groups: ``list`` of ``str``
 
-        :rtype:     :class:`CloudStackNode`
+        :rtype:     :class:`.CloudStackNode`
         """
 
         server_params = self._create_args_to_params(None, **kwargs)
 
-        node = self._async_request('deployVirtualMachine',
-                                   **server_params)['virtualmachine']
-        public_ips = []
-        private_ips = []
-        for nic in node['nic']:
-            if is_private_subnet(nic['ipaddress']):
-                private_ips.append(nic['ipaddress'])
-            else:
-                public_ips.append(nic['ipaddress'])
-
-        keypair, password, securitygroup = None, None, None
-        if 'keypair' in node.keys():
-            keypair = node['keypair']
-        if 'password' in node.keys():
-            password = node['password']
-        if 'securitygroup' in node.keys():
-            securitygroup = [sg['name'] for sg in node['securitygroup']]
-
-        return CloudStackNode(
-            id=node['id'],
-            name=node['displayname'],
-            state=self.NODE_STATE_MAP[node['state']],
-            public_ips=public_ips,
-            private_ips=private_ips,
-            driver=self,
-            extra={'zoneid': server_params['zoneid'],
-                   'ip_addresses': [],
-                   'ip_forwarding_rules': [],
-                   'port_forwarding_rules': [],
-                   'password': password,
-                   'keyname': keypair,
-                   'securitygroup': securitygroup,
-                   'created': node['created']
-                   }
-
-        )
+        data = self._async_request(command='deployVirtualMachine',
+                                   params=server_params,
+                                   method='GET')['virtualmachine']
+        node = self._to_node(data=data)
+        return node
 
     def _create_args_to_params(self, node, **kwargs):
         server_params = {
             'name': kwargs.get('name'),
         }
 
-        if 'name' in kwargs:
-            server_params['displayname'] = kwargs.get('name')
+        # TODO: Refactor and use "kwarg_to_server_params" map
+        name = kwargs.get('name', None)
+        size = kwargs.get('size', None)
+        image = kwargs.get('image', None)
+        location = kwargs.get('location', None)
+        networks = kwargs.get('networks', None)
+        ex_key_name = kwargs.get('ex_keyname', None)
+        ex_user_data = kwargs.get('ex_userdata', None)
+        ex_security_groups = kwargs.get('ex_security_groups', None)
 
-        if 'size' in kwargs:
-            server_params['serviceofferingid'] = kwargs.get('size').id
+        if name:
+            server_params['name'] = name
 
-        if 'image' in kwargs:
-            server_params['templateid'] = kwargs.get('image').id
+        if size:
+            server_params['serviceofferingid'] = size.id
 
-        if 'location' in kwargs:
-            server_params['zoneid'] = kwargs.get('location').id
+        if image:
+            server_params['templateid'] = image.id
+
+        if location:
+            server_params['zoneid'] = location.id
         else:
+            # Use a default location
             server_params['zoneid'] = self.list_locations()[0].id
 
-        if 'ex_keyname' in kwargs:
-            server_params['keypair'] = kwargs['ex_keyname']
-
-        if 'ex_userdata' in kwargs:
-            server_params['userdata'] = base64.b64encode(
-                b(kwargs['ex_userdata'])).decode('ascii')
-
-        if 'networks' in kwargs:
-            networks = kwargs['networks']
+        if networks:
             networks = ','.join([network.id for network in networks])
             server_params['networkids'] = networks
 
-        if 'ex_security_groups' in kwargs:
-            security_groups = kwargs['ex_security_groups']
-            security_groups = ','.join(security_groups)
-            server_params['securitygroupnames'] = security_groups
+        if ex_key_name:
+            server_params['keypair'] = ex_key_name
+
+        if ex_user_data:
+            ex_user_data = base64.b64encode(b(ex_user_data).decode('ascii'))
+            server_params['userdata'] = ex_user_data
+
+        if ex_security_groups:
+            ex_security_groups = ','.join(ex_security_groups)
+            server_params['securitygroupnames'] = ex_security_groups
 
         return server_params
 
@@ -476,7 +516,9 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
 
         :rtype: ``bool``
         """
-        self._async_request('destroyVirtualMachine', id=node.id)
+        self._async_request(command='destroyVirtualMachine',
+                            params={'id': node.id},
+                            method='GET')
         return True
 
     def reboot_node(self, node):
@@ -486,7 +528,9 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
 
         :rtype: ``bool``
         """
-        self._async_request('rebootVirtualMachine', id=node.id)
+        self._async_request(command='rebootVirtualMachine',
+                            params={'id': node.id},
+                            method='GET')
         return True
 
     def ex_start(self, node):
@@ -504,27 +548,23 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
 
         :rtype ``str``
         """
-        res = self._async_request('startVirtualMachine', id=node.id)
+        res = self._async_request(command='startVirtualMachine',
+                                  params={'id': node.id},
+                                  method='GET')
         return res['virtualmachine']['state']
 
     def ex_stop(self, node):
         """
         Stops/Suspends a running virtual machine
 
+        :param node: Node to stop.
         :type node: :class:`CloudStackNode`
 
-        :param id: The ID of the virtual machine
-        :type  id: ``str``
-
-        :param forced: Force stop the VM
-                       (vm is marked as Stopped even when command
-                        fails to be send to the backend).
-                       The caller knows the VM is stopped.
-        :type  forced: ``bool``
-
-        :rtype ``str``
+        :rtype: ``str``
         """
-        res = self._async_request('stopVirtualMachine', id=node.id)
+        res = self._async_request(command='stopVirtualMachine',
+                                  params={'id': node.id},
+                                  method='GET')
         return res['virtualmachine']['state']
 
     def ex_list_disk_offerings(self):
@@ -536,7 +576,8 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
 
         diskOfferings = []
 
-        diskOfferResponse = self._sync_request('listDiskOfferings')
+        diskOfferResponse = self._sync_request(command='listDiskOfferings',
+                                               method='GET')
         for diskOfferDict in diskOfferResponse.get('diskoffering', ()):
             diskOfferings.append(
                 CloudStackDiskOffering(
@@ -554,7 +595,9 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         :rtype ``list`` of :class:`CloudStackNetwork`
         """
 
-        nets = self._sync_request('listNetworks')['network']
+        res = self._sync_request(command='listNetworks',
+                                 method='GET')
+        nets = res.get('network', [])
 
         networks = []
         for net in nets:
@@ -580,18 +623,19 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
             raise LibcloudError(
                 'Disk offering with size=%s not found' % size)
 
-        extraParams = dict()
-        if diskOffering.customizable:
-            extraParams['size'] = size
-
         if location is None:
             location = self.list_locations()[0]
 
-        requestResult = self._async_request('createVolume',
-                                            name=name,
-                                            diskOfferingId=diskOffering.id,
-                                            zoneId=location.id,
-                                            **extraParams)
+        params = {'name': name,
+                  'diskOfferingId': diskOffering.id,
+                  'zoneId': location.id}
+
+        if diskOffering.customizable:
+            params['size'] = size
+
+        requestResult = self._async_request(command='createVolume',
+                                            params=params,
+                                            method='GET')
 
         volumeResponse = requestResult['volume']
 
@@ -605,7 +649,9 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         """
         :rtype: ``bool``
         """
-        self._sync_request('deleteVolume', id=volume.id)
+        self._sync_request(command='deleteVolume',
+                           params={'id': volume.id},
+                           method='GET')
         return True
 
     def attach_volume(self, node, volume, device=None):
@@ -616,15 +662,19 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         :rtype: ``bool``
         """
         # TODO Add handling for device name
-        self._async_request('attachVolume', id=volume.id,
-                            virtualMachineId=node.id)
+        self._async_request(command='attachVolume',
+                            params={'id': volume.id,
+                                    'virtualMachineId': node.id},
+                            method='GET')
         return True
 
     def detach_volume(self, volume):
         """
         :rtype: ``bool``
         """
-        self._async_request('detachVolume', id=volume.id)
+        self._async_request(command='detachVolume',
+                            params={'id': volume.id},
+                            method='GET')
         return True
 
     def list_volumes(self, node=None):
@@ -637,10 +687,12 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         :rtype: ``list`` of :class:`StorageVolume`
         """
         if node:
-            volumes = self._sync_request('listVolumes',
-                                         virtualmachineid=node.id)
+            volumes = self._sync_request(command='listVolumes',
+                                         params={'virtualmachineid': node.id},
+                                         method='GET')
         else:
-            volumes = self._sync_request('listVolumes')
+            volumes = self._sync_request(command='listVolumes',
+                                         method='GET')
 
         list_volumes = []
         for vol in volumes['volume']:
@@ -650,6 +702,160 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
                                 driver=self))
         return list_volumes
 
+    def list_key_pairs(self, **kwargs):
+        """
+        List registered key pairs.
+
+        :param     projectid: list objects by project
+        :type      projectid: ``str``
+
+        :param     page: The page to list the keypairs from
+        :type      page: ``int``
+
+        :param     keyword: List by keyword
+        :type      keyword: ``str``
+
+        :param     listall: If set to false, list only resources
+                            belonging to the command's caller;
+                            if set to true - list resources that
+                            the caller is authorized to see.
+                            Default value is false
+
+        :type      listall: ``bool``
+
+        :param     pagesize: The number of results per page
+        :type      pagesize: ``int``
+
+        :param     account: List resources by account.
+                            Must be used with the domainId parameter
+        :type      account: ``str``
+
+        :param     isrecursive: Defaults to false, but if true,
+                                lists all resources from
+                                the parent specified by the
+                                domainId till leaves.
+        :type      isrecursive: ``bool``
+
+        :param     fingerprint: A public key fingerprint to look for
+        :type      fingerprint: ``str``
+
+        :param     name: A key pair name to look for
+        :type      name: ``str``
+
+        :param     domainid: List only resources belonging to
+                                     the domain specified
+        :type      domainid: ``str``
+
+        :return:   A list of key par objects.
+        :rtype:   ``list`` of :class:`libcloud.compute.base.KeyPair`
+        """
+        extra_args = kwargs.copy()
+        res = self._sync_request(command='listSSHKeyPairs',
+                                 params=extra_args,
+                                 method='GET')
+        key_pairs = res.get('sshkeypair', [])
+        key_pairs = self._to_key_pairs(data=key_pairs)
+        return key_pairs
+
+    def get_key_pair(self, name):
+        params = {'name': name}
+        res = self._sync_request(command='listSSHKeyPairs',
+                                 params=params,
+                                 method='GET')
+        key_pairs = res.get('sshkeypair', [])
+
+        if len(key_pairs) == 0:
+            raise KeyPairDoesNotExistError(name=name, driver=self)
+
+        key_pair = self._to_key_pair(data=key_pairs[0])
+        return key_pair
+
+    def create_key_pair(self, name, **kwargs):
+        """
+        Create a new key pair object.
+
+        :param name: Key pair name.
+        :type name: ``str``
+
+        :param     name: Name of the keypair (required)
+        :type      name: ``str``
+
+        :param     projectid: An optional project for the ssh key
+        :type      projectid: ``str``
+
+        :param     domainid: An optional domainId for the ssh key.
+                             If the account parameter is used,
+                             domainId must also be used.
+        :type      domainid: ``str``
+
+        :param     account: An optional account for the ssh key.
+                            Must be used with domainId.
+        :type      account: ``str``
+
+        :return:   Created key pair object.
+        :rtype:    :class:`libcloud.compute.base.KeyPair`
+        """
+        extra_args = kwargs.copy()
+
+        params = {'name': name}
+        params.update(extra_args)
+
+        res = self._sync_request(command='createSSHKeyPair',
+                                 params=params,
+                                 method='GET')
+        key_pair = self._to_key_pair(data=res['keypair'])
+        return key_pair
+
+    def import_key_pair_from_string(self, name, key_material):
+        """
+        Import a new public key from string.
+
+        :param name: Key pair name.
+        :type name: ``str``
+
+        :param key_material: Public key material.
+        :type key_material: ``str``
+
+        :return: Imported key pair object.
+        :rtype: :class:`libcloud.compute.base.KeyPair`
+        """
+        res = self._sync_request(command='registerSSHKeyPair',
+                                 params={'name': name,
+                                         'publickey': key_material},
+                                 method='GET')
+        key_pair = self._to_key_pair(data=res['keypair'])
+        return key_pair
+
+    def delete_key_pair(self, key_pair, **kwargs):
+        """
+        Delete an existing key pair.
+
+        :param key_pair: Key pair object.
+        :type key_pair: :class`libcloud.compute.base.KeyPair`
+
+        :param     projectid: The project associated with keypair
+        :type      projectid: ``str``
+
+        :param     domainid: The domain ID associated with the keypair
+        :type      domainid: ``str``
+
+        :param     account: The account associated with the keypair.
+                            Must be used with the domainId parameter.
+        :type      account: ``str``
+
+        :return:   True of False based on success of Keypair deletion
+        :rtype:    ``bool``
+        """
+
+        extra_args = kwargs.copy()
+        params = {'name': key_pair.name}
+        params.update(extra_args)
+
+        res = self._sync_request(command='deleteSSHKeyPair',
+                                 params=params,
+                                 method='GET')
+        return res['success'] == 'true'
+
     def ex_list_public_ips(self):
         """
         Lists all Public IP Addresses.
@@ -658,7 +864,8 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         """
         ips = []
 
-        res = self._sync_request('listPublicIpAddresses')
+        res = self._sync_request(command='listPublicIpAddresses',
+                                 method='GET')
 
         # Workaround for basic zones
         if not res:
@@ -680,7 +887,9 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         if location is None:
             location = self.list_locations()[0]
 
-        addr = self._async_request('associateIpAddress', zoneid=location.id)
+        addr = self._async_request(command='associateIpAddress',
+                                   params={'zoneid': location.id},
+                                   method='GET')
         addr = addr['ipaddress']
         addr = CloudStackAddress(addr['id'], addr['ipaddress'], self)
         return addr
@@ -694,7 +903,9 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
 
         :rtype: ``bool``
         """
-        res = self._async_request('disassociateIpAddress', id=address.id)
+        res = self._async_request(command='disassociateIpAddress',
+                                  params={'id': address.id},
+                                  method='GET')
         return res['success']
 
     def ex_list_port_forwarding_rules(self):
@@ -704,7 +915,8 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         :rtype: ``list`` of :class:`CloudStackPortForwardingRule`
         """
         rules = []
-        result = self._sync_request('listPortForwardingRules')
+        result = self._sync_request(command='listPortForwardingRules',
+                                    method='GET')
         if result != {}:
             public_ips = self.ex_list_public_ips()
             nodes = self.list_nodes()
@@ -725,8 +937,9 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
 
         return rules
 
-    def ex_create_port_forwarding_rule(self, address, private_port,
-                                       public_port, protocol, node,
+    def ex_create_port_forwarding_rule(self, node, address,
+                                       private_port, public_port,
+                                       protocol,
                                        public_end_port=None,
                                        private_end_port=None,
                                        openfirewall=True):
@@ -763,7 +976,9 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         if private_end_port:
             args['privateendport'] = int(private_end_port)
 
-        result = self._async_request('createPortForwardingRule', **args)
+        result = self._async_request(command='createPortForwardingRule',
+                                     params=args,
+                                     method='GET')
         rule = CloudStackPortForwardingRule(node,
                                             result['portforwardingrule']
                                             ['id'],
@@ -792,11 +1007,13 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
 
         node.extra['port_forwarding_rules'].remove(rule)
         node.public_ips.remove(rule.address.address)
-        res = self._async_request('deletePortForwardingRule', id=rule.id)
+        res = self._async_request(command='deletePortForwardingRule',
+                                  params={'id': rule.id},
+                                  method='GET')
         return res['success']
 
-    def ex_add_ip_forwarding_rule(self, node, address, protocol,
-                                  start_port, end_port=None):
+    def ex_create_ip_forwarding_rule(self, node, address, protocol,
+                                     start_port, end_port=None):
         """
         "Add a NAT/firewall forwarding rule.
 
@@ -830,7 +1047,9 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         if end_port is not None:
             args['endport'] = int(end_port)
 
-        result = self._async_request('createIpForwardingRule', **args)
+        result = self._async_request(command='createIpForwardingRule',
+                                     params=args,
+                                     method='GET')
         result = result['ipforwardingrule']
         rule = CloudStackIPForwardingRule(node, result['id'], address,
                                           protocol, start_port, end_port)
@@ -851,7 +1070,9 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         """
 
         node.extra['ip_forwarding_rules'].remove(rule)
-        self._async_request('deleteIpForwardingRule', id=rule.id)
+        self._async_request(command='deleteIpForwardingRule',
+                            params={'id': rule.id},
+                            method='GET')
         return True
 
     def ex_list_keypairs(self, **kwargs):
@@ -899,12 +1120,24 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         :type      domainid: ``str``
 
         :return:   A list of keypair dictionaries
-        :rtype:    :class:`dict`
+        :rtype:   ``list`` of ``dict``
         """
+        warnings.warn('This method has been deprecated in favor of '
+                      'list_key_pairs method')
 
-        extra_args = kwargs.copy()
-        res = self._sync_request('listSSHKeyPairs', **extra_args)
-        return res['sshkeypair']
+        key_pairs = self.list_key_pairs(**kwargs)
+
+        result = []
+
+        for key_pair in key_pairs:
+            item = {
+                'name': key_pair.name,
+                'fingerprint': key_pair.fingerprint,
+                'privateKey': key_pair.private_key
+            }
+            result.append(item)
+
+        return result
 
     def ex_create_keypair(self, name, **kwargs):
         """
@@ -928,42 +1161,18 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         :return:   A keypair dictionary
         :rtype:    ``dict``
         """
-        extra_args = kwargs.copy()
+        warnings.warn('This method has been deprecated in favor of '
+                      'create_key_pair method')
 
-        for keypair in self.ex_list_keypairs():
-            if keypair['name'] == name:
-                raise LibcloudError('SSH KeyPair with name=%s already exists'
-                                    % (name))
+        key_pair = self.create_key_pair(name=name, **kwargs)
 
-        res = self._sync_request('createSSHKeyPair', name=name, **extra_args)
-        return res['keypair']
+        result = {
+            'name': key_pair.name,
+            'fingerprint': key_pair.fingerprint,
+            'privateKey': key_pair.private_key
+        }
 
-    def ex_delete_keypair(self, keypair, **kwargs):
-        """
-        Deletes an existing SSH KeyPair
-
-        :param     keypair: Name of the keypair (required)
-        :type      keypair: ``str``
-
-        :param     projectid: The project associated with keypair
-        :type      projectid: ``str``
-
-        :param     domainid : The domain ID associated with the keypair
-        :type      domainid: ``str``
-
-        :param     account : The account associated with the keypair.
-                             Must be used with the domainId parameter.
-        :type      account: ``str``
-
-        :return:   True of False based on success of Keypair deletion
-        :rtype:    ``bool``
-        """
-
-        extra_args = kwargs.copy()
-
-        res = self._sync_request('deleteSSHKeyPair', name=keypair,
-                                 **extra_args)
-        return res['success']
+        return result
 
     def ex_import_keypair_from_string(self, name, key_material):
         """
@@ -977,12 +1186,17 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
 
         :rtype: ``dict``
         """
-        res = self._sync_request('registerSSHKeyPair', name=name,
-                                 publickey=key_material)
-        return {
-            'keyName': res['keypair']['name'],
-            'keyFingerprint': res['keypair']['fingerprint']
+        warnings.warn('This method has been deprecated in favor of '
+                      'import_key_pair_from_string method')
+
+        key_pair = self.import_key_pair_from_string(name=name,
+                                                    key_material=key_material)
+        result = {
+            'keyName': key_pair.name,
+            'keyFingerprint': key_pair.fingerprint
         }
+
+        return result
 
     def ex_import_keypair(self, name, keyfile):
         """
@@ -996,9 +1210,45 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
 
         :rtype: ``dict``
         """
-        with open(os.path.expanduser(keyfile)) as fh:
-            content = fh.read()
-        return self.ex_import_keypair_from_string(name, content)
+        warnings.warn('This method has been deprecated in favor of '
+                      'import_key_pair_from_file method')
+
+        key_pair = self.import_key_pair_from_file(name=name,
+                                                  key_file_path=keyfile)
+        result = {
+            'keyName': key_pair.name,
+            'keyFingerprint': key_pair.fingerprint
+        }
+
+        return result
+
+    def ex_delete_keypair(self, keypair, **kwargs):
+        """
+        Deletes an existing SSH KeyPair
+
+        :param     keypair: Name of the keypair (required)
+        :type      keypair: ``str``
+
+        :param     projectid: The project associated with keypair
+        :type      projectid: ``str``
+
+        :param     domainid: The domain ID associated with the keypair
+        :type      domainid: ``str``
+
+        :param     account: The account associated with the keypair.
+                             Must be used with the domainId parameter.
+        :type      account: ``str``
+
+        :return:   True of False based on success of Keypair deletion
+        :rtype:    ``bool``
+        """
+        warnings.warn('This method has been deprecated in favor of '
+                      'delete_key_pair method')
+
+        key_pair = KeyPair(name=keypair, public_key=None, fingerprint=None,
+                           driver=self)
+
+        return self.delete_key_pair(key_pair=key_pair)
 
     def ex_list_security_groups(self, **kwargs):
         """
@@ -1049,9 +1299,13 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
 
         :rtype ``list``
         """
-        extra_args = kwargs
-        return self._sync_request('listSecurityGroups',
-                                  **extra_args)['securitygroup']
+        extra_args = kwargs.copy()
+        res = self._sync_request(command='listSecurityGroups',
+                                 params=extra_args,
+                                 method='GET')
+
+        security_groups = res.get('securitygroup', [])
+        return security_groups
 
     def ex_create_security_group(self, name, **kwargs):
         """
@@ -1084,8 +1338,12 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
             if name in sg['name']:
                 raise LibcloudError('This Security Group name already exists')
 
-        return self._sync_request('createSecurityGroup',
-                                  name=name, **extra_args)['securitygroup']
+        params = {'name': name}
+        params.update(extra_args)
+
+        return self._sync_request(command='createSecurityGroup',
+                                  params=params,
+                                  method='GET')['securitygroup']
 
     def ex_delete_security_group(self, name):
         """
@@ -1113,7 +1371,9 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         :rtype: ``bool``
         """
 
-        return self._sync_request('deleteSecurityGroup', name=name)['success']
+        return self._sync_request(command='deleteSecurityGroup',
+                                  params={'name': name},
+                                  method='GET')['success']
 
     def ex_authorize_security_group_ingress(self, securitygroupname,
                                             protocol, cidrlist, startport,
@@ -1180,8 +1440,9 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         if endport is None:
             args['endport'] = int(startport)
 
-        return self._async_request('authorizeSecurityGroupIngress',
-                                   **args)['securitygroup']
+        return self._async_request(command='authorizeSecurityGroupIngress',
+                                   params=args,
+                                   method='GET')['securitygroup']
 
     def ex_register_iso(self, name, url, location=None, **kwargs):
         """
@@ -1201,19 +1462,94 @@ class CloudStackNodeDriver(CloudStackDriverMixIn, NodeDriver):
         if location is None:
             location = self.list_locations()[0]
 
-        extra_args = {}
-        extra_args['bootable'] = kwargs.pop('bootable', False)
-        if extra_args['bootable']:
+        params = {'name': name,
+                  'displaytext': name,
+                  'url': url,
+                  'zoneid': location.id}
+        params['bootable'] = kwargs.pop('bootable', False)
+        if params['bootable']:
             os_type_id = kwargs.pop('ostypeid', None)
 
             if not os_type_id:
                 raise LibcloudError('If bootable=True, ostypeid is required!')
 
-            extra_args['ostypeid'] = os_type_id
+            params['ostypeid'] = os_type_id
 
-        return self._sync_request('registerIso',
+        return self._sync_request(command='registerIso',
                                   name=name,
                                   displaytext=name,
                                   url=url,
                                   zoneid=location.id,
-                                  **extra_args)
+                                  params=params)
+
+    def _to_node(self, data, public_ips=None):
+        """
+        :param data: Node data object.
+        :type data: ``dict``
+
+        :param public_ips: A list of additional IP addresses belonging to
+                           this node. (optional)
+        :type public_ips: ``list`` or ``None``
+        """
+        id = data['id']
+
+        if 'name' in data:
+            name = data['name']
+        elif 'displayname' in data:
+            name = data['displayname']
+        else:
+            name = None
+
+        state = self.NODE_STATE_MAP[data['state']]
+
+        public_ips = public_ips if public_ips else []
+        private_ips = []
+
+        for nic in data['nic']:
+            if is_private_subnet(nic['ipaddress']):
+                private_ips.append(nic['ipaddress'])
+            else:
+                public_ips.append(nic['ipaddress'])
+
+        zone_id = str(data['zoneid'])
+        password = data.get('password', None)
+        keypair = data.get('keypair', None)
+
+        security_groups = data.get('securitygroup', [])
+
+        if security_groups:
+            security_groups = [sg['name'] for sg in security_groups]
+
+        created = data.get('created', False)
+
+        extra = {
+            'zone_id': zone_id,
+            'ip_addresses': [],
+            'ip_forwarding_rules': [],
+            'port_forwarding_rules': [],
+            'password': password,
+            'key_name': keypair,
+            'security_group': security_groups,
+            'created': created,
+            'image_id': data.get('templateid', None),
+            'image_name': data.get('templatename', None),
+            'size_id': data.get('serviceofferingid', None),
+            'size_name': data.get('serviceofferingname', None)
+        }
+
+        node = CloudStackNode(id=id, name=name, state=state,
+                              public_ips=public_ips, private_ips=private_ips,
+                              driver=self, extra=extra)
+        return node
+
+    def _to_key_pairs(self, data):
+        key_pairs = [self._to_key_pair(data=item) for item in data]
+        return key_pairs
+
+    def _to_key_pair(self, data):
+        key_pair = KeyPair(name=data['name'],
+                           fingerprint=data['fingerprint'],
+                           public_key=data.get('publicKey', None),
+                           private_key=data.get('privateKey', None),
+                           driver=self)
+        return key_pair

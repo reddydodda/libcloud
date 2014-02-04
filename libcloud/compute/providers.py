@@ -70,9 +70,7 @@ DRIVERS = {
     Provider.SERVERLOVE:
     ('libcloud.compute.drivers.serverlove', 'ServerLoveNodeDriver'),
     Provider.CLOUDSIGMA:
-    ('libcloud.compute.drivers.cloudsigma', 'CloudSigmaZrhNodeDriver'),
-    Provider.CLOUDSIGMA_US:
-    ('libcloud.compute.drivers.cloudsigma', 'CloudSigmaLvsNodeDriver'),
+    ('libcloud.compute.drivers.cloudsigma', 'CloudSigmaNodeDriver'),
     Provider.GCE:
     ('libcloud.compute.drivers.gce', 'GCENodeDriver'),
     Provider.GOGRID:
@@ -81,8 +79,6 @@ DRIVERS = {
     ('libcloud.compute.drivers.rackspace', 'RackspaceNodeDriver'),
     Provider.RACKSPACE_FIRST_GEN:
     ('libcloud.compute.drivers.rackspace', 'RackspaceFirstGenNodeDriver'),
-    Provider.SLICEHOST:
-    ('libcloud.compute.drivers.slicehost', 'SlicehostNodeDriver'),
     Provider.VPSNET:
     ('libcloud.compute.drivers.vpsnet', 'VPSNetNodeDriver'),
     Provider.LINODE:
@@ -139,6 +135,14 @@ DRIVERS = {
     ('libcloud.compute.drivers.nephoscale', 'NephoscaleNodeDriver'),
     Provider.CLOUDFRAMES:
     ('libcloud.compute.drivers.cloudframes', 'CloudFramesNodeDriver'),
+    Provider.EXOSCALE:
+    ('libcloud.compute.drivers.exoscale', 'ExoscaleNodeDriver'),
+    Provider.IKOULA:
+    ('libcloud.compute.drivers.ikoula', 'IkoulaNodeDriver'),
+
+    # Deprecated
+    Provider.CLOUDSIGMA_US:
+    ('libcloud.compute.drivers.cloudsigma', 'CloudSigmaLvsNodeDriver'),
 }
 
 

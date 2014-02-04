@@ -25,6 +25,11 @@ from libcloud.compute.types import Provider, NodeState
 from libcloud.compute.base import NodeDriver, Node, NodeLocation, NodeSize, \
     NodeImage
 
+DEFAULT_DOMAIN = 'mist.io'
+DEFAULT_CPU_SIZE = 1
+DEFAULT_RAM_SIZE = 2048
+DEFAULT_DISK_SIZE = 100
+
 DATACENTERS = {
     'hou02': {'country': 'US'},
     'sea01': {'country': 'US', 'name': 'Seattle - West Coast U.S.'},
@@ -220,27 +225,41 @@ class SoftLayerNodeDriver(NodeDriver):
         recurringFee = host.get('billingItem', {}).get('recurringFee', 0)
         recurringMonths = host.get('billingItem', {}).get('recurringMonths', 0)
         createDate = host.get('createDate', None)
-        state = NODE_STATE_MAP.get(
-                host['powerState']['keyName'], NodeState.UNKNOWN)
+
+        # When machine is launching it gets state halted
+        # we change this to pending
+        state = NODE_STATE_MAP.get(host['powerState']['keyName'],
+                                   NodeState.UNKNOWN)
+
         if not password and state == NodeState.UNKNOWN:
             state = NODE_STATE_MAP['INITIATING']
-        #When machine is launching it gets state halted
-        #we change this to pending
+
+        public_ips = []
+        private_ips = []
+
+        if 'primaryIpAddress' in host:
+            public_ips.append(host['primaryIpAddress'])
+
+        if 'primaryBackendIpAddress' in host:
+            private_ips.append(host['primaryBackendIpAddress'])
+
+        image = host.get('operatingSystem', {}).get('softwareLicense', {}) \
+                    .get('softwareDescription', {}) \
+                    .get('longDescription', None)
+
         return Node(
             id=host['id'],
             name=host['hostname'],
             state=state,
-            public_ips=[host.get('primaryIpAddress')],
-            private_ips=[host.get('primaryBackendIpAddress')],
+            public_ips=public_ips,
+            private_ips=private_ips,
             driver=self,
             extra={
                 'password': password,
                 'maxCpu': host.get('maxCpu', None),
                 'datacenter': host.get('datacenter', {}).get('longName', None),
                 'maxMemory': host.get('maxMemory', None),
-                'image': host.get('operatingSystem', {}).get('softwareLicense',
-                         {}).get('softwareDescription',
-                         {}).get('longDescription', None),
+                'image': image,
                 'hourlyRecurringFee': hourlyRecurringFee,
                 'recurringFee': recurringFee,
                 'recurringMonths': recurringMonths,
@@ -330,8 +349,10 @@ class SoftLayerNodeDriver(NodeDriver):
                                            driver=self.connection.driver))
         ex_size_data = SL_TEMPLATES.get(int(size.id)) or {}
         #plan keys are ints
-        cpu_count = kwargs.get('ex_cpus') or ex_size_data.get('cpus') or 1
-        ram = kwargs.get('ex_ram') or ex_size_data.get('ram') or 2048
+        cpu_count = kwargs.get('ex_cpus') or ex_size_data.get('cpus') or \
+            DEFAULT_CPU_SIZE
+        ram = kwargs.get('ex_ram') or ex_size_data.get('ram') or \
+            DEFAULT_RAM_SIZE
         bandwidth = kwargs.get('ex_bandwidth') or size.bandwidth or 10
         hourly = 'true' if kwargs.get('ex_hourly', True) else 'false'
 
@@ -342,7 +363,7 @@ class SoftLayerNodeDriver(NodeDriver):
         if kwargs.get('ex_local_disk') is False:
             local_disk = 'false'
 
-        disk_size = 100
+        disk_size = DEFAULT_DISK_SIZE
         if size.disk:
             disk_size = size.disk
         if kwargs.get('ex_disk'):
@@ -361,7 +382,7 @@ class SoftLayerNodeDriver(NodeDriver):
         if domain is None:
             # TODO: domain is a required argument for the Sofylayer API, but it
             # it shouldn't be.
-            domain = 'mist.io'
+            domain = DEFAULT_DOMAIN
 
         newCCI = {
             'hostname': name,
