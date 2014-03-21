@@ -21,6 +21,7 @@ import datetime
 import time
 import sys
 
+from libcloud.pricing import get_size_price
 from libcloud.common.google import GoogleResponse
 from libcloud.common.google import GoogleBaseConnection
 from libcloud.common.google import GoogleBaseError
@@ -3023,7 +3024,7 @@ class GCENodeDriver(NodeDriver):
         extra['guestCpus'] = machine_type.get('guestCpus')
         extra['creationTimestamp'] = machine_type.get('creationTimestamp')
         try:
-            price = self._get_size_price(size_id=machine_type['name'])
+            price = self._get_size_price(size_id=machine_type['name'], zone=extra['zone'].name)
         except KeyError:
             price = None
 
@@ -3171,3 +3172,15 @@ class GCENodeDriver(NodeDriver):
         return GCEZone(id=zone['id'], name=zone['name'], status=zone['status'],
                        maintenance_windows=zone.get('maintenanceWindows'),
                        deprecated=deprecated, driver=self, extra=extra)
+
+    def _get_size_price(self, size_id, zone):
+        """
+        Return pricing information for the provided size id.
+        """
+        if zone.startswith('eu'):
+            zone = 'eu'
+        else:
+            zone = 'us'
+        return get_size_price(driver_type='compute',
+                              driver_name='gce_%s' % zone,
+                              size_id=size_id)
