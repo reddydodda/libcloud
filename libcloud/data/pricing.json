@@ -446,40 +446,22 @@
             "1": 0.416
         },
 
-        "gce_us": {
-            "f1-micro": "$0.019/h",
-            "g1-small": "$0.054/h",            
-            "n1-standard-1": "$0.104/h",
-            "n1-standard-2": "$0.207/h",
-            "n1-standard-4": "$0.415/h",
-            "n1-standard-8": "$0.829/h",
-            "n1-standard-16": "$1.659/h",
-            "n1-highmem-2": "$0.244/h",
-            "n1-highmem-4": "$0.488/h",
-            "n1-highmem-8": "$0.975/h",
-            "n1-highmem-16": "$1.951/h",
-            "n1-highcpu-2": "$0.131/h",
-            "n1-highcpu-4": "$0.261/h",
-            "n1-highcpu-8": "$0.522/h",
-            "n1-highcpu-16": "$1.044/h"
-        },
-
-        "gce_eu": {
-            "f1-micro": "$0.021/h",
-            "g1-small": "$0.059/h",            
-            "n1-standard-1": "$0.114/h",
-            "n1-standard-2": "$0.228/h",
-            "n1-standard-4": "$0.456/h",
-            "n1-standard-8": "$0.912/h",
-            "n1-standard-16":"$1.825/h",
-            "n1-highmem-2": "$0.275/h",
-            "n1-highmem-4": "$0.549/h",
-            "n1-highmem-8": "$1.098/h",
-            "n1-highmem-16": "$2.196/h",
-            "n1-highcpu-2": "$0.146/h",
-            "n1-highcpu-4": "$0.292/h",
-            "n1-highcpu-8": "$0.584/h",
-            "n1-highcpu-16": "$1.167/h"
+        "gce": {
+            "f1-micro": {"us": "$0.019/h", "eu": "$0.021/h"},
+            "g1-small": {"us": "$0.054/h", "eu": "$0.059/h"},
+            "n1-standard-1": {"us": "$0.104/h", "eu": "$0.114/h"},
+            "n1-standard-2": {"us": "$0.207/h", "eu": "$0.228/h"},
+            "n1-standard-4": {"us": "$0.415/h", "eu": "$0.456/h"},
+            "n1-standard-8": {"us": "$0.829/h", "eu": "$0.912/h"},
+            "n1-standard-16": {"us": "$1.659/h", "eu": "$1.825/h"},
+            "n1-highmem-2": {"us": "$0.244/h", "eu": "$0.275/h"},
+            "n1-highmem-4": {"us": "$0.488/h", "eu": "$0.549/h"},
+            "n1-highmem-8": {"us": "$0.975/h", "eu": "$1.098/h"},
+            "n1-highmem-16": {"us": "$1.951/h", "eu": "$2.196/h"},
+            "n1-highcpu-2": {"us": "$0.131/h", "eu": "$0.146/h"},
+            "n1-highcpu-4": {"us": "$0.261/h", "eu": "$0.292/h"},
+            "n1-highcpu-8": {"us": "$0.522/h", "eu": "$0.584/h"},
+            "n1-highcpu-16": {"us": "$1.044/h", "eu": "$1.167/h"}
         }
     },
 
