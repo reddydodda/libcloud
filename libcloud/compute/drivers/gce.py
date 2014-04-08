@@ -665,7 +665,6 @@ class GCENodeDriver(NodeDriver):
         :return:  List of NodeImage objects
         :rtype:   ``list`` of :class:`NodeImage`
         """
-        list_images = []
         request = '/global/images'
         if ex_project is None:
             response = self.connection.request(request, method='GET').object
@@ -679,7 +678,6 @@ class GCENodeDriver(NodeDriver):
             # Restore the connection request_path
             try:
                 response = self.connection.request(request, method='GET').object
-                self.connection.request_path = save_request_path
             except:
                 self.connection.request_path = save_request_path
                 raise
