@@ -21,6 +21,7 @@ import datetime
 import time
 import sys
 
+from libcloud.pricing import get_size_price
 from libcloud.common.google import GoogleResponse
 from libcloud.common.google import GoogleBaseConnection
 from libcloud.common.google import GoogleBaseError
@@ -664,7 +665,6 @@ class GCENodeDriver(NodeDriver):
         :return:  List of NodeImage objects
         :rtype:   ``list`` of :class:`NodeImage`
         """
-        list_images = []
         request = '/global/images'
         if ex_project is None:
             response = self.connection.request(request, method='GET').object
@@ -675,8 +675,12 @@ class GCENodeDriver(NodeDriver):
             new_request_path = save_request_path.replace(self.project,
                                                          ex_project)
             self.connection.request_path = new_request_path
-            response = self.connection.request(request, method='GET').object
             # Restore the connection request_path
+            try:
+                response = self.connection.request(request, method='GET').object
+            except:
+                self.connection.request_path = save_request_path
+                raise
             self.connection.request_path = save_request_path
         list_images = [self._to_node_image(i) for i in
                        response.get('items', [])]
@@ -2925,6 +2929,7 @@ class GCENodeDriver(NodeDriver):
         extra['description'] = image.get('description', None)
         extra['creationTimestamp'] = image.get('creationTimestamp')
         extra['selfLink'] = image.get('selfLink')
+        extra['deprecated'] = image.get('deprecated', None)
         return NodeImage(id=image['id'], name=image['name'], driver=self,
                          extra=extra)
 
@@ -3165,3 +3170,11 @@ class GCENodeDriver(NodeDriver):
         return GCEZone(id=zone['id'], name=zone['name'], status=zone['status'],
                        maintenance_windows=zone.get('maintenanceWindows'),
                        deprecated=deprecated, driver=self, extra=extra)
+                       
+    def _get_size_price(self, size_id):
+        """
+        Return pricing information for the provided size id.
+        """
+        return get_size_price(driver_type='compute',
+                              driver_name='gce',
+                              size_id=size_id)
