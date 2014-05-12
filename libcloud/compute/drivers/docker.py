@@ -76,14 +76,18 @@ class DockerNodeDriver(NodeDriver):
 
         images = []
         for image in result:
+            try:
+                name = image.get('RepoTags')[0]
+            except:
+                name = image.get('Id')
             images.append(NodeImage(
-                id=image["Id"],
-                name="%s/%s" % (image["Repository"], image["Tag"]),
+                id=image.get('Id'),
+                name=name,
                 driver=self.connection.driver,
                 extra={
-                    "created": image["Created"],
-                    "size": image["Size"],
-                    "virtual_size": image["VirtualSize"],
+                    "created": image.get('Created'),
+                    "size": image.get('Size'),
+                    "virtual_size": image.get('VirtualSize'),
                 },
             ))
 
@@ -101,8 +105,11 @@ class DockerNodeDriver(NodeDriver):
                 driver=self)]
         )
 
+    def list_locations(self):
+        return []
+
     def list_nodes(self):
-        result = self.connection.request("/containers/ps").object
+        result = self.connection.request("/containers/ps?all=1").object
 
         nodes = []
         for value in result:
@@ -167,6 +174,15 @@ class DockerNodeDriver(NodeDriver):
                     driver=self.connection.driver, extra={})
 
     def _to_node(self, data):
+        try:
+            name = data.get('Names')[0]
+        except:
+            name = data.get('Id')
+        if 'Exited' in data.get('Status'):
+            state = NodeState.STOPPED
+        else:
+            state = NodeState.RUNNING
+
         extra = {
             'status': data.get('Status'),
             'created': data.get('Created'),
@@ -178,8 +194,8 @@ class DockerNodeDriver(NodeDriver):
         }
 
         node = (Node(id=data['Id'],
-                  name=data['Id'],
-                  state=NodeState.RUNNING,
+                  name=name,
+                  state=state,
                   public_ips=[],
                   private_ips=[],
                   driver=self.connection.driver,
