@@ -31,6 +31,8 @@ from libcloud.common.base import JsonResponse, ConnectionUserAndKey
 from libcloud.compute.types import NodeState, InvalidCredsError
 from libcloud.compute.base import Node, NodeDriver, NodeImage, NodeSize
 
+VALID_RESPONSE_CODES = [httplib.OK, httplib.ACCEPTED, httplib.CREATED,
+                        httplib.NO_CONTENT]
 
 class DockerResponse(JsonResponse):
 
@@ -120,15 +122,25 @@ class DockerNodeDriver(NodeDriver):
         return nodes
 
     def reboot_node(self, node):
-        data = json.dumps({'t': 10})
-        self.connection.request(
-            self.group_url + '/containers/%s/restart' % (node.id),
-            data=data, method='POST')
+        data = json.dumps({'t': 10})    
+        result = self.connection.request('/containers/%s/start' % (node.id),
+                                         data=data, method='POST')
+        return result.status in VALID_RESPONSE_CODES
 
     def destroy_node(self, node):
-        result = self.connection.request('/containers/%s/kill' % (node.id),
+        result = self.connection.request('/containers/%s' % (node.id),
+                                         method='DELETE')
+        return result.status in VALID_RESPONSE_CODES
+
+    def ex_start_node(self, node):
+        result = self.connection.request('/containers/%s/start' % (node.id),
                                          method='POST')
-        return result.status == httplib.NO_CONTENT
+        return result.status in VALID_RESPONSE_CODES
+
+    def ex_stop_node(self, node):
+        result = self.connection.request('/containers/%s/stop' % (node.id),
+                                         method='POST')
+        return result.status in VALID_RESPONSE_CODES
 
     def create_node(self, **kwargs):
         # name = kwargs['name']
@@ -185,6 +197,7 @@ class DockerNodeDriver(NodeDriver):
             state = NodeState.RUNNING
 
         extra = {
+            'id': data.get('Id'),
             'status': data.get('Status'),
             'created': ts_to_str(data.get('Created')),
             'image': data.get('Image'),
@@ -209,4 +222,3 @@ def ts_to_str(timestamp):
     date = datetime.datetime.fromtimestamp(timestamp)
     date_string = date.strftime("%d/%m/%Y %H:%M %Z")
     return date_string
-
