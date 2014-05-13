@@ -18,6 +18,7 @@ Docker (http://docker.io) driver.
 Created by Markos Gogoulos (mgogoulos@mist.io)
 """
 
+import base64
 import datetime
 try:
     import simplejson as json
@@ -25,6 +26,7 @@ except:
     import json
 
 from libcloud.utils.py3 import httplib
+from libcloud.utils.py3 import b
 
 from libcloud.compute.providers import Provider
 from libcloud.common.base import JsonResponse, ConnectionUserAndKey
@@ -53,7 +55,15 @@ class DockerConnection(ConnectionUserAndKey):
     responseCls = DockerResponse
 
     def add_default_headers(self, headers):
+        """
+        Add parameters that are necessary for every request
+        If user and password are specified, include a base http auth 
+        header        
+        """
         headers['Content-Type'] = 'application/json'
+        if self.user_id and self.key:
+            user_b64 = base64.b64encode(b('%s:%s' % (self.user_id, self.key)))
+            headers['Authorization'] = 'Basic %s' % (user_b64.decode('utf-8'))        
         return headers
 
 
@@ -69,7 +79,13 @@ class DockerNodeDriver(NodeDriver):
                  port=4243, secure=False):
         super(DockerNodeDriver, self).__init__(key=key, secret=secret,
               host=host, port=port)
-
+        if host.startswith('https://'):
+            secure = True
+            port = 443
+        prefixes = ['http://', 'https://']
+        for prefix in prefixes:
+            if host.startswith(prefix):
+                host = host.strip(prefix)
         self.connection.host = host
         self.connection.secure = secure
         self.connection.port = port
