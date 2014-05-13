@@ -18,6 +18,7 @@ Docker (http://docker.io) driver.
 Created by Markos Gogoulos (mgogoulos@mist.io)
 """
 
+import datetime
 try:
     import simplejson as json
 except:
@@ -185,7 +186,7 @@ class DockerNodeDriver(NodeDriver):
 
         extra = {
             'status': data.get('Status'),
-            'created': data.get('Created'),
+            'created': ts_to_str(data.get('Created')),
             'image': data.get('Image'),
             'ports': data.get('Ports'),
             'command': data.get('Command'),
@@ -202,3 +203,10 @@ class DockerNodeDriver(NodeDriver):
                   extra=extra))
 
         return node
+
+def ts_to_str(timestamp):
+    """Return a timestamp as a nicely formated datetime string."""
+    date = datetime.datetime.fromtimestamp(timestamp)
+    date_string = date.strftime("%d/%m/%Y %H:%M %Z")
+    return date_string
+
