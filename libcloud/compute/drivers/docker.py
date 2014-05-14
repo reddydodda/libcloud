@@ -31,7 +31,7 @@ from libcloud.utils.py3 import b
 from libcloud.compute.providers import Provider
 from libcloud.common.base import JsonResponse, ConnectionUserAndKey
 from libcloud.compute.types import NodeState, InvalidCredsError
-from libcloud.compute.base import Node, NodeDriver, NodeImage, NodeSize
+from libcloud.compute.base import Node, NodeDriver, NodeImage, NodeSize, NodeLocation
 
 VALID_RESPONSE_CODES = [httplib.OK, httplib.ACCEPTED, httplib.CREATED,
                         httplib.NO_CONTENT]
@@ -124,9 +124,6 @@ class DockerNodeDriver(NodeDriver):
                 driver=self)]
         )
 
-    def list_locations(self):
-        return []
-
     def list_nodes(self):
         result = self.connection.request("/containers/ps?all=1").object
 
@@ -159,12 +156,6 @@ class DockerNodeDriver(NodeDriver):
         return result.status in VALID_RESPONSE_CODES
 
     def create_node(self, **kwargs):
-        # name = kwargs['name']
-        # size = kwargs['size']
-        # image = kwargs['image']
-
-        # auth = kwargs.get('auth', None)
-
         payload = {
             # 'Hostname': None,
             # 'PortSpecs': None,
