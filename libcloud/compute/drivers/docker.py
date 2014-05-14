@@ -20,6 +20,7 @@ Created by Markos Gogoulos (mgogoulos@mist.io)
 
 import base64
 import datetime
+import shlex
 try:
     import simplejson as json
 except:
@@ -35,6 +36,7 @@ from libcloud.compute.base import Node, NodeDriver, NodeImage, NodeSize, NodeLoc
 
 VALID_RESPONSE_CODES = [httplib.OK, httplib.ACCEPTED, httplib.CREATED,
                         httplib.NO_CONTENT]
+
 
 class DockerResponse(JsonResponse):
 
@@ -57,13 +59,13 @@ class DockerConnection(ConnectionUserAndKey):
     def add_default_headers(self, headers):
         """
         Add parameters that are necessary for every request
-        If user and password are specified, include a base http auth 
-        header        
+        If user and password are specified, include a base http auth
+        header
         """
         headers['Content-Type'] = 'application/json'
         if self.user_id and self.key:
             user_b64 = base64.b64encode(b('%s:%s' % (self.user_id, self.key)))
-            headers['Authorization'] = 'Basic %s' % (user_b64.decode('utf-8'))        
+            headers['Authorization'] = 'Basic %s' % (user_b64.decode('utf-8'))
         return headers
 
 
@@ -135,7 +137,7 @@ class DockerNodeDriver(NodeDriver):
         return nodes
 
     def reboot_node(self, node):
-        data = json.dumps({'t': 10})    
+        data = json.dumps({'t': 10})
         result = self.connection.request('/containers/%s/start' % (node.id),
                                          data=data, method='POST')
         return result.status in VALID_RESPONSE_CODES
@@ -155,23 +157,39 @@ class DockerNodeDriver(NodeDriver):
                                          method='POST')
         return result.status in VALID_RESPONSE_CODES
 
-    def create_node(self, **kwargs):
+    def create_node(self, image, size, command=None, hostname=None, user=None,
+                    detach=False, stdin_open=False, tty=False,
+                    mem_limit=0, ports=None, environment=None, dns=None,
+                    volumes=None, volumes_from=None,
+                    network_disabled=False, name=None, entrypoint=None,
+                    cpu_shares=None, working_dir=None, domainname=None,
+                    memswap_limit=0):
+
+        command = shlex.split(str(script))
+
         payload = {
-            # 'Hostname': None,
-            # 'PortSpecs': None,
-            # 'User': None,
-            # 'Tty': False,
-            # 'OpenStdin': False,
-            # 'Memory': 0,
-            'AttachStdin': False,
-            'AttachStdout': False,
-            'AttachStderr': False,
-            # 'Env': None,
-            'Cmd': ['ls'],
-            # 'Dns': None,
-            'Image': 'base',
-            # 'Volumes': None,
-            # 'VolumesFrom': None,
+            'Hostname': hostname,
+            'Domainname': domainname,
+            'ExposedPorts': ports,
+            'User': user,
+            'Tty': tty,
+            'OpenStdin': stdin_open,
+            'StdinOnce': stdin_once,
+            'Memory': mem_limit,
+            'AttachStdin': attach_stdin,
+            'AttachStdout': attach_stdout,
+            'AttachStderr': attach_stderr,
+            'Env': environment,
+            'Cmd': command,
+            'Dns': dns,
+            'Image': image,
+            'Volumes': volumes,
+            'VolumesFrom': volumes_from,
+            'NetworkDisabled': network_disabled,
+            'Entrypoint': entrypoint,
+            'CpuShares': cpu_shares,
+            'WorkingDir': working_dir,
+            'MemorySwap': memswap_limit
         }
 
         data = json.dumps(payload)
@@ -200,8 +218,10 @@ class DockerNodeDriver(NodeDriver):
             name = data.get('Id')
         if 'Exited' in data.get('Status'):
             state = NodeState.STOPPED
-        else:
+        elif data.get('Status').startswith('Up '):
             state = NodeState.RUNNING
+        else:
+            state = NodeState.STOPPED
 
         extra = {
             'id': data.get('Id'),
@@ -215,14 +235,14 @@ class DockerNodeDriver(NodeDriver):
         }
 
         node = (Node(id=data['Id'],
-                  name=name,
-                  state=state,
-                  public_ips=[],
-                  private_ips=[],
-                  driver=self.connection.driver,
-                  extra=extra))
-
+                     name=name,
+                     state=state,
+                     public_ips=[],
+                     private_ips=[],
+                     driver=self.connection.driver,
+                     extra=extra))
         return node
+
 
 def ts_to_str(timestamp):
     """Return a timestamp as a nicely formated datetime string."""
