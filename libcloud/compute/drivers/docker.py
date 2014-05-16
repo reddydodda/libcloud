@@ -130,8 +130,10 @@ class DockerNodeDriver(NodeDriver):
                 driver=self)]
         )
 
-    def list_nodes(self):
-        result = self.connection.request("/containers/ps?all=1").object
+    def list_nodes(self, show_all=1):
+        #Optional var all lists all containers, even the stopped ones
+        #when set to 1. If set to 0, lists only the running containers
+        result = self.connection.request("/containers/ps?all=%s" % str(show_all)).object
 
         nodes = []
         for value in result:
