@@ -147,9 +147,10 @@ class DockerNodeDriver(NodeDriver):
                                          method='DELETE')
         return result.status in VALID_RESPONSE_CODES
 
-    def ex_start_node(self, node):
+    def ex_start_node(self, node, payload={}):
+        data = json.dumps(payload)
         result = self.connection.request('/containers/%s/start' % (node.id),
-                                         method='POST')
+                                         method='POST', data=data)
         return result.status in VALID_RESPONSE_CODES
 
     def ex_stop_node(self, node):
