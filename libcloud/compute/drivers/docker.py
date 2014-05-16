@@ -158,7 +158,7 @@ class DockerNodeDriver(NodeDriver):
                                          method='POST')
         return result.status in VALID_RESPONSE_CODES
 
-    def create_node(self, image, size, command=None, hostname=None, user=None,
+    def create_node(self, image, size=None, command=None, hostname=None, user=None,
                     detach=False, stdin_open=False, tty=False,
                     mem_limit=0, ports=None, environment=None, dns=None,
                     volumes=None, volumes_from=None,
@@ -190,7 +190,7 @@ class DockerNodeDriver(NodeDriver):
             'Entrypoint': entrypoint,
             'CpuShares': cpu_shares,
             'WorkingDir': working_dir,
-            'MemorySwap': memswap_limit
+            'MemorySwap': memswap_limit,
         }
 
         data = json.dumps(payload)
