@@ -164,6 +164,15 @@ class DockerNodeDriver(NodeDriver):
                                          method='POST')
         return result.status in VALID_RESPONSE_CODES
 
+    def get_logs(self, node, stream=False, payload={}):
+        #If stream == True, logs will be yielded as a stream, so a different implemantation is needed
+        #for the output
+        data = json.dumps(payload)
+
+        result = self.connection.request("/containers/%s/attach?logs=1&stream=%s&stdout=1&stderr=1" %
+                                         (node.id, str(stream)), method='POST', data=data)
+        return result
+
     def create_node(self, image, size=None, command=None, hostname=None, user=None,
                     detach=False, stdin_open=False, tty=False,
                     mem_limit=0, ports=None, environment=None, dns=None,
