@@ -114,6 +114,10 @@ class DockerNodeDriver(NodeDriver):
 
         return images
 
+    def search_images(self, term=None):
+        result = self.connection.request('/images/search?term=%s' % term).object
+        return result
+
     def list_sizes(self):
         return (
             [NodeSize(
