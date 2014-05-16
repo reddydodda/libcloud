@@ -165,7 +165,7 @@ class DockerNodeDriver(NodeDriver):
                     cpu_shares=None, working_dir=None, domainname=None,
                     memswap_limit=0):
 
-        command = shlex.split(str(script))
+        command = shlex.split(str(command))
 
         payload = {
             'Hostname': hostname,
@@ -174,11 +174,11 @@ class DockerNodeDriver(NodeDriver):
             'User': user,
             'Tty': tty,
             'OpenStdin': stdin_open,
-            'StdinOnce': stdin_once,
+            'StdinOnce': False,
             'Memory': mem_limit,
-            'AttachStdin': attach_stdin,
-            'AttachStdout': attach_stdout,
-            'AttachStderr': attach_stderr,
+            'AttachStdin': False,
+            'AttachStdout': False,
+            'AttachStderr': False,
             'Env': environment,
             'Cmd': command,
             'Dns': dns,
