@@ -141,6 +141,12 @@ class DockerNodeDriver(NodeDriver):
         result = self.connection.request('/images/search?term=%s' % term).object
         return result
 
+    def pull_image(self, image=None, payload={}):
+        data = json.dumps(payload)
+        result = self.connection.request('/images/create?fromImage=%s' % (image), data=data, method='POST')
+
+        return result
+
     def list_sizes(self):
         return (
             [NodeSize(
@@ -202,7 +208,7 @@ class DockerNodeDriver(NodeDriver):
             result = self.connection.request("/containers/%s/attach?logs=1&stream=%s&stdout=1&stderr=1" %
                                             (node.id, str(stream)), method='POST', data=data)
             logs = result.body
-            
+
         return logs
 
     def create_node(self, image, size=None, command=None, hostname=None, user=None,
