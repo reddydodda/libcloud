@@ -91,6 +91,13 @@ class DockerNodeDriver(NodeDriver):
         self.connection.host = host
         self.connection.secure = secure
         self.connection.port = port
+        self.api_version = self._get_api_version()
+
+    def _get_api_version(self):
+        result = self.connection.request('/version').object
+        api_version = result['ApiVersion']
+
+        return api_version
 
     def list_images(self):
         result = self.connection.request('/images/json').object
