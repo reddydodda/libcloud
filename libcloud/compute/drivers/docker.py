@@ -31,7 +31,7 @@ from libcloud.utils.py3 import b
 
 from libcloud.compute.providers import Provider
 from libcloud.common.base import JsonResponse, ConnectionUserAndKey
-from libcloud.compute.types import NodeState, InvalidCredsError
+from libcloud.compute.types import NodeState, InvalidCredsError, MalformedResponseError
 from libcloud.compute.base import Node, NodeDriver, NodeImage, NodeSize, NodeLocation
 
 VALID_RESPONSE_CODES = [httplib.OK, httplib.ACCEPTED, httplib.CREATED,
@@ -42,6 +42,22 @@ class DockerResponse(JsonResponse):
 
     valid_response_codes = [httplib.OK, httplib.ACCEPTED, httplib.CREATED,
                             httplib.NO_CONTENT]
+
+    def parse_body(self):
+        if len(self.body) == 0 and not self.parse_zero_length_body:
+            return self.body
+
+        try:
+            body = json.loads(self.body)
+        except:
+            if type(self.body) == str:
+                return json.dumps(self.body)
+
+            raise MalformedResponseError(
+                'Failed to parse JSON',
+                body=self.body,
+                driver=self.connection.driver)
+        return body
 
     def parse_error(self):
         if self.status == 401:
@@ -176,9 +192,18 @@ class DockerNodeDriver(NodeDriver):
         #for the output
         data = json.dumps(payload)
 
-        result = self.connection.request("/containers/%s/attach?logs=1&stream=%s&stdout=1&stderr=1" %
-                                         (node.id, str(stream)), method='POST', data=data)
-        return result
+        #Frim Api Version 1.11 and above we need a GET request to get the logs, which come in a
+        #different format of those of Version 1.10 and below
+        if float(self.api_version) > 1.10:
+            result = self.connection.request("/containers/%s/logs?follow=%s&stdout=1&stderr=1" %
+                                             (node.id, str(stream))).object
+            logs = json.loads(result)
+        else:
+            result = self.connection.request("/containers/%s/attach?logs=1&stream=%s&stdout=1&stderr=1" %
+                                            (node.id, str(stream)), method='POST', data=data)
+            logs = result.body
+            
+        return logs
 
     def create_node(self, image, size=None, command=None, hostname=None, user=None,
                     detach=False, stdin_open=False, tty=False,
