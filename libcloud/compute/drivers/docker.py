@@ -107,17 +107,19 @@ class DockerNodeDriver(NodeDriver):
         self.connection.host = host
         self.connection.secure = secure
         self.connection.port = port
-        self.api_version = self._get_api_version()
 
     def _get_api_version(self):
+        "Get the docker API version information"
+
         result = self.connection.request('/version').object
-        api_version = result['ApiVersion']
+        api_version = result.get('ApiVersion')
 
         return api_version
 
     def list_images(self):
-        result = self.connection.request('/images/json').object
+        "Return list of images"
 
+        result = self.connection.request('/images/json').object
         images = []
         for image in result:
             try:
@@ -138,22 +140,54 @@ class DockerNodeDriver(NodeDriver):
         return images
 
     def search_images(self, term=None):
+        """Search for an image on Docker.io.
+           Returns a list of NodeImage objects
+        """
+
         result = self.connection.request('/images/search?term=%s' % term).object
-        return result
+        images = []
+        for image in result:
+            name = image.get('name')
+            images.append(NodeImage(
+                id=name,
+                name=name,
+                driver=self.connection.driver,
+                extra={
+                    "description": image.get('description'),
+                    "is_official": image.get('is_official'),
+                    "is_trusted": image.get('is_trusted'),
+                    "star_count": image.get('star_count'),
+                },
+            ))
 
-    def pull_image(self, image=None, payload={}):
+        return images
+
+    def pull_image(self, image, payload={}):
+        """Create an image, either by pull it from the registry or by importing it
+           eg image = 
+        """
+        
         data = json.dumps(payload)
-        result = self.connection.request('/images/create?fromImage=%s' % (image), data=data, method='POST')
+        result = self.connection.request('/images/create?fromImage=%s' % (image), data=data, method='POST').object
+        image = NodeImage(id=name,name=name,
+                driver=self.connection.driver,
+                extra={
+                    "description": image.get('description'),
+                    "is_official": image.get('is_official'),
+                    "is_trusted": image.get('is_trusted'),
+                    "star_count": image.get('star_count'),
+                },
+            )
 
-        return result
+        return image
 
     def list_sizes(self):
         return (
             [NodeSize(
                 id='default',
                 name='default',
-                ram=1024,
-                disk=5120,
+                ram=0,
+                disk=0,
                 bandwidth=0,
                 price=0,
                 driver=self)]
@@ -164,16 +198,12 @@ class DockerNodeDriver(NodeDriver):
         #when set to True. If set to False, lists only the running containers
         result = self.connection.request("/containers/ps?all=%s" % str(show_all)).object
 
-        nodes = []
-        for value in result:
-            node = self._to_node(value)
-            nodes.append(node)
-
+        nodes = [self._to_node(value) for value in result]
         return nodes
 
     def reboot_node(self, node):
         data = json.dumps({'t': 10})
-        result = self.connection.request('/containers/%s/start' % (node.id),
+        result = self.connection.request('/containers/%s/restart' % (node.id),
                                          data=data, method='POST')
         return result.status in VALID_RESPONSE_CODES
 
@@ -200,7 +230,7 @@ class DockerNodeDriver(NodeDriver):
 
         #Frim Api Version 1.11 and above we need a GET request to get the logs, which come in a
         #different format of those of Version 1.10 and below
-        if float(self.api_version) > 1.10:
+        if float(self._get_api_version()) > 1.10:
             result = self.connection.request("/containers/%s/logs?follow=%s&stdout=1&stderr=1" %
                                              (node.id, str(stream))).object
             logs = json.loads(result)
@@ -211,7 +241,7 @@ class DockerNodeDriver(NodeDriver):
 
         return logs
 
-    def create_node(self, image, size=None, command=None, hostname=None, user=None,
+    def create_node(self, image, size=None, command=None, hostname="", user="",
                     detach=False, stdin_open=False, tty=False,
                     mem_limit=0, ports=None, environment=None, dns=None,
                     volumes=None, volumes_from=None,
@@ -266,6 +296,8 @@ class DockerNodeDriver(NodeDriver):
                     driver=self.connection.driver, extra={})
 
     def _to_node(self, data):
+        """Convert node in Node instances
+        """     
         try:
             name = data.get('Names')[0]
         except:
@@ -277,12 +309,13 @@ class DockerNodeDriver(NodeDriver):
         else:
             state = NodeState.STOPPED
 
+        ports = json.dumps(data.get('Ports', {}))
         extra = {
             'id': data.get('Id'),
             'status': data.get('Status'),
             'created': ts_to_str(data.get('Created')),
             'image': data.get('Image'),
-            'ports': data.get('Ports'),
+            'ports': ports,
             'command': data.get('Command'),
             'sizerw': data.get('SizeRw'),
             'sizerootfs': data.get('SizeRootFs'),
@@ -291,7 +324,7 @@ class DockerNodeDriver(NodeDriver):
         node = (Node(id=data['Id'],
                      name=name,
                      state=state,
-                     public_ips=[],
+                     public_ips=[self.connection.host],
                      private_ips=[],
                      driver=self.connection.driver,
                      extra=extra))
