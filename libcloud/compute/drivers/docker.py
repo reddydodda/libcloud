@@ -21,6 +21,8 @@ Created by Markos Gogoulos (mgogoulos@mist.io)
 import base64
 import datetime
 import shlex
+import re
+
 try:
     import simplejson as json
 except:
@@ -31,8 +33,10 @@ from libcloud.utils.py3 import b
 
 from libcloud.compute.providers import Provider
 from libcloud.common.base import JsonResponse, ConnectionUserAndKey
-from libcloud.compute.types import NodeState, InvalidCredsError, MalformedResponseError
-from libcloud.compute.base import Node, NodeDriver, NodeImage, NodeSize, NodeLocation
+from libcloud.compute.types import (NodeState, InvalidCredsError,
+                                    MalformedResponseError, LibcloudError)
+from libcloud.compute.base import (Node, NodeDriver, NodeImage,
+                                   NodeSize, NodeLocation)
 
 VALID_RESPONSE_CODES = [httplib.OK, httplib.ACCEPTED, httplib.CREATED,
                         httplib.NO_CONTENT]
@@ -162,33 +166,44 @@ class DockerNodeDriver(NodeDriver):
 
         return images
 
-    def pull_image(self, image, payload={}):
+    def pull_image(self, image):
         """Create an image, either by pull it from the registry or by importing it
-           eg image = 
+           eg image = mist/mist.io
         """
-        
-        data = json.dumps(payload)
-        result = self.connection.request('/images/create?fromImage=%s' % (image), data=data, method='POST').object
-        image = NodeImage(id=name,name=name,
-                driver=self.connection.driver,
-                extra={
-                    "description": image.get('description'),
-                    "is_official": image.get('is_official'),
-                    "is_trusted": image.get('is_trusted'),
-                    "star_count": image.get('star_count'),
-                },
-            )
 
+        payload = {           
+        }
+        data = json.dumps(payload)
+
+        result = self.connection.request('/images/create?fromImage=%s' % (image), data=data, method='POST')
+        if "errorDetail" in result.body:
+            raise LibcloudError(result.body)
+
+        try:
+            image_id = re.findall(r'{"status":"Download complete","progressDetail":{},"id":"\w+"}', result.body)[-1]
+            image_id = json.loads(image_id).get('id')
+        except:
+            image_id = image
+
+        image = NodeImage(id=image_id, name=image, driver=self.connection.driver,
+                          extra={})
         return image
 
+    def delete_image(self, image):
+        "Remove the image from the filesystem"
+        result = self.connection.request('/images/%s' % (image),
+                                         method='DELETE')
+        return result.status in VALID_RESPONSE_CODES
+        
+            
     def list_sizes(self):
         return (
             [NodeSize(
                 id='default',
                 name='default',
-                ram=0,
-                disk=0,
-                bandwidth=0,
+                ram='unlimited',
+                disk='unlimited',
+                bandwidth='unlimited',
                 price=0,
                 driver=self)]
         )
@@ -212,7 +227,11 @@ class DockerNodeDriver(NodeDriver):
                                          method='DELETE')
         return result.status in VALID_RESPONSE_CODES
 
-    def ex_start_node(self, node, payload={}):
+    def ex_start_node(self, node):
+        payload = {
+            'Binds': [],
+            'PublishAllPorts':True,            
+        }
         data = json.dumps(payload)
         result = self.connection.request('/containers/%s/start' % (node.id),
                                          method='POST', data=data)
@@ -241,17 +260,21 @@ class DockerNodeDriver(NodeDriver):
 
         return logs
 
-    def create_node(self, image, size=None, command=None, hostname="", user="",
+    def create_node(self, name, image, command=None, hostname=None, user='',
                     detach=False, stdin_open=False, tty=False,
                     mem_limit=0, ports=None, environment=None, dns=None,
                     volumes=None, volumes_from=None,
-                    network_disabled=False, name=None, entrypoint=None,
+                    network_disabled=False, entrypoint=None,
                     cpu_shares=None, working_dir=None, domainname=None,
                     memswap_limit=0):
-
+        
         command = shlex.split(str(command))
 
-        payload = {
+        params = {
+            'name': name
+        }
+        
+        payload = { 
             'Hostname': hostname,
             'Domainname': domainname,
             'ExposedPorts': ports,
@@ -277,13 +300,26 @@ class DockerNodeDriver(NodeDriver):
         }
 
         data = json.dumps(payload)
-        result = self.connection.request('/containers/create', data=data,
-                                         method='POST')
+        try:
+            result = self.connection.request('/containers/create', data=data,
+                                         params=params, method='POST')
+        except Exception as e:
+            #if image not found, try to pull it
+            if e.message.startswith('No such image:'):
+                try:
+                    self.pull_image(image=image)
+                    result = self.connection.request('/containers/create',
+                                                     data=data, params=params, method='POST')
+                except:
+                    raise LibcloudError('No such image:' % image)
+            else:    
+                raise LibcloudError(e)                
 
         id_ = result.object['Id']
 
         payload = {
             'Binds': [],
+            'PublishAllPorts':True,            
         }
 
         data = json.dumps(payload)
@@ -299,7 +335,7 @@ class DockerNodeDriver(NodeDriver):
         """Convert node in Node instances
         """     
         try:
-            name = data.get('Names')[0]
+            name = data.get('Names')[0].strip('/')
         except:
             name = data.get('Id')
         if 'Exited' in data.get('Status'):
