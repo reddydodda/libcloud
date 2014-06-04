@@ -99,7 +99,7 @@ class DockerNodeDriver(NodeDriver):
     >>> conn.list_nodes()
     or connecting to http basic auth protected https host:
     >>> conn = driver('user', 'pass', host='https://198.61.239.128', port=443)
-    
+
     """
 
     type = Provider.DOCKER
@@ -111,7 +111,7 @@ class DockerNodeDriver(NodeDriver):
     def __init__(self, key=None, secret=None, host='localhost',
                  port=4243, secure=False):
         super(DockerNodeDriver, self).__init__(key=key, secret=secret,
-              host=host, port=port)
+                                               host=host, port=port)
         if host.startswith('https://'):
             secure = True
             port = 443
@@ -131,7 +131,7 @@ class DockerNodeDriver(NodeDriver):
         api_version = result.get('ApiVersion')
 
         return api_version
-            
+
     def list_sizes(self):
         return (
             [NodeSize(
@@ -149,7 +149,8 @@ class DockerNodeDriver(NodeDriver):
         List running and stopped containers
         show_all=False will show only running containers
         """
-        result = self.connection.request("/containers/ps?all=%s" % str(show_all)).object
+        result = self.connection.request("/containers/ps?all=%s" %
+                                         str(show_all)).object
 
         nodes = [self._to_node(value) for value in result]
         return nodes
@@ -158,12 +159,13 @@ class DockerNodeDriver(NodeDriver):
         """
         Inspect a container
         """
-        result = self.connection.request("/containers/%s/json" % node.id).object
+        result = self.connection.request("/containers/%s/json" %
+                                         node.id).object
 
         name = result.get('Name').strip('/')
         if result['State']['Running']:
             state = NodeState.RUNNING
-        else:        
+        else:
             state = NodeState.STOPPED
 
         extra = {
@@ -189,7 +191,7 @@ class DockerNodeDriver(NodeDriver):
         result = self.connection.request("/containers/%s/top" % node.id).object
 
         return result
-    
+
     def reboot_node(self, node):
         """
         Restart a container
@@ -213,10 +215,10 @@ class DockerNodeDriver(NodeDriver):
         """
         Start a container
         """
-    
+
         payload = {
             'Binds': [],
-            'PublishAllPorts':True,            
+            'PublishAllPorts': True,
         }
         data = json.dumps(payload)
         result = self.connection.request('/containers/%s/start' % (node.id),
@@ -240,12 +242,13 @@ class DockerNodeDriver(NodeDriver):
         Logs are in different format of those of Version 1.10 and below
 
         """
-        payload={}        
+        payload = {}
         data = json.dumps(payload)
 
         if float(self._get_api_version()) > 1.10:
-            result = self.connection.request("/containers/%s/logs?follow=%s&stdout=1&stderr=1" %
-                                             (node.id, str(stream))).object
+            result = self.connection.request("/containers/%s/logs?follow=\
+                                              %s&stdout=1&stderr=1" %
+                                              (node.id, str(stream))).object
             logs = json.loads(result)
         else:
             result = self.connection.request("/containers/%s/attach?logs=1&stream=%s&stdout=1&stderr=1" %
@@ -273,8 +276,8 @@ class DockerNodeDriver(NodeDriver):
         params = {
             'name': name
         }
-        
-        payload = { 
+
+        payload = {
             'Hostname': hostname,
             'Domainname': domainname,
             'ExposedPorts': ports,
@@ -302,24 +305,25 @@ class DockerNodeDriver(NodeDriver):
         data = json.dumps(payload)
         try:
             result = self.connection.request('/containers/create', data=data,
-                                         params=params, method='POST')
+                                             params=params, method='POST')
         except Exception as e:
             #if image not found, try to pull it
             if e.message.startswith('No such image:'):
                 try:
                     self.pull_image(image=image)
                     result = self.connection.request('/containers/create',
-                                                     data=data, params=params, method='POST')
+                                                     data=data, params=params,
+                                                     method='POST')
                 except:
                     raise LibcloudError('No such image:' % image)
-            else:    
-                raise LibcloudError(e)                
+            else:
+                raise LibcloudError(e)
 
         id_ = result.object['Id']
 
         payload = {
             'Binds': [],
-            'PublishAllPorts':True,            
+            'PublishAllPorts': True
         }
 
         data = json.dumps(payload)
@@ -360,11 +364,12 @@ class DockerNodeDriver(NodeDriver):
 
            >>> images = conn.search_images(term='mistio')
            >>> images
-           [<NodeImage: id=rolikeusch/docker-mistio, name=rolikeusch/docker-mistio, driver=Docker  ...>,
+           [<NodeImage: id=rolikeusch/docker-mistio...>,
             <NodeImage: id=mist/mistio, name=mist/mistio, driver=Docker  ...>]
         """
 
-        result = self.connection.request('/images/search?term=%s' % term).object
+        result = self.connection.request('/images/search?term=%s' %
+                                         term).object
         images = []
         for image in result:
             name = image.get('name')
@@ -383,19 +388,21 @@ class DockerNodeDriver(NodeDriver):
         return images
 
     def pull_image(self, image):
-        """Create an image, either by pull it from the registry or by importing it
+        """Create an image,
+        Create an image either by pull it from the registry or by
+        importing it
         >>> image = conn.pull_image(image='mist/mistio')
         >>> image
         <NodeImage: id=0ec05daec99f, name=mist/mistio, driver=Docker  ...>
 
         """
 
-        payload = {           
+        payload = {
         }
         data = json.dumps(payload)
 
-        result = self.connection.request('/images/create?fromImage=%s' % (image),
-                                         data=data, method='POST')
+        result = self.connection.request('/images/create?fromImage=%s' %
+                                         (image), data=data, method='POST')
         if "errorDetail" in result.body:
             raise LibcloudError(result.body)
         try:
@@ -405,8 +412,8 @@ class DockerNodeDriver(NodeDriver):
         except:
             image_id = image
 
-        image = NodeImage(id=image_id, name=image, driver=self.connection.driver,
-                          extra={})
+        image = NodeImage(id=image_id, name=image,
+                          driver=self.connection.driver, extra={})
         return image
 
     def delete_image(self, image):
@@ -421,7 +428,6 @@ class DockerNodeDriver(NodeDriver):
         """
         raise NotImplementedError()
 
-
     def push_image(self, image):
         """
         Push an image on the registry
@@ -430,7 +436,7 @@ class DockerNodeDriver(NodeDriver):
 
     def _to_node(self, data):
         """Convert node in Node instances
-        """     
+        """
         try:
             name = data.get('Names')[0].strip('/')
         except:
