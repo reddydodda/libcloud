@@ -90,6 +90,17 @@ class DockerConnection(ConnectionUserAndKey):
 
 
 class DockerNodeDriver(NodeDriver):
+    """
+    Docker node driver class.
+
+    >>> from libcloud.compute.providers import get_driver
+    >>> driver = get_driver('docker')
+    >>> conn = driver(host='198.61.239.128', port=4243)
+    >>> conn.list_nodes()
+    or connecting to http basic auth protected https host:
+    >>> conn = driver('user', 'pass', host='https://198.61.239.128', port=443)
+    
+    """
 
     type = Provider.DOCKER
     name = 'Docker'
@@ -105,6 +116,7 @@ class DockerNodeDriver(NodeDriver):
             secure = True
             port = 443
         prefixes = ['http://', 'https://']
+        #strip the prefix
         for prefix in prefixes:
             if host.startswith(prefix):
                 host = host.strip(prefix)
@@ -121,7 +133,7 @@ class DockerNodeDriver(NodeDriver):
         return api_version
 
     def list_images(self):
-        "Return list of images"
+        "Return list of images as NodeImage objects"
 
         result = self.connection.request('/images/json').object
         images = []
@@ -146,6 +158,11 @@ class DockerNodeDriver(NodeDriver):
     def search_images(self, term=None):
         """Search for an image on Docker.io.
            Returns a list of NodeImage objects
+
+           >>> images = conn.search_images(term='mistio')
+           >>> images
+           [<NodeImage: id=rolikeusch/docker-mistio, name=rolikeusch/docker-mistio, driver=Docker  ...>,
+            <NodeImage: id=mist/mistio, name=mist/mistio, driver=Docker  ...>]
         """
 
         result = self.connection.request('/images/search?term=%s' % term).object
@@ -168,18 +185,22 @@ class DockerNodeDriver(NodeDriver):
 
     def pull_image(self, image):
         """Create an image, either by pull it from the registry or by importing it
-           eg image = mist/mist.io
+        >>> image = conn.pull_image(image='mist/mistio')
+        >>> image
+        <NodeImage: id=0ec05daec99f, name=mist/mistio, driver=Docker  ...>
+
         """
 
         payload = {           
         }
         data = json.dumps(payload)
 
-        result = self.connection.request('/images/create?fromImage=%s' % (image), data=data, method='POST')
+        result = self.connection.request('/images/create?fromImage=%s' % (image),
+                                         data=data, method='POST')
         if "errorDetail" in result.body:
             raise LibcloudError(result.body)
-
         try:
+            #get image id
             image_id = re.findall(r'{"status":"Download complete","progressDetail":{},"id":"\w+"}', result.body)[-1]
             image_id = json.loads(image_id).get('id')
         except:
@@ -190,7 +211,7 @@ class DockerNodeDriver(NodeDriver):
         return image
 
     def delete_image(self, image):
-        "Remove the image from the filesystem"
+        "Remove image from the filesystem"
         result = self.connection.request('/images/%s' % (image),
                                          method='DELETE')
         return result.status in VALID_RESPONSE_CODES
@@ -209,25 +230,67 @@ class DockerNodeDriver(NodeDriver):
         )
 
     def list_nodes(self, show_all=True):
-        #Optional var show_all lists all containers, even the stopped ones
-        #when set to True. If set to False, lists only the running containers
+        """
+        List running and stopped containers
+        show_all=False will show only running containers
+        """
         result = self.connection.request("/containers/ps?all=%s" % str(show_all)).object
 
         nodes = [self._to_node(value) for value in result]
         return nodes
 
+    def inspect_node(self, node):
+        """
+        Inspect a container
+        """
+        result = self.connection.request("/containers/%s/json" % node.id).object
+
+        name = result.get('Name').strip('/')
+        if result['State']['Running']:
+            state = NodeState.RUNNING
+        else:        
+            state = NodeState.STOPPED
+
+        extra = {
+            'image': result.get('Image'),
+            'volumes': result.get('Volumes'),
+            'env': result.get('Config', {}).get('Env'),
+            'ports': result.get('ExposedPorts'),
+        }
+
+        node = (Node(id=result['ID'],
+                     name=name,
+                     state=state,
+                     public_ips=[self.connection.host],
+                     private_ips=[],
+                     driver=self.connection.driver,
+                     extra=extra))
+        return node
+
     def reboot_node(self, node):
+        """
+        Restart a container
+        """
         data = json.dumps({'t': 10})
+        #number of seconds to wait before killing the container
         result = self.connection.request('/containers/%s/restart' % (node.id),
                                          data=data, method='POST')
         return result.status in VALID_RESPONSE_CODES
 
     def destroy_node(self, node):
+        """
+        Remove a container
+        """
+
         result = self.connection.request('/containers/%s' % (node.id),
                                          method='DELETE')
         return result.status in VALID_RESPONSE_CODES
 
     def ex_start_node(self, node):
+        """
+        Start a container
+        """
+    
         payload = {
             'Binds': [],
             'PublishAllPorts':True,            
@@ -238,17 +301,25 @@ class DockerNodeDriver(NodeDriver):
         return result.status in VALID_RESPONSE_CODES
 
     def ex_stop_node(self, node):
+        """
+        Stop a container
+        """
         result = self.connection.request('/containers/%s/stop' % (node.id),
                                          method='POST')
         return result.status in VALID_RESPONSE_CODES
 
-    def get_logs(self, node, stream=False, payload={}):
-        #If stream == True, logs will be yielded as a stream, so a different implemantation is needed
-        #for the output
+    def get_logs(self, node, stream=False):
+        """
+        Get container logs
+
+        If stream == True, logs will be yielded as a stream
+        From Api Version 1.11 and above we need a GET request to get the logs
+        Logs are in different format of those of Version 1.10 and below
+
+        """
+        payload={}        
         data = json.dumps(payload)
 
-        #Frim Api Version 1.11 and above we need a GET request to get the logs, which come in a
-        #different format of those of Version 1.10 and below
         if float(self._get_api_version()) > 1.10:
             result = self.connection.request("/containers/%s/logs?follow=%s&stdout=1&stderr=1" %
                                              (node.id, str(stream))).object
@@ -267,7 +338,13 @@ class DockerNodeDriver(NodeDriver):
                     network_disabled=False, entrypoint=None,
                     cpu_shares=None, working_dir=None, domainname=None,
                     memswap_limit=0):
-        
+        """
+        Create a container
+
+        Create a container, based on an image and optionally specify command
+        and other settings. If image is not found, try to pull it
+        After the container is created, start it
+        """
         command = shlex.split(str(command))
 
         params = {
