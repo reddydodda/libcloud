@@ -131,91 +131,6 @@ class DockerNodeDriver(NodeDriver):
         api_version = result.get('ApiVersion')
 
         return api_version
-
-    def list_images(self):
-        "Return list of images as NodeImage objects"
-
-        result = self.connection.request('/images/json').object
-        images = []
-        for image in result:
-            try:
-                name = image.get('RepoTags')[0]
-            except:
-                name = image.get('Id')
-            images.append(NodeImage(
-                id=image.get('Id'),
-                name=name,
-                driver=self.connection.driver,
-                extra={
-                    "created": image.get('Created'),
-                    "size": image.get('Size'),
-                    "virtual_size": image.get('VirtualSize'),
-                },
-            ))
-
-        return images
-
-    def search_images(self, term=None):
-        """Search for an image on Docker.io.
-           Returns a list of NodeImage objects
-
-           >>> images = conn.search_images(term='mistio')
-           >>> images
-           [<NodeImage: id=rolikeusch/docker-mistio, name=rolikeusch/docker-mistio, driver=Docker  ...>,
-            <NodeImage: id=mist/mistio, name=mist/mistio, driver=Docker  ...>]
-        """
-
-        result = self.connection.request('/images/search?term=%s' % term).object
-        images = []
-        for image in result:
-            name = image.get('name')
-            images.append(NodeImage(
-                id=name,
-                name=name,
-                driver=self.connection.driver,
-                extra={
-                    "description": image.get('description'),
-                    "is_official": image.get('is_official'),
-                    "is_trusted": image.get('is_trusted'),
-                    "star_count": image.get('star_count'),
-                },
-            ))
-
-        return images
-
-    def pull_image(self, image):
-        """Create an image, either by pull it from the registry or by importing it
-        >>> image = conn.pull_image(image='mist/mistio')
-        >>> image
-        <NodeImage: id=0ec05daec99f, name=mist/mistio, driver=Docker  ...>
-
-        """
-
-        payload = {           
-        }
-        data = json.dumps(payload)
-
-        result = self.connection.request('/images/create?fromImage=%s' % (image),
-                                         data=data, method='POST')
-        if "errorDetail" in result.body:
-            raise LibcloudError(result.body)
-        try:
-            #get image id
-            image_id = re.findall(r'{"status":"Download complete","progressDetail":{},"id":"\w+"}', result.body)[-1]
-            image_id = json.loads(image_id).get('id')
-        except:
-            image_id = image
-
-        image = NodeImage(id=image_id, name=image, driver=self.connection.driver,
-                          extra={})
-        return image
-
-    def delete_image(self, image):
-        "Remove image from the filesystem"
-        result = self.connection.request('/images/%s' % (image),
-                                         method='DELETE')
-        return result.status in VALID_RESPONSE_CODES
-        
             
     def list_sizes(self):
         return (
@@ -267,6 +182,12 @@ class DockerNodeDriver(NodeDriver):
                      extra=extra))
         return node
 
+    def list_processes(self, node):
+        """
+        List processes running inside a container
+        """
+        raise NotImplementedError()
+    
     def reboot_node(self, node):
         """
         Restart a container
@@ -407,6 +328,103 @@ class DockerNodeDriver(NodeDriver):
         return Node(id=id_, name=id_, state=NodeState.RUNNING,
                     public_ips=[], private_ips=[],
                     driver=self.connection.driver, extra={})
+
+    def list_images(self):
+        "Return list of images as NodeImage objects"
+
+        result = self.connection.request('/images/json').object
+        images = []
+        for image in result:
+            try:
+                name = image.get('RepoTags')[0]
+            except:
+                name = image.get('Id')
+            images.append(NodeImage(
+                id=image.get('Id'),
+                name=name,
+                driver=self.connection.driver,
+                extra={
+                    "created": image.get('Created'),
+                    "size": image.get('Size'),
+                    "virtual_size": image.get('VirtualSize'),
+                },
+            ))
+
+        return images
+
+    def search_images(self, term=None):
+        """Search for an image on Docker.io.
+           Returns a list of NodeImage objects
+
+           >>> images = conn.search_images(term='mistio')
+           >>> images
+           [<NodeImage: id=rolikeusch/docker-mistio, name=rolikeusch/docker-mistio, driver=Docker  ...>,
+            <NodeImage: id=mist/mistio, name=mist/mistio, driver=Docker  ...>]
+        """
+
+        result = self.connection.request('/images/search?term=%s' % term).object
+        images = []
+        for image in result:
+            name = image.get('name')
+            images.append(NodeImage(
+                id=name,
+                name=name,
+                driver=self.connection.driver,
+                extra={
+                    "description": image.get('description'),
+                    "is_official": image.get('is_official'),
+                    "is_trusted": image.get('is_trusted'),
+                    "star_count": image.get('star_count'),
+                },
+            ))
+
+        return images
+
+    def pull_image(self, image):
+        """Create an image, either by pull it from the registry or by importing it
+        >>> image = conn.pull_image(image='mist/mistio')
+        >>> image
+        <NodeImage: id=0ec05daec99f, name=mist/mistio, driver=Docker  ...>
+
+        """
+
+        payload = {           
+        }
+        data = json.dumps(payload)
+
+        result = self.connection.request('/images/create?fromImage=%s' % (image),
+                                         data=data, method='POST')
+        if "errorDetail" in result.body:
+            raise LibcloudError(result.body)
+        try:
+            #get image id
+            image_id = re.findall(r'{"status":"Download complete","progressDetail":{},"id":"\w+"}', result.body)[-1]
+            image_id = json.loads(image_id).get('id')
+        except:
+            image_id = image
+
+        image = NodeImage(id=image_id, name=image, driver=self.connection.driver,
+                          extra={})
+        return image
+
+    def delete_image(self, image):
+        "Remove image from the filesystem"
+        result = self.connection.request('/images/%s' % (image),
+                                         method='DELETE')
+        return result.status in VALID_RESPONSE_CODES
+
+    def inspect_image(self, image):
+        """
+        Inspect an image
+        """
+        raise NotImplementedError()
+
+
+    def push_image(self, image):
+        """
+        Push an image on the registry
+        """
+        raise NotImplementedError()
 
     def _to_node(self, data):
         """Convert node in Node instances
