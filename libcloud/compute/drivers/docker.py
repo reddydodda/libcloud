@@ -186,7 +186,9 @@ class DockerNodeDriver(NodeDriver):
         """
         List processes running inside a container
         """
-        raise NotImplementedError()
+        result = self.connection.request("/containers/%s/top" % node.id).object
+
+        return result
     
     def reboot_node(self, node):
         """
