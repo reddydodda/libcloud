@@ -315,9 +315,9 @@ class DockerNodeDriver(NodeDriver):
                                                      data=data, params=params,
                                                      method='POST')
                 except:
-                    raise LibcloudError('No such image:' % image)
+                    raise Exception('No such image: %s' % image)
             else:
-                raise LibcloudError(e)
+                raise Exception(e)
 
         id_ = result.object['Id']
 
@@ -404,7 +404,7 @@ class DockerNodeDriver(NodeDriver):
         result = self.connection.request('/images/create?fromImage=%s' %
                                          (image), data=data, method='POST')
         if "errorDetail" in result.body:
-            raise LibcloudError(result.body)
+            raise Exception(result.body)
         try:
             #get image id
             image_id = re.findall(r'{"status":"Download complete","progressDetail":{},"id":"\w+"}', result.body)[-1]
