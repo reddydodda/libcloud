@@ -125,7 +125,9 @@ class DockerNodeDriver(NodeDriver):
         self.connection.port = port
 
     def _get_api_version(self):
-        "Get the docker API version information"
+        """
+        Get the docker API version information
+        """
 
         result = self.connection.request('/version').object
         api_version = result.get('ApiVersion')
@@ -173,6 +175,7 @@ class DockerNodeDriver(NodeDriver):
             'volumes': result.get('Volumes'),
             'env': result.get('Config', {}).get('Env'),
             'ports': result.get('ExposedPorts'),
+            'network_settings': result.get('NetworkSettings', {})
         }
 
         node = (Node(id=result['ID'],
