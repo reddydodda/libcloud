@@ -361,7 +361,7 @@ class DockerNodeDriver(NodeDriver):
 
         return images
 
-    def search_images(self, term=None):
+    def search_images(self, term):
         """Search for an image on Docker.io.
            Returns a list of NodeImage objects
 
@@ -371,6 +371,7 @@ class DockerNodeDriver(NodeDriver):
             <NodeImage: id=mist/mistio, name=mist/mistio, driver=Docker  ...>]
         """
 
+        term = term.replace(' ', '+')
         result = self.connection.request('/images/search?term=%s' %
                                          term).object
         images = []
