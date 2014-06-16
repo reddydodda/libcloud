@@ -265,7 +265,7 @@ class DockerNodeDriver(NodeDriver):
                     mem_limit=0, ports=None, environment=None, dns=None,
                     volumes=None, volumes_from=None,
                     network_disabled=False, entrypoint=None,
-                    cpu_shares=None, working_dir=None, domainname=None,
+                    cpu_shares=None, working_dir='', domainname=None,
                     memswap_limit=0):
         """
         Create a container
