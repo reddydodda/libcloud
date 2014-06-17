@@ -125,7 +125,9 @@ class DockerNodeDriver(NodeDriver):
         self.connection.port = port
 
     def _get_api_version(self):
-        "Get the docker API version information"
+        """
+        Get the docker API version information
+        """
 
         result = self.connection.request('/version').object
         api_version = result.get('ApiVersion')
@@ -173,6 +175,7 @@ class DockerNodeDriver(NodeDriver):
             'volumes': result.get('Volumes'),
             'env': result.get('Config', {}).get('Env'),
             'ports': result.get('ExposedPorts'),
+            'network_settings': result.get('NetworkSettings', {})
         }
 
         node = (Node(id=result['ID'],
@@ -262,7 +265,7 @@ class DockerNodeDriver(NodeDriver):
                     mem_limit=0, ports=None, environment=None, dns=None,
                     volumes=None, volumes_from=None,
                     network_disabled=False, entrypoint=None,
-                    cpu_shares=None, working_dir=None, domainname=None,
+                    cpu_shares=None, working_dir='', domainname=None,
                     memswap_limit=0):
         """
         Create a container
@@ -358,7 +361,7 @@ class DockerNodeDriver(NodeDriver):
 
         return images
 
-    def search_images(self, term=None):
+    def search_images(self, term):
         """Search for an image on Docker.io.
            Returns a list of NodeImage objects
 
@@ -368,6 +371,7 @@ class DockerNodeDriver(NodeDriver):
             <NodeImage: id=mist/mistio, name=mist/mistio, driver=Docker  ...>]
         """
 
+        term = term.replace(' ', '+')
         result = self.connection.request('/images/search?term=%s' %
                                          term).object
         images = []
