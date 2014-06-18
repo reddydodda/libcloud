@@ -177,8 +177,10 @@ class DockerNodeDriver(NodeDriver):
             'ports': result.get('ExposedPorts'),
             'network_settings': result.get('NetworkSettings', {})
         }
-
-        node = (Node(id=result.get('Id'),
+        node_id = result.get('Id')
+        if not node_id:
+            node_id = result.get('ID', '')
+        node = (Node(id=node_id ,
                      name=name,
                      state=state,
                      public_ips=[self.connection.host],
