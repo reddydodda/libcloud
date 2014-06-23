@@ -20,7 +20,11 @@ import copy
 import binascii
 import time
 
-from xml.etree import ElementTree as ET
+try:
+    from lxml import etree as ET
+except ImportError:
+    from xml.etree import ElementTree as ET
+
 from pipes import quote as pquote
 
 try:
@@ -255,7 +259,7 @@ class RawResponse(Response):
         return self._reason
 
 
-#TODO: Move this to a better location/package
+# TODO: Move this to a better location/package
 class LoggingConnection():
     """
     Debug class to log all HTTP(s) requests as they could be made
@@ -327,7 +331,11 @@ class LoggingConnection():
     def _log_curl(self, method, url, body, headers):
         cmd = ["curl", "-i"]
 
-        cmd.extend(["-X", pquote(method)])
+        if method.lower() == 'head':
+            # HEAD method need special handling
+            cmd.extend(["--head"])
+        else:
+            cmd.extend(["-X", pquote(method)])
 
         for h in headers:
             cmd.extend(["-H", pquote("%s: %s" % (h, headers[h]))])
@@ -398,7 +406,7 @@ class Connection(object):
     """
     A Base Connection class to derive from.
     """
-    #conn_classes = (LoggingHTTPSConnection)
+    # conn_classes = (LoggingHTTPSConnection)
     conn_classes = (LibcloudHTTPConnection, LibcloudHTTPSConnection)
 
     responseCls = Response
@@ -519,7 +527,7 @@ class Connection(object):
         # which proxies to your endpoint, and lets you easily capture
         # connections in cleartext when you setup the proxy to do SSL
         # for you
-        #connection = self.conn_classes[False]("127.0.0.1", 8080)
+        # connection = self.conn_classes[False]("127.0.0.1", 8080)
 
         self.connection = connection
 
@@ -540,7 +548,7 @@ class Connection(object):
         """
         Append a token to a user agent string.
 
-        Users of the library should call this to uniquely identify thier
+        Users of the library should call this to uniquely identify their
         requests to a provider.
 
         :type token: ``str``

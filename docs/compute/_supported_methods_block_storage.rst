@@ -35,9 +35,11 @@ Provider                              list volumes create volume destroy volume 
 `Google Compute Engine`_              yes          yes           yes            yes           yes           yes            yes            
 `GoGrid`_                             no           no            no             no            no            no             no             
 `HostVirtual`_                        no           no            no             no            no            no             no             
+`HP Public Cloud (Helion)`_           yes          yes           yes            yes           yes           no             no             
 `IBM SmartCloud Enterprise`_          yes          yes           yes            yes           yes           no             no             
 `Ikoula`_                             yes          yes           yes            yes           yes           no             no             
 `Joyent`_                             no           no            no             no            no            no             no             
+`Kili Public Cloud`_                  yes          yes           yes            yes           yes           no             no             
 `KTUCloud`_                           yes          yes           yes            yes           yes           no             no             
 `Libvirt`_                            no           no            no             no            no            no             no             
 `Linode`_                             no           no            no             no            no            no             no             
@@ -47,6 +49,8 @@ Provider                              list volumes create volume destroy volume 
 `OpenNebula (v3.8)`_                  yes          yes           yes            yes           yes           no             no             
 `OpenStack`_                          yes          yes           yes            yes           yes           no             no             
 `Opsource`_                           no           no            no             no            no            no             no             
+`Outscale INC`_                       yes          yes           yes            yes           yes           yes            yes            
+`Outscale SAS`_                       yes          yes           yes            yes           yes           yes            yes            
 `Rackspace Cloud (Next Gen)`_         yes          yes           yes            yes           yes           no             no             
 `Rackspace Cloud (First Gen)`_        yes          yes           yes            yes           yes           no             no             
 `RimuHosting`_                        no           no            no             no            no            no             no             
@@ -94,9 +98,11 @@ Provider                              list volumes create volume destroy volume 
 .. _`Google Compute Engine`: https://cloud.google.com/
 .. _`GoGrid`: http://www.gogrid.com/
 .. _`HostVirtual`: http://www.vr.org
+.. _`HP Public Cloud (Helion)`: http://www.hpcloud.com/
 .. _`IBM SmartCloud Enterprise`: http://ibm.com/services/us/en/cloud-enterprise/
 .. _`Ikoula`: http://express.ikoula.co.uk/cloudstack
 .. _`Joyent`: http://www.joyentcloud.com
+.. _`Kili Public Cloud`: http://kili.io/
 .. _`KTUCloud`: https://ucloudbiz.olleh.com/
 .. _`Libvirt`: http://libvirt.org/
 .. _`Linode`: http://www.linode.com/
@@ -106,6 +112,8 @@ Provider                              list volumes create volume destroy volume 
 .. _`OpenNebula (v3.8)`: http://opennebula.org/
 .. _`OpenStack`: http://openstack.org/
 .. _`Opsource`: http://www.opsource.net/
+.. _`Outscale INC`: http://www.outscale.com
+.. _`Outscale SAS`: http://www.outscale.com
 .. _`Rackspace Cloud (Next Gen)`: http://www.rackspace.com
 .. _`Rackspace Cloud (First Gen)`: http://www.rackspace.com
 .. _`RimuHosting`: http://rimuhosting.com/
