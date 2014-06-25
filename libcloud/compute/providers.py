@@ -27,6 +27,8 @@ __all__ = [
     "get_driver"]
 
 DRIVERS = {
+    Provider.AZURE:
+    ('libcloud.compute.drivers.azure', 'AzureNodeDriver'),
     Provider.DUMMY:
     ('libcloud.compute.drivers.dummy', 'DummyNodeDriver'),
     Provider.EC2_US_EAST:
@@ -143,6 +145,8 @@ DRIVERS = {
     ('libcloud.compute.drivers.exoscale', 'ExoscaleNodeDriver'),
     Provider.IKOULA:
     ('libcloud.compute.drivers.ikoula', 'IkoulaNodeDriver'),
+    Provider.AZURE_COMPUTE:
+    ('libcloud.compute.drivers.azure_compute', 'AzureNodeDriver'),
     Provider.DOCKER:
     ('libcloud.compute.drivers.docker', 'DockerNodeDriver'),
     Provider.OUTSCALE_SAS:
