@@ -263,12 +263,13 @@ class AzureNodeDriver(NodeDriver):
 
     def ex_list_cloud_services(self):
         """
-        Lists cloud services
+        List cloud services
 
         """
         data = self._perform_get('/' + self.subscription_id + '/services/hostedservices', HostedServices)
 
-        return data
+        services = [i.service_name for i in data]
+        return services
 
     def list_sizes(self):
         """
@@ -323,9 +324,8 @@ class AzureNodeDriver(NodeDriver):
 
         :rtype: ``list`` of :class:`Node`
         """
-        if not ex_cloud_service_name:
-            raise ValueError("ex_cloud_service_name is required.")
-
+        #if not ex_cloud_service_name:
+        #    raise ValueError("ex_cloud_service_name is required.")
         response = self._perform_get(
             self._get_hosted_service_path(ex_cloud_service_name) +
             '?embed-detail=True',
@@ -338,7 +338,7 @@ class AzureNodeDriver(NodeDriver):
         try:
             return [self._to_node(n) for n in data.deployments[0].role_instance_list]
         except IndexError:
-            return None
+            return []
 
     def reboot_node(self, node=None, ex_cloud_service_name=None, ex_deployment_slot=None):
         """
