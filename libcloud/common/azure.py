@@ -31,7 +31,8 @@ except ImportError:
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.common.types import LibcloudError, MalformedResponseError
-from libcloud.common.base import ConnectionUserAndKey, RawResponse, CertificateConnection
+from libcloud.common.base import ConnectionUserAndKey, RawResponse, \
+    CertificateConnection
 from libcloud.common.base import XmlResponse
 
 # Azure API version
@@ -43,8 +44,11 @@ AZURE_TIME_FORMAT = '%a, %d %b %Y %H:%M:%S GMT'
 
 class AzureResponse(XmlResponse):
 
+
     valid_response_codes = [httplib.NOT_FOUND, httplib.CONFLICT,
-                            httplib.BAD_REQUEST, httplib.TEMPORARY_REDIRECT] # added TEMPORARY_REDIRECT as this can sometimes be sent by azure instead of a success or fail response
+                            # added TEMPORARY_REDIRECT as this can sometimes be
+                            # sent by azure instead of a success or fail response
+                            httplib.BAD_REQUEST, httplib.TEMPORARY_REDIRECT]
 
     def success(self):
         i = int(self.status)
@@ -193,8 +197,10 @@ class AzureBaseDriver(object):
 
 class AzureServiceManagementConnection(CertificateConnection):
     # This needs the following approach -
-    # 1. Make request using LibcloudHTTPSConnection which is a overloaded class which takes in a client certificate
-    # 2. Depending on the type of operation use a PollingConnection when the response id is returned
+    # 1. Make request using LibcloudHTTPSConnection which is a overloaded
+    # class which takes in a client certificate
+    # 2. Depending on the type of operation use a PollingConnection
+    # when the response id is returned
     # 3. The Response can be used in an AzureServiceManagementResponse
     """Authentication class for "Service Account" authentication."""
     driver = AzureBaseDriver
@@ -208,23 +214,26 @@ class AzureServiceManagementConnection(CertificateConnection):
         Check to see if PyCrypto is available, and convert key file path into a
         key string if the key is in a file.
 
-        :param  user_id: Email address to be used for Service Account
-                authentication.
-        :type   user_id: ``str``
+        :param  subscription_id: Azure subscription ID.
+        :type   subscription_id: ``str``
 
-        :param  key: The RSA Key or path to file containing the key.
-        :type   key: ``str``
+        :param  key_file: The PEM file used to authenticate with the service.
+        :type   key_file: ``str``
         """
+
+        super(AzureServiceManagementConnection, self).__init__(
+            key_file, *args, **kwargs)
+
+        self.subscription_id = subscription_id
 
         keypath = os.path.expanduser(key_file)
         self.keyfile = keypath;
         is_file_path = os.path.exists(keypath) and os.path.isfile(keypath)
         if not is_file_path:
-            raise InvalidCredsError('pem file needed to authenticate to Microsoft Azure')
+            raise InvalidCredsError(
+                'You need an certificate PEM file to authenticate with '
+                'Microsoft Azure. This can be found in the portal.')
         self.key_file = key_file
-
-        super(AzureServiceManagementConnection, self).__init__(
-            subscription_id, key_file, *args, **kwargs)
 
     def add_default_headers(self, headers):
         """
@@ -235,7 +244,6 @@ class AzureServiceManagementConnection(CertificateConnection):
         headers['x-ms-date'] = time.strftime(AZURE_TIME_FORMAT, time.gmtime())
         #headers['host'] = self.host
         return headers
-
 
 
 
