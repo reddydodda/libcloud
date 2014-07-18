@@ -75,6 +75,8 @@ class Provider(object):
     :cvar EXOSCALE: Exoscale driver.
     :cvar IKOULA: Ikoula driver.
     :cvar DOCKER: Docker driver.
+    :cvar OUTSCALE_SAS: Outscale SAS driver.
+    :cvar OUTSCALE_INC: Outscale INC driver.
     """
     DUMMY = 'dummy'
     EC2 = 'ec2_us_east'
@@ -119,6 +121,12 @@ class Provider(object):
     EXOSCALE = 'exoscale'
     IKOULA = 'ikoula'
     DOCKER = 'docker'
+    OUTSCALE_SAS = 'outscale_sas'
+    OUTSCALE_INC = 'outscale_inc'
+
+    # OpenStack based providers
+    HPCLOUD = 'hpcloud'
+    KILI = 'kili'
 
     # Deprecated constants which are still supported
     EC2_US_EAST = 'ec2_us_east'

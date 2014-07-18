@@ -55,6 +55,20 @@ use the following command:
 ``--signoff`` argument signs the patch and lets others know that you have
 reviewed and merged a patch.
 
+If you are merging a patch from the Github pull request, don't forget to
+update the commit message during rebase (or use git commit --amend if the
+rebase was not necessary) to include the "Closes #prnumber" message. This way,
+the corresponding Github pull request will get automatically closed once the
+Github mirror is updated.
+
+For example::
+
+    ...
+    Original message
+    ...
+
+    Closes #prnumber
+
 After the patch has been applied, make sure to update ``CHANGES`` file.
 
 Making a release (for release managers)
@@ -288,9 +302,6 @@ Body::
 
     pip install apache-libcloud
 
-    It is possible that the file hasn't been synced to all the mirrors yet. If this
-    is the case, please use the main Apache mirror - http://www.apache.org/dist/libcloud.
-
     Upgrading
 
     If you have installed Libcloud using pip you can also use it to upgrade it:
@@ -348,9 +359,6 @@ Body::
     or installed using pip:
 
     pip install apache-libcloud
-
-    It is possible that the file hasn't been synced to all the mirrors yet. If this
-    is the case, please use the main Apache mirror - http://www.apache.org/dist/libcloud.
 
     Upgrading
 

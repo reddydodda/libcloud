@@ -14,6 +14,12 @@
 # limitations under the License.
 
 import sys
+
+try:
+    import simplejson as json
+except:
+    import json
+
 from libcloud.utils.py3 import httplib
 
 from libcloud.common.types import InvalidCredsError
@@ -94,6 +100,19 @@ class CloudSigmaAPI20BaseTestCase(object):
         self.assertEqual(len(node.extra['nics']), 1)
         self.assertEqual(node.extra['nics'][0]['ip_v4_conf']['conf'], 'dhcp')
 
+    def test_create_node_with_vlan(self):
+        image = self.driver.list_images()[0]
+        size = self.driver.list_sizes()[0]
+
+        vlan_uuid = '39ae851d-433f-4ac2-a803-ffa24cb1fa3e'
+
+        node = self.driver.create_node(name='test node vlan', size=size,
+                                       image=image, ex_vlan=vlan_uuid)
+        self.assertEqual(node.name, 'test node vlan')
+        self.assertEqual(len(node.extra['nics']), 2)
+        self.assertEqual(node.extra['nics'][0]['ip_v4_conf']['conf'], 'dhcp')
+        self.assertEqual(node.extra['nics'][1]['vlan']['uuid'], vlan_uuid)
+
     def test_destroy_node(self):
         status = self.driver.destroy_node(node=self.node)
         self.assertTrue(status)
@@ -146,8 +165,17 @@ class CloudSigmaAPI20BaseTestCase(object):
         status = self.driver.ex_close_vnc_tunnel(node=node)
         self.assertTrue(status)
 
-    def test_ex_list_drives(self):
-        drives = self.driver.ex_list_drives()
+    def test_ex_list_library_drives(self):
+        drives = self.driver.ex_list_library_drives()
+
+        drive = drives[0]
+        self.assertEqual(drive.name, 'IPCop 2.0.2')
+        self.assertEqual(drive.size, 1000000000)
+        self.assertEqual(drive.media, 'cdrom')
+        self.assertEqual(drive.status, 'unmounted')
+
+    def test_ex_list_user_drives(self):
+        drives = self.driver.ex_list_user_drives()
 
         drive = drives[0]
         self.assertEqual(drive.name, 'test node 2-drive')
@@ -166,14 +194,14 @@ class CloudSigmaAPI20BaseTestCase(object):
         self.assertEqual(drive.media, 'disk')
 
     def test_ex_clone_drive(self):
-        drive = self.driver.ex_list_drives()[0]
+        drive = self.driver.ex_list_user_drives()[0]
         cloned_drive = self.driver.ex_clone_drive(drive=drive,
                                                   name='cloned drive')
 
         self.assertEqual(cloned_drive.name, 'cloned drive')
 
     def test_ex_resize_drive(self):
-        drive = self.driver.ex_list_drives()[0]
+        drive = self.driver.ex_list_user_drives()[0]
 
         size = 1111 * 1024 * 1024
 
@@ -332,10 +360,22 @@ class CloudSigmaAPI20BaseTestCase(object):
         self.assertEqual(len(subscriptions), 5)
         self.assertEqual(subscription.id, '7272')
         self.assertEqual(subscription.resource, 'vlan')
-        self.assertEqual(subscription.amount, '1')
+        self.assertEqual(subscription.amount, 1)
         self.assertEqual(subscription.period, '345 days, 0:00:00')
         self.assertEqual(subscription.status, 'active')
         self.assertEqual(subscription.price, '0E-20')
+
+    def test_ex_create_subscription(self):
+        CloudSigmaMockHttp.type = 'CREATE_SUBSCRIPTION'
+        subscription = self.driver.ex_create_subscription(amount=1,
+                                                          period='1 month',
+                                                          resource='vlan')
+        self.assertEqual(subscription.amount, 1)
+        self.assertEqual(subscription.period, '1 month')
+        self.assertEqual(subscription.resource, 'vlan')
+        self.assertEqual(subscription.price, '10.26666666666666666666666667')
+        self.assertEqual(subscription.auto_renew, False)
+        self.assertEqual(subscription.subscribed_object, '2494079f-8376-40bf-9b37-34d633b8a7b7')
 
     def test_ex_list_subscriptions_status_filterting(self):
         CloudSigmaMockHttp.type = 'STATUS_FILTER'
@@ -348,16 +388,27 @@ class CloudSigmaAPI20BaseTestCase(object):
 
     def test_ex_toggle_subscription_auto_renew(self):
         subscription = self.driver.ex_list_subscriptions()[0]
-        status = self.driver.ex_toggle_subscription_auto_renew(subscription=
-                                                               subscription)
+        status = self.driver.ex_toggle_subscription_auto_renew(
+            subscription=subscription)
         self.assertTrue(status)
 
     def test_ex_list_capabilities(self):
         capabilities = self.driver.ex_list_capabilities()
         self.assertEqual(capabilities['servers']['cpu']['min'], 250)
 
+    def test_ex_list_servers_availability_groups(self):
+        groups = self.driver.ex_list_servers_availability_groups()
+        self.assertEqual(len(groups), 3)
+        self.assertEqual(len(groups[0]), 2)
+        self.assertEqual(len(groups[2]), 1)
+
+    def test_ex_list_drives_availability_groups(self):
+        groups = self.driver.ex_list_drives_availability_groups()
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(len(groups[0]), 11)
+
     def test_wait_for_drive_state_transition_timeout(self):
-        drive = self.driver.ex_list_drives()[0]
+        drive = self.driver.ex_list_user_drives()[0]
         state = 'timeout'
 
         expected_msg = 'Timed out while waiting for drive transition'
@@ -367,7 +418,7 @@ class CloudSigmaAPI20BaseTestCase(object):
                                 timeout=0.5)
 
     def test_wait_for_drive_state_transition_success(self):
-        drive = self.driver.ex_list_drives()[0]
+        drive = self.driver.ex_list_user_drives()[0]
         state = 'unmounted'
 
         drive = self.driver._wait_for_drive_state_transition(drive=drive,
@@ -413,7 +464,15 @@ class CloudSigmaMockHttp(MockHttpTestCase):
     def _api_2_0_servers(self, method, url, body, headers):
         if method == 'POST':
             # create_node
-            body = self.fixtures.load('servers_create.json')
+
+            parsed = json.loads(body)
+
+            if 'vlan' in parsed['name']:
+                self.assertEqual(len(parsed['nics']), 2)
+                body = self.fixtures.load('servers_create_with_vlan.json')
+            else:
+                body = self.fixtures.load('servers_create.json')
+
             return (httplib.CREATED, body, {}, httplib.responses[httplib.CREATED])
 
     def _api_2_0_servers_9de75ed6_fd33_45e2_963f_d405f31fd911_action_start(self, method, url, body, headers):
@@ -566,8 +625,20 @@ class CloudSigmaMockHttp(MockHttpTestCase):
         body = ''
         return (httplib.OK, body, {}, httplib.responses[httplib.OK])
 
+    def _api_2_0_subscriptions_CREATE_SUBSCRIPTION(self, method, url, body, headers):
+        body = self.fixtures.load('create_subscription.json')
+        return (httplib.OK, body, {}, httplib.responses[httplib.OK])
+
     def _api_2_0_capabilities(self, method, url, body, headers):
         body = self.fixtures.load('capabilities.json')
+        return (httplib.OK, body, {}, httplib.responses[httplib.OK])
+
+    def _api_2_0_servers_availability_groups(self, method, url, body, headers):
+        body = self.fixtures.load('servers_avail_groups.json')
+        return (httplib.OK, body, {}, httplib.responses[httplib.OK])
+
+    def _api_2_0_drives_availability_groups(self, method, url, body, headers):
+        body = self.fixtures.load('drives_avail_groups.json')
         return (httplib.OK, body, {}, httplib.responses[httplib.OK])
 
 

@@ -145,9 +145,9 @@ class RackspaceDNSDriver(DNSDriver, OpenStackDriverMixin):
         RecordType.CNAME: 'CNAME',
         RecordType.MX: 'MX',
         RecordType.NS: 'NS',
-        RecordType.TXT: 'TXT',
-        RecordType.SRV: 'SRV',
         RecordType.PTR: 'PTR',
+        RecordType.SRV: 'SRV',
+        RecordType.TXT: 'TXT',
     }
 
     def iterate_zones(self):
@@ -210,7 +210,7 @@ class RackspaceDNSDriver(DNSDriver, OpenStackDriverMixin):
         extra = extra if extra else {}
 
         # Email address is required
-        if not 'email' in extra:
+        if 'email' not in extra:
             raise ValueError('"email" key must be present in extra dictionary')
 
         payload = {'name': domain, 'emailAddress': extra['email'],

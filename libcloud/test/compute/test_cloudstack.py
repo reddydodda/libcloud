@@ -135,6 +135,20 @@ class CloudStackCommonTestCase(TestCaseMixin):
         self.assertEqual(node.name, 'test')
         self.assertEqual(node.extra['key_name'], 'foobar')
 
+    def test_create_node_project(self):
+        size = self.driver.list_sizes()[0]
+        image = self.driver.list_images()[0]
+        location = self.driver.list_locations()[0]
+        project = self.driver.ex_list_projects()[0]
+        CloudStackMockHttp.fixture_tag = 'deployproject'
+        node = self.driver.create_node(name='test',
+                                       location=location,
+                                       image=image,
+                                       size=size,
+                                       project=project)
+        self.assertEqual(node.name, 'TestNode')
+        self.assertEqual(node.extra['project'], 'Test Project')
+
     def test_list_images_no_images_available(self):
         CloudStackMockHttp.fixture_tag = 'notemplates'
 
@@ -181,6 +195,82 @@ class CloudStackCommonTestCase(TestCaseMixin):
                 network.networkofferingid,
                 fixture_networks[i]['networkofferingid'])
             self.assertEqual(network.zoneid, fixture_networks[i]['zoneid'])
+
+    def test_ex_list_network_offerings(self):
+        _, fixture = CloudStackMockHttp()._load_fixture(
+            'listNetworkOfferings_default.json')
+        fixture_networkoffers = \
+            fixture['listnetworkofferingsresponse']['networkoffering']
+
+        networkoffers = self.driver.ex_list_network_offerings()
+
+        for i, networkoffer in enumerate(networkoffers):
+            self.assertEqual(networkoffer.id, fixture_networkoffers[i]['id'])
+            self.assertEqual(networkoffer.name,
+                             fixture_networkoffers[i]['name'])
+            self.assertEqual(networkoffer.display_text,
+                             fixture_networkoffers[i]['displaytext'])
+            self.assertEqual(networkoffer.for_vpc,
+                             fixture_networkoffers[i]['forvpc'])
+            self.assertEqual(networkoffer.guest_ip_type,
+                             fixture_networkoffers[i]['guestiptype'])
+            self.assertEqual(networkoffer.service_offering_id,
+                             fixture_networkoffers[i]['serviceofferingid'])
+
+    def test_ex_create_network(self):
+        _, fixture = CloudStackMockHttp()._load_fixture(
+            'createNetwork_default.json')
+
+        fixture_network = fixture['createnetworkresponse']['network']
+
+        netoffer = self.driver.ex_list_network_offerings()[0]
+        location = self.driver.list_locations()[0]
+        network = self.driver.ex_create_network(display_text='test',
+                                                name='test',
+                                                network_offering=netoffer,
+                                                location=location,
+                                                gateway='10.1.1.1',
+                                                netmask='255.255.255.0',
+                                                network_domain='cloud.local',
+                                                vpc_id="2",
+                                                project_id="2")
+
+        self.assertEqual(network.name, fixture_network['name'])
+        self.assertEqual(network.displaytext, fixture_network['displaytext'])
+        self.assertEqual(network.id, fixture_network['id'])
+        self.assertEqual(network.extra['gateway'], fixture_network['gateway'])
+        self.assertEqual(network.extra['netmask'], fixture_network['netmask'])
+        self.assertEqual(network.networkofferingid,
+                         fixture_network['networkofferingid'])
+        self.assertEqual(network.extra['vpc_id'], fixture_network['vpcid'])
+        self.assertEqual(network.extra['project_id'],
+                         fixture_network['projectid'])
+
+    def test_ex_delete_network(self):
+
+        network = self.driver.ex_list_networks()[0]
+
+        result = self.driver.ex_delete_network(network=network)
+        self.assertTrue(result)
+
+    def test_ex_list_projects(self):
+        _, fixture = CloudStackMockHttp()._load_fixture(
+            'listProjects_default.json')
+        fixture_projects = fixture['listprojectsresponse']['project']
+
+        projects = self.driver.ex_list_projects()
+
+        for i, project in enumerate(projects):
+            self.assertEqual(project.id, fixture_projects[i]['id'])
+            self.assertEqual(
+                project.display_text, fixture_projects[i]['displaytext'])
+            self.assertEqual(project.name, fixture_projects[i]['name'])
+            self.assertEqual(
+                project.extra['domainid'],
+                fixture_projects[i]['domainid'])
+            self.assertEqual(
+                project.extra['cpulimit'],
+                fixture_projects[i]['cpulimit'])
 
     def test_create_volume(self):
         volumeName = 'vol-0'
@@ -484,6 +574,29 @@ class CloudStackCommonTestCase(TestCaseMixin):
         self.assertEqual(rule.private_port, private_port)
         self.assertEqual(rule.private_end_port, private_end_port)
         self.assertEqual(len(node.extra['port_forwarding_rules']), 2)
+
+    def test_ex_limits(self):
+        limits = self.driver.ex_limits()
+        self.assertEqual(limits['max_images'], 20)
+        self.assertEqual(limits['max_networks'], 20)
+        self.assertEqual(limits['max_public_ips'], -1)
+        self.assertEqual(limits['max_vpc'], 20)
+        self.assertEqual(limits['max_instances'], 20)
+        self.assertEqual(limits['max_projects'], -1)
+        self.assertEqual(limits['max_volumes'], 20)
+        self.assertEqual(limits['max_snapshots'], 20)
+
+    def test_ex_create_tags(self):
+        node = self.driver.list_nodes()[0]
+        tags = {'Region': 'Canada'}
+        resp = self.driver.ex_create_tags([node.id], 'UserVm', tags)
+        self.assertTrue(resp)
+
+    def test_ex_delete_tags(self):
+        node = self.driver.list_nodes()[0]
+        tag_keys = ['Region']
+        resp = self.driver.ex_delete_tags([node.id], 'UserVm', tag_keys)
+        self.assertTrue(resp)
 
 
 class CloudStackTestCase(CloudStackCommonTestCase, unittest.TestCase):

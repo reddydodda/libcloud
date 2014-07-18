@@ -30,7 +30,11 @@ urlparse = urlparse.urlparse
 
 import time
 
-from xml.etree import ElementTree as ET
+try:
+    from lxml import etree as ET
+except ImportError:
+    from xml.etree import ElementTree as ET
+
 from xml.parsers.expat import ExpatError
 
 from libcloud.common.base import XmlResponse, ConnectionUserAndKey
@@ -947,7 +951,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                       '5': NodeState.RUNNING,
                       '6': NodeState.UNKNOWN,
                       '7': NodeState.UNKNOWN,
-                      '8': NodeState.TERMINATED,
+                      '8': NodeState.STOPPED,
                       '9': NodeState.UNKNOWN,
                       '10': NodeState.UNKNOWN}
 
