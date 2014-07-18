@@ -42,10 +42,7 @@ CA_CERTS_PATH = [
     # macports: curl-ca-bundle
     '/opt/local/share/curl/curl-ca-bundle.crt',
 
-    # homebrew: openssl
-    '/usr/local/etc/openssl/cert.pem',
-
-    # homebrew: curl-ca-bundle (backward compatibility)
+    # homebrew: curl-ca-bundle
     '/usr/local/opt/curl-ca-bundle/share/ca-bundle.crt',
 ]
 

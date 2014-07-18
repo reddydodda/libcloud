@@ -24,10 +24,7 @@ import base64
 from libcloud.utils.py3 import httplib
 from libcloud.utils.py3 import b
 
-try:
-    from lxml import etree as ET
-except ImportError:
-    from xml.etree import ElementTree as ET
+from xml.etree import ElementTree as ET
 
 from libcloud.utils.misc import merge_valid_keys, get_new_obj
 from libcloud.utils.xml import findtext, findall
@@ -134,15 +131,15 @@ class ZerigoDNSDriver(DNSDriver):
         RecordType.A: 'A',
         RecordType.AAAA: 'AAAA',
         RecordType.CNAME: 'CNAME',
-        RecordType.GEO: 'GEO',
         RecordType.MX: 'MX',
+        RecordType.REDIRECT: 'REDIRECT',
+        RecordType.TXT: 'TXT',
+        RecordType.SRV: 'SRV',
         RecordType.NAPTR: 'NAPTR',
         RecordType.NS: 'NS',
         RecordType.PTR: 'PTR',
-        RecordType.REDIRECT: 'REDIRECT',
         RecordType.SPF: 'SPF',
-        RecordType.SRV: 'SRV',
-        RecordType.TXT: 'TXT',
+        RecordType.GEO: 'GEO',
         RecordType.URL: 'URL',
     }
 

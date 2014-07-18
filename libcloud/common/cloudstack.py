@@ -20,7 +20,6 @@ import hmac
 
 from libcloud.utils.py3 import httplib
 from libcloud.utils.py3 import urlencode
-from libcloud.utils.py3 import urlquote
 from libcloud.utils.py3 import b
 
 from libcloud.common.types import ProviderError
@@ -72,16 +71,7 @@ class CloudStackConnection(ConnectionUserAndKey, PollingConnection):
     def _make_signature(self, params):
         signature = [(k.lower(), v) for k, v in list(params.items())]
         signature.sort(key=lambda x: x[0])
-
-        pairs = []
-        for pair in signature:
-            key = urlquote(str(pair[0]), safe='[]')
-            value = urlquote(str(pair[1]), safe='[]')
-            item = '%s=%s' % (key, value)
-            pairs .append(item)
-
-        signature = '&'.join(pairs)
-
+        signature = urlencode(signature)
         signature = signature.lower().replace('+', '%20')
         signature = hmac.new(b(self.key), msg=b(signature),
                              digestmod=hashlib.sha1)
@@ -107,9 +97,14 @@ class CloudStackConnection(ConnectionUserAndKey, PollingConnection):
 
         # Command is specified as part of GET call
         context['command'] = command
-        result = super(CloudStackConnection, self).async_request(
-            action=action, params=params, data=data, headers=headers,
-            method=method, context=context)
+        result = super(CloudStackConnection, self).async_request(action=action,
+                                                                 params=params,
+                                                                 data=data,
+                                                                 headers=
+                                                                 headers,
+                                                                 method=method,
+                                                                 context=
+                                                                 context)
         return result['jobresult']
 
     def get_request_kwargs(self, action, params=None, data='', headers=None,
@@ -151,15 +146,7 @@ class CloudStackConnection(ConnectionUserAndKey, PollingConnection):
         result = self.request(action=self.driver.path, params=params,
                               data=data, headers=headers, method=method)
 
-        command = command.lower()
-
-        # Work around for older verions which don't return "response" suffix
-        # in delete ingress rule response command name
-        if (command == 'revokesecuritygroupingress' and
-                'revokesecuritygroupingressresponse' not in result.object):
-            command = command
-        else:
-            command = command + 'response'
+        command = command.lower() + 'response'
 
         if command not in result.object:
             raise MalformedResponseError(

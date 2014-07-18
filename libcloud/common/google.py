@@ -36,14 +36,14 @@ package installed to use this):
       the PEM format.
     - Convert the key using OpenSSL (the default password is 'notasecret'):
       ``openssl pkcs12 -in YOURPRIVKEY.p12 -nodes -nocerts
-      -passin pass:notasecret | openssl rsa -out PRIV.pem``
+      | openssl rsa -out PRIV.pem``
     - Move the .pem file to a safe location.
     - To Authenticate, you will need to pass the Service Account's "Email
       address" in as the user_id and the path to the .pem file as the key.
 
 Setting up Installed Application authentication:
-    - Go to the Console
-    - Go to your project and then to "APIs & auth" on the left
+    - Go to the Connsole
+    - Go to your projcet and then to "APIs & auth" on the left
     - Click on "Credentials"
     - Select "Installed application" and "Other" then click on
       "Create Client ID"
@@ -253,7 +253,7 @@ class GoogleBaseAuthConnection(ConnectionUserAndKey):
     host = 'accounts.google.com'
     auth_path = '/o/oauth2/auth'
 
-    def __init__(self, user_id, key, scopes=None,
+    def __init__(self, user_id, key, scope,
                  redirect_uri='urn:ietf:wg:oauth:2.0:oob',
                  login_hint=None, **kwargs):
         """
@@ -266,9 +266,9 @@ class GoogleBaseAuthConnection(ConnectionUserAndKey):
                      authentication.
         :type   key: ``str``
 
-        :param  scopes: A list of urls defining the scope of authentication
+        :param  scope: A list of urls defining the scope of authentication
                        to grant.
-        :type   scopes: ``list``
+        :type   scope: ``list``
 
         :keyword  redirect_uri: The Redirect URI for the authentication
                                 request.  See Google OAUTH2 documentation for
@@ -279,9 +279,8 @@ class GoogleBaseAuthConnection(ConnectionUserAndKey):
                               for Installed Application authentication.
         :type     login_hint: ``str``
         """
-        scopes = scopes or []
 
-        self.scopes = " ".join(scopes)
+        self.scope = " ".join(scope)
         self.redirect_uri = redirect_uri
         self.login_hint = login_hint
 
@@ -330,7 +329,7 @@ class GoogleInstalledAppAuthConnection(GoogleBaseAuthConnection):
         auth_params = {'response_type': 'code',
                        'client_id': self.user_id,
                        'redirect_uri': self.redirect_uri,
-                       'scope': self.scopes,
+                       'scope': self.scope,
                        'state': 'Libcloud Request'}
         if self.login_hint:
             auth_params['login_hint'] = self.login_hint
@@ -404,7 +403,7 @@ class GoogleServiceAcctAuthConnection(GoogleBaseAuthConnection):
         """
         if SHA256 is None:
             raise GoogleAuthError('PyCrypto library required for '
-                                  'Service Account Authentication.')
+                                  'Service Accout Authentication.')
         # Check to see if 'key' is a file and read the file if it is.
         keypath = os.path.expanduser(key)
         is_file_path = os.path.exists(keypath) and os.path.isfile(keypath)
@@ -427,7 +426,7 @@ class GoogleServiceAcctAuthConnection(GoogleBaseAuthConnection):
 
         # Construct a claim set
         claim_set = {'iss': self.user_id,
-                     'scope': self.scopes,
+                     'scope': self.scope,
                      'aud': 'https://accounts.google.com/o/oauth2/token',
                      'exp': int(time.time()) + 3600,
                      'iat': int(time.time())}
@@ -455,7 +454,7 @@ class GoogleServiceAcctAuthConnection(GoogleBaseAuthConnection):
         Service Account authentication doesn't supply a "refresh token" so
         this simply gets a new token using the email address/key.
 
-        :param  token_info: Dictionary containing token information.
+        :param  token_info: Dictionary contining token information.
                             (Not used, but here for compatibility)
         :type   token_info: ``dict``
 
@@ -474,7 +473,7 @@ class GoogleBaseConnection(ConnectionUserAndKey, PollingConnection):
     timeout = 180
 
     def __init__(self, user_id, key, auth_type=None,
-                 credential_file=None, scopes=None, **kwargs):
+                 credential_file=None, **kwargs):
         """
         Determine authentication type, set up appropriate authentication
         connection and get initial authentication information.
@@ -497,10 +496,6 @@ class GoogleBaseConnection(ConnectionUserAndKey, PollingConnection):
         :keyword  credential_file: Path to file for caching authentication
                                    information.
         :type     credential_file: ``str``
-
-        :keyword  scopes: List of OAuth2 scope URLs. The empty default sets
-                          read/write access to Compute, Storage, and DNS.
-        :type     scopes: ``list``
         """
         self.credential_file = credential_file or '~/.gce_libcloud_auth'
 
@@ -511,24 +506,16 @@ class GoogleBaseConnection(ConnectionUserAndKey, PollingConnection):
                 auth_type = 'SA'
             else:
                 auth_type = 'IA'
-
-        # Default scopes to read/write for compute, storage, and dns.  Can
-        # override this when calling get_driver() or setting in secrets.py
-        self.scopes = scopes
-        if not self.scopes:
-            self.scopes = [
-                'https://www.googleapis.com/auth/compute',
-                'https://www.googleapis.com/auth/devstorage.full_control',
-                'https://www.googleapis.com/auth/ndev.clouddns.readwrite',
-            ]
+        if 'scope' in kwargs:
+            self.scope = kwargs['scope']
+            kwargs.pop('scope', None)
         self.token_info = self._get_token_info_from_file()
-
         if auth_type == 'SA':
             self.auth_conn = GoogleServiceAcctAuthConnection(
-                user_id, key, self.scopes, **kwargs)
+                user_id, key, self.scope, **kwargs)
         elif auth_type == 'IA':
             self.auth_conn = GoogleInstalledAppAuthConnection(
-                user_id, key, self.scopes, **kwargs)
+                user_id, key, self.scope, **kwargs)
         else:
             raise GoogleAuthError('auth_type should be \'SA\' or \'IA\'')
 

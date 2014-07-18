@@ -20,11 +20,7 @@ import hmac
 import sys
 
 from hashlib import sha1
-
-try:
-    from lxml.etree import Element, SubElement
-except ImportError:
-    from xml.etree.ElementTree import Element, SubElement
+from xml.etree.ElementTree import Element, SubElement
 
 from libcloud.utils.py3 import httplib
 from libcloud.utils.py3 import urlquote
@@ -137,10 +133,10 @@ class BaseS3Connection(ConnectionUserAndKey):
             elif key_lower.startswith('x-amz-'):
                 amz_header_values[key.lower()] = value.strip()
 
-        if 'content-md5' not in special_header_values:
+        if not 'content-md5' in special_header_values:
             special_header_values['content-md5'] = ''
 
-        if 'content-type' not in special_header_values:
+        if not 'content-type' in special_header_values:
             special_header_values['content-type'] = ''
 
         if expires:
@@ -817,8 +813,8 @@ class BaseS3StorageDriver(StorageDriver):
 
         # TODO: Let the underlying exceptions bubble up and capture the SIGPIPE
         # here.
-        # SIGPIPE is thrown if the provided container does not exist or the
-        # user does not have correct permission
+        #SIGPIPE is thrown if the provided container does not exist or the user
+        # does not have correct permission
         result_dict = self._upload_object(
             object_name=object_name, content_type=content_type,
             upload_func=upload_func, upload_func_kwargs=upload_func_kwargs,

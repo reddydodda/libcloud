@@ -22,11 +22,7 @@ import mimetypes
 
 from os.path import join as pjoin
 from collections import defaultdict
-
-try:
-    from lxml import etree as ET
-except ImportError:
-    from xml.etree import ElementTree as ET
+from xml.etree import ElementTree as ET
 
 from libcloud.compute.base import NodeDriver, Node
 from libcloud.compute.base import NodeState

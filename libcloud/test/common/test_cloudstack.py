@@ -36,7 +36,7 @@ async_delay = 0
 
 
 class CloudStackMockDriver(object):
-    host = 'nonexistent.'
+    host = 'nonexistant.'
     path = '/path'
     async_poll_frequency = 0
 

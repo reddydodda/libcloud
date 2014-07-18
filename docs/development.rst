@@ -14,9 +14,6 @@ If you need help or get stuck at any point during this process, stop by on our
 IRC channel (:ref:`#libcloud on freenode <irc>`) and we will do our best to
 assist you.
 
-Getting started with contributing to Libcloud
----------------------------------------------
-
 General contribution guidelines
 -------------------------------
 
@@ -443,7 +440,7 @@ Contributing Bigger Changes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If you are contributing a bigger change (e.g. large new feature or a new
-provider driver) you need to have signed Apache Individual Contributor
+provider driver) you need to have have signed Apache Individual Contributor
 License Agreement (ICLA) in order to have your patch accepted.
 
 You can find more information on how to sign and file an ICLA on the
