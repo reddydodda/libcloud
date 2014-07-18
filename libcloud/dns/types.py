@@ -35,7 +35,6 @@ class Provider(object):
     ROUTE53 = 'route53'
     HOSTVIRTUAL = 'hostvirtual'
     GANDI = 'gandi'
-    GOOGLE = 'google'
 
     # Deprecated
     RACKSPACE_US = 'rackspace_us'

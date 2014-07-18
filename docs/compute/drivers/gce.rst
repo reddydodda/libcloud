@@ -13,7 +13,7 @@ It is a part of Google Cloud Platform.
 Google Compute Engine features:
 
 * High-performance virtual machines
-* Minute-level billing (10-minute minimum)
+* Minute-level billing (10-minute minumum)
 * Fast VM provisioning
 * Native Load Balancing
 

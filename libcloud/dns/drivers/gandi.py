@@ -88,16 +88,16 @@ class GandiDNSDriver(BaseGandiDriver, DNSDriver):
     connectionCls = GandiDNSConnection
 
     RECORD_TYPE_MAP = {
+        RecordType.NS: 'NS',
+        RecordType.MX: 'MX',
         RecordType.A: 'A',
         RecordType.AAAA: 'AAAA',
         RecordType.CNAME: 'CNAME',
-        RecordType.LOC: 'LOC',
-        RecordType.MX: 'MX',
-        RecordType.NS: 'NS',
-        RecordType.SPF: 'SPF',
-        RecordType.SRV: 'SRV',
         RecordType.TXT: 'TXT',
+        RecordType.SRV: 'SRV',
+        RecordType.SPF: 'SPF',
         RecordType.WKS: 'WKS',
+        RecordType.LOC: 'LOC',
     }
 
     def _to_zone(self, zone):
