@@ -64,6 +64,9 @@ class GCENodeDriverTest(LibcloudTestCase, TestCaseMixin):
         kwargs['datacenter'] = self.datacenter
         self.driver = GCENodeDriver(*GCE_PARAMS, **kwargs)
 
+    def test_default_scopes(self):
+        self.assertEqual(self.driver.scopes, None)
+
     def test_timestamp_to_datetime(self):
         timestamp1 = '2013-06-26T10:05:19.340-07:00'
         datetime1 = datetime.datetime(2013, 6, 26, 17, 5, 19)
@@ -136,7 +139,7 @@ class GCENodeDriverTest(LibcloudTestCase, TestCaseMixin):
     def test_list_images(self):
         local_images = self.driver.list_images()
         debian_images = self.driver.list_images(ex_project='debian-cloud')
-        self.assertEqual(len(local_images), 2)
+        self.assertEqual(len(local_images), 3)
         self.assertEqual(len(debian_images), 19)
         self.assertEqual(local_images[0].name, 'debian-7-wheezy-v20130617')
         self.assertEqual(local_images[1].name, 'centos-6-v20131118')
@@ -416,6 +419,16 @@ class GCENodeDriverTest(LibcloudTestCase, TestCaseMixin):
         destroyed = hc.destroy()
         self.assertTrue(destroyed)
 
+    def test_ex_delete_image(self):
+        image = self.driver.ex_get_image('debian-7')
+        deleted = self.driver.ex_delete_image(image)
+        self.assertTrue(deleted)
+
+    def test_ex_deprecate_image(self):
+        image = self.driver.ex_get_image('debian-6')
+        deprecated = image.deprecate('debian-7', 'DEPRECATED')
+        self.assertTrue(deprecated)
+
     def test_ex_destroy_firewall(self):
         firewall = self.driver.ex_get_firewall('lcfirewall')
         destroyed = firewall.destroy()
@@ -453,6 +466,13 @@ class GCENodeDriverTest(LibcloudTestCase, TestCaseMixin):
         disk = self.driver.ex_get_volume('lcdisk')
         destroyed = disk.destroy()
         self.assertTrue(destroyed)
+
+    def test_ex_set_volume_auto_delete(self):
+        node = self.driver.ex_get_node('node-name')
+        volume = node.extra['boot_disk']
+        auto_delete = self.driver.ex_set_volume_auto_delete(
+            volume, node)
+        self.assertTrue(auto_delete)
 
     def test_destroy_volume_snapshot(self):
         snapshot = self.driver.ex_get_snapshot('lcsnapshot')
@@ -500,6 +520,14 @@ class GCENodeDriverTest(LibcloudTestCase, TestCaseMixin):
         image = self.driver.ex_get_image(partial_name)
         self.assertEqual(image.name, 'debian-6-squeeze-v20130926')
         self.assertTrue(image.extra['description'].startswith('Debian'))
+
+    def test_ex_copy_image(self):
+        name = 'coreos'
+        url = 'gs://storage.core-os.net/coreos/amd64-generic/247.0.0/coreos_production_gce.tar.gz'
+        description = 'CoreOS test image'
+        image = self.driver.ex_copy_image(name, url, description)
+        self.assertEqual(image.name, name)
+        self.assertEqual(image.extra['description'], description)
 
     def test_ex_get_network(self):
         network_name = 'lcnetwork'
@@ -669,7 +697,20 @@ class GCEMockHttp(MockHttpTestCase):
         return (httplib.OK, body, self.json_hdr, httplib.responses[httplib.OK])
 
     def _global_images(self, method, url, body, headers):
-        body = self.fixtures.load('global_images.json')
+        if method == 'POST':
+            body = self.fixtures.load('global_images_post.json')
+        else:
+            body = self.fixtures.load('global_images.json')
+        return (httplib.OK, body, self.json_hdr, httplib.responses[httplib.OK])
+
+    def _global_images_debian_7_wheezy_v20130617(
+            self, method, url, body, headers):
+        body = self.fixtures.load('global_images_debian_7_wheezy_v20130617_delete.json')
+        return (httplib.OK, body, self.json_hdr, httplib.responses[httplib.OK])
+
+    def _global_images_debian_6_squeeze_v20130926_deprecate(
+            self, method, url, body, headers):
+        body = self.fixtures.load('global_images_debian_6_squeeze_v20130926_deprecate.json')
         return (httplib.OK, body, self.json_hdr, httplib.responses[httplib.OK])
 
     def _global_networks(self, method, url, body, headers):
@@ -719,6 +760,12 @@ class GCEMockHttp(MockHttpTestCase):
             'operations_operation_global_httpHealthChecks_lchealthcheck_delete.json')
         return (httplib.OK, body, self.json_hdr, httplib.responses[httplib.OK])
 
+    def _global_operations_operation_global_images_debian7_delete(
+            self, method, url, body, headers):
+        body = self.fixtures.load(
+            'operations_operation_global_images_debian7_delete.json')
+        return (httplib.OK, body, self.json_hdr, httplib.responses[httplib.OK])
+
     def _global_operations_operation_global_httpHealthChecks_lchealthcheck_put(
             self, method, url, body, headers):
         body = self.fixtures.load(
@@ -765,6 +812,12 @@ class GCEMockHttp(MockHttpTestCase):
             self, method, url, body, headers):
         body = self.fixtures.load(
             'operations_operation_global_snapshots_lcsnapshot_delete.json')
+        return (httplib.OK, body, self.json_hdr, httplib.responses[httplib.OK])
+
+    def _global_operations_operation_global_image_post(
+            self, method, url, body, headers):
+        body = self.fixtures.load(
+            'operations_operation_global_image_post.json')
         return (httplib.OK, body, self.json_hdr, httplib.responses[httplib.OK])
 
     def _regions_us_central1_operations_operation_regions_us_central1_addresses_lcaddress_delete(
@@ -831,6 +884,18 @@ class GCEMockHttp(MockHttpTestCase):
             self, method, url, body, headers):
         body = self.fixtures.load(
             'operations_operation_zones_us-central1-a_disks_lcdisk_delete.json')
+        return (httplib.OK, body, self.json_hdr, httplib.responses[httplib.OK])
+
+    def _zones_us_central1_a_instances_node_name_setDiskAutoDelete(
+            self, method, url, body, headers):
+        body = self.fixtures.load(
+            'zones_us_central1_a_instances_node_name_setDiskAutoDelete.json')
+        return (httplib.OK, body, self.json_hdr, httplib.responses[httplib.OK])
+
+    def _zones_us_central1_a_operations_operation_volume_auto_delete(
+            self, method, url, body, headers):
+        body = self.fixtures.load(
+            'zones_us_central1_a_operations_operation_volume_auto_delete.json')
         return (httplib.OK, body, self.json_hdr, httplib.responses[httplib.OK])
 
     def _zones_us_central1_a_operations_operation_zones_us_central1_a_disks_lcdisk_createSnapshot_post(
