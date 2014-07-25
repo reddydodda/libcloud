@@ -145,7 +145,7 @@ class CloudSigma_1_0_NodeDriver(CloudSigmaNodeDriver):
     connectionCls = CloudSigma_1_0_Connection
 
     IMAGING_TIMEOUT = 20 * 60  # Default timeout (in seconds) for the drive
-                               # imaging process
+    # imaging process
 
     NODE_STATE_MAP = {
         'active': NodeState.RUNNING,
@@ -673,7 +673,7 @@ class CloudSigmaError(ProviderError):
         :param error_msg: A description of the error that occurred.
         :type error_msg: ``str``
 
-        :param error_point: Point at which the error occured. Can be None.
+        :param error_point: Point at which the error occurred. Can be None.
         :type error_point: ``str`` or ``None``
         """
         super(CloudSigmaError, self).__init__(http_code=http_code,
@@ -689,7 +689,7 @@ class CloudSigmaSubscription(object):
     """
 
     def __init__(self, id, resource, amount, period, status, price, start_time,
-                 end_time):
+                 end_time, auto_renew, subscribed_object=None):
         """
         :param id: Subscription ID.
         :type id: ``str``
@@ -711,6 +711,12 @@ class CloudSigmaSubscription(object):
 
         :param end_time: End time for this subscription.
         :type end_time: ``datetime.datetime``
+
+        :param auto_renew: True if the subscription is auto renewed.
+        :type auto_renew: ``bool``
+
+        :param subscribed_object: Optional UUID of the subscribed object.
+        :type subscribed_object: ``str``
         """
         self.id = id
         self.resource = resource
@@ -720,13 +726,17 @@ class CloudSigmaSubscription(object):
         self.price = price
         self.start_time = start_time
         self.end_time = end_time
+        self.auto_renew = auto_renew
+        self.subscribed_object = subscribed_object
 
     def __str__(self):
         return self.__repr__()
 
     def __repr__(self):
-        return ('<CloudSigmaSubscription id=%s, resource=%s, amount=%s>' %
-                (self.id, self.resource, self.amount))
+        return ('<CloudSigmaSubscription id=%s, resource=%s, amount=%s, '
+                'period=%s, object_uuid=%s>' %
+                (self.id, self.resource, self.amount, self.period,
+                 self.subscribed_object))
 
 
 class CloudSigmaTag(object):
@@ -908,7 +918,7 @@ class CloudSigma_2_0_Response(JsonResponse):
             return None
 
         for item in body:
-            if not 'error_type' in item:
+            if 'error_type' not in item:
                 # Unrecognized error
                 continue
 
@@ -964,11 +974,12 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
     website = 'http://www.cloudsigma.com/'
     connectionCls = CloudSigma_2_0_Connection
 
-    DRIVE_TRANSITION_TIMEOUT = 500  # Default drive transition timeout in
-                                    # seconds
-    DRIVE_TRANSITION_SLEEP_INTERVAL = 5  # How long to sleep between different
-                                         # polling periods while waiting for
-                                         # drive transition
+    # Default drive transition timeout in seconds
+    DRIVE_TRANSITION_TIMEOUT = 500
+
+    # How long to sleep between different polling periods while waiting for
+    # drive transition
+    DRIVE_TRANSITION_SLEEP_INTERVAL = 5
 
     NODE_STATE_MAP = {
         'starting': NodeState.PENDING,
@@ -981,7 +992,7 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
 
     def __init__(self, key, secret, secure=True, host=None, port=None,
                  region=DEFAULT_REGION, **kwargs):
-        if not region in API_ENDPOINTS_2_0:
+        if region not in API_ENDPOINTS_2_0:
             raise ValueError('Invalid region: %s' % (region))
 
         if not secure:
@@ -1036,13 +1047,14 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
         """
         Return a list of available pre-installed library drives.
 
-        Note: If you want to list all the available images and drives, use
-        :meth:`ex_list_drives` method.
+        Note: If you want to list all the available library drives (both
+        pre-installed and installation CDs), use :meth:`ex_list_library_drives`
+        method.
         """
         response = self.connection.request(action='/libdrives/').object
         images = [self._to_image(data=item) for item in response['objects']]
 
-        # We filter out non pre-installed library drives by defafault because
+        # We filter out non pre-installed library drives by default because
         # they can't be used directly following a default Libcloud server
         # creation flow.
         images = [image for image in images if
@@ -1050,16 +1062,24 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
         return images
 
     def create_node(self, name, size, image, ex_metadata=None,
-                    ex_vnc_password=None, ex_avoid=None):
+                    ex_vnc_password=None, ex_avoid=None, ex_vlan=None):
         """
         Create a new server.
 
-        Server creation consists of 4 separate steps:
+        Server creation consists multiple steps depending on the type of the
+        image used.
 
-        1. Clone provided library drive so we can use it
-        2. Resize cloned drive to the desired size
-        3. Create a server and attach cloned drive
-        4. Start a server.
+        1. Installation CD:
+
+            1. Create a server and attach installation cd
+            2. Start a server
+
+        2. Pre-installed image:
+
+            1. Clone provided library drive so we can use it
+            2. Resize cloned drive to the desired size
+            3. Create a server and attach cloned drive
+            4. Start a server
 
         :param ex_metadata: Key / value pairs to associate with the
                             created node. (optional)
@@ -1072,8 +1092,13 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
         :param ex_avoid: A list of server UUIDs to avoid when starting this
                          node. (optional)
         :type ex_avoid: ``list``
+
+        :param ex_vlan: Optional UUID of a VLAN network to use. If specified,
+                        server will have two nics assigned - 1 with a public ip
+                        and 1 with the provided VLAN.
+        :type ex_vlan: ``str``
         """
-        # Only pre-installed images can be used with create_node
+        is_installation_cd = self._is_installation_cd(image=image)
 
         if ex_vnc_password:
             vnc_password = ex_vnc_password
@@ -1082,24 +1107,29 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
             vnc_password = get_secure_random_string(size=12)
 
         drive_name = '%s-drive' % (name)
-        drive_size = (size.disk * 1024 * 1024 * 1024)  # size is specified in
-                                                       # GB
 
-        # 1. Clone library drive so we can use it
-        drive = self.ex_clone_drive(drive=image, name=drive_name)
+        # size is specified in GB
+        drive_size = (size.disk * 1024 * 1024 * 1024)
 
-        # Wait for drive clone to finish
-        drive = self._wait_for_drive_state_transition(drive=drive,
-                                                      state='unmounted')
+        if not is_installation_cd:
+            # 1. Clone library drive so we can use it
+            drive = self.ex_clone_drive(drive=image, name=drive_name)
 
-        # 2. Resize drive to the desired disk size if the desired disk size is
-        # larger than the cloned drive size.
-        if drive_size > drive.size:
-            drive = self.ex_resize_drive(drive=drive, size=drive_size)
+            # Wait for drive clone to finish
+            drive = self._wait_for_drive_state_transition(drive=drive,
+                                                          state='unmounted')
 
-        # Wait for drive resize to finish
-        drive = self._wait_for_drive_state_transition(drive=drive,
-                                                      state='unmounted')
+            # 2. Resize drive to the desired disk size if the desired disk size
+            # is larger than the cloned drive size.
+            if drive_size > drive.size:
+                drive = self.ex_resize_drive(drive=drive, size=drive_size)
+
+            # Wait for drive resize to finish
+            drive = self._wait_for_drive_state_transition(drive=drive,
+                                                          state='unmounted')
+        else:
+            # No need to clone installation CDs
+            drive = image
 
         # 3. Create server and attach cloned drive
         # ide 0:0
@@ -1113,24 +1143,43 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
             data['meta'] = ex_metadata
 
         # Assign 1 public interface (DHCP) to the node
-        data['nics'] = [
-            {
-                'boot_order': None,
-                'ip_v4_conf': {
-                    'conf': 'dhcp',
-                },
-                'ip_v6_conf': None
-            }
-        ]
+        nic = {
+            'boot_order': None,
+            'ip_v4_conf': {
+                'conf': 'dhcp',
+            },
+            'ip_v6_conf': None
+        }
 
-        data['drives'] = [
-            {
-                'boot_order': 1,
-                'dev_channel': '0:0',
-                'device': 'ide',
-                'drive': drive.id
+        nics = [nic]
+
+        if ex_vlan:
+            # Assign another interface for VLAN
+            nic = {
+                'boot_order': None,
+                'ip_v4_conf': None,
+                'ip_v6_conf': None,
+                'vlan': ex_vlan
             }
-        ]
+            nics.append(nic)
+
+        # Need to use IDE for installation CDs
+        if is_installation_cd:
+            device_type = 'ide'
+        else:
+            device_type = 'virtio'
+
+        drive = {
+            'boot_order': 1,
+            'dev_channel': '0:0',
+            'device': device_type,
+            'drive': drive.id
+        }
+
+        drives = [drive]
+
+        data['nics'] = nics
+        data['drives'] = drives
 
         action = '/servers/'
         response = self.connection.request(action=action, method='POST',
@@ -1284,7 +1333,18 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
 
     # Drive extension methods
 
-    def ex_list_drives(self):
+    def ex_list_library_drives(self):
+        """
+        Return a list of all the available library drives (pre-installed and
+        installation CDs).
+
+        :rtype: ``list`` of :class:`.CloudSigmaDrive` objects
+        """
+        response = self.connection.request(action='/libdrives/').object
+        drives = [self._to_drive(data=item) for item in response['objects']]
+        return drives
+
+    def ex_list_user_drives(self):
         """
         Return a list of all the available user's drives.
 
@@ -1294,7 +1354,7 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
         drives = [self._to_drive(data=item) for item in response['objects']]
         return drives
 
-    def ex_create_drive(self, name, size, media='disk'):
+    def ex_create_drive(self, name, size, media='disk', ex_avoid=None):
         """
         Create a new drive.
 
@@ -1306,20 +1366,34 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
 
         :param media: Drive media type (cdrom, disk).
         :type media: ``str``
+
+        :param ex_avoid: A list of other drive uuids to avoid when
+                         creating this drive. If provided, drive will
+                         attempt to be created on a different
+                         physical infrastructure from other drives
+                         specified using this argument. (optional)
+        :type ex_avoid: ``list``
+
+        :return: Created drive object.
+        :rtype: :class:`.CloudSigmaDrive`
         """
+        params = {}
         data = {
             'name': name,
             'size': size,
             'media': media
         }
 
+        if ex_avoid:
+            params['avoid'] = ','.join(ex_avoid)
+
         action = '/drives/'
         response = self.connection.request(action=action, method='POST',
-                                           data=data).object
+                                           params=params, data=data).object
         drive = self._to_drive(data=response['objects'][0])
         return drive
 
-    def ex_clone_drive(self, drive, name=None):
+    def ex_clone_drive(self, drive, name=None, ex_avoid=None):
         """
         Clone a library or a standard drive.
 
@@ -1330,17 +1404,29 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
         :param name: Optional name for the cloned drive.
         :type name: ``str``
 
+        :param ex_avoid: A list of other drive uuids to avoid when
+                         creating this drive. If provided, drive will
+                         attempt to be created on a different
+                         physical infrastructure from other drives
+                         specified using this argument. (optional)
+        :type ex_avoid: ``list``
+
         :return: New cloned drive.
         :rtype: :class:`.CloudSigmaDrive`
         """
+        params = {}
         data = {}
+
+        if ex_avoid:
+            params['avoid'] = ','.join(ex_avoid)
 
         if name:
             data['name'] = name
 
         path = '/drives/%s/action/' % (drive.id)
         response = self._perform_action(path=path, action='clone',
-                                        method='POST', data=data)
+                                        params=params, data=data,
+                                        method='POST')
         drive = self._to_drive(data=response.object['objects'][0])
         return drive
 
@@ -1478,6 +1564,34 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
         action = '/fwpolicies/%s/' % (policy.id)
         response = self.connection.request(action=action, method='DELETE')
         return response.status == httplib.NO_CONTENT
+
+    # Availability groups extension methods
+
+    def ex_list_servers_availability_groups(self):
+        """
+        Return which running servers share the same physical compute host.
+
+        :return: A list of server UUIDs which share the same physical compute
+                 host. Servers which share the same host will be stored under
+                 the same list index.
+        :rtype: ``list`` of ``list``
+        """
+        action = '/servers/availability_groups/'
+        response = self.connection.request(action=action, method='GET')
+        return response.object
+
+    def ex_list_drives_availability_groups(self):
+        """
+        Return which drives share the same physical storage host.
+
+        :return: A list of drive UUIDs which share the same physical storage
+                 host. Drives which share the same host will be stored under
+                 the same list index.
+        :rtype: ``list`` of ``list``
+        """
+        action = '/drives/availability_groups/'
+        response = self.connection.request(action=action, method='GET')
+        return response.object
 
     # Tag extension methods
 
@@ -1682,6 +1796,40 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
                                         method='POST')
         return response.status == httplib.OK
 
+    def ex_create_subscription(self, amount, period, resource,
+                               auto_renew=False):
+        """
+        Create a new subscription.
+
+        :param amount: Subscription amount. For example, in dssd case this
+                       would be disk size in gigabytes.
+        :type amount: ``int``
+
+        :param period: Subscription period. For example: 30 days, 1 week, 1
+                                            month, ...
+        :type period: ``str``
+
+        :param resource: Resource the purchase the subscription for.
+        :type resource: ``str``
+
+        :param auto_renew: True to automatically renew the subscription.
+        :type auto_renew: ``bool``
+        """
+        data = [
+            {
+                'amount': amount,
+                'period': period,
+                'auto_renew': auto_renew,
+                'resource': resource
+            }
+        ]
+
+        response = self.connection.request(action='/subscriptions/',
+                                           data=data, method='POST')
+        data = response.object['objects'][0]
+        subscription = self._to_subscription(data=data)
+        return subscription
+
     # Misc extension methods
 
     def ex_list_capabilities(self):
@@ -1812,15 +1960,18 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
     def _to_subscription(self, data):
         start_time = parse_date(data['start_time'])
         end_time = parse_date(data['end_time'])
+        obj_uuid = data['subscribed_object']
 
         subscription = CloudSigmaSubscription(id=data['id'],
                                               resource=data['resource'],
-                                              amount=data['amount'],
+                                              amount=int(data['amount']),
                                               period=data['period'],
                                               status=data['status'],
                                               price=data['price'],
                                               start_time=start_time,
-                                              end_time=end_time)
+                                              end_time=end_time,
+                                              auto_renew=data['auto_renew'],
+                                              subscribed_object=obj_uuid)
         return subscription
 
     def _to_firewall_policy(self, data):
@@ -1855,6 +2006,17 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
         response = self.connection.request(action=path, method=method,
                                            params=params, data=data)
         return response
+
+    def _is_installation_cd(self, image):
+        """
+        Detect if the provided image is an installation CD.
+
+        :rtype: ``bool``
+        """
+        if isinstance(image, CloudSigmaDrive) and image.media == 'cdrom':
+            return True
+
+        return False
 
     def _extract_values(self, obj, keys):
         """

@@ -135,7 +135,7 @@ class Node(UuidMixin):
     >>> node.name
     'dummy-1'
 
-    the node keeps a reference to its own driver which means that we
+    The node keeps a reference to its own driver which means that we
     can work on nodes from different providers without having to know
     which is which.
 
@@ -146,7 +146,7 @@ class Node(UuidMixin):
     >>> node2.driver.creds
     72
 
-    Althrough Node objects can be subclassed, this isn't normally
+    Although Node objects can be subclassed, this isn't normally
     done.  Instead, any driver specific information is stored in the
     "extra" attribute of the node.
 
@@ -272,28 +272,33 @@ class NodeSize(UuidMixin):
     4
     """
 
-    def __init__(self, id, name, ram, disk, bandwidth, price, driver):
+    def __init__(self, id, name, ram, disk, bandwidth, price,
+                 driver, extra=None):
         """
         :param id: Size ID.
-        :type id: ``str``
+        :type  id: ``str``
 
         :param name: Size name.
-        :type name: ``str``
+        :type  name: ``str``
 
         :param ram: Amount of memory (in MB) provided by this size.
-        :type ram: ``int``
+        :type  ram: ``int``
 
         :param disk: Amount of disk storage (in GB) provided by this image.
-        :type disk: ``int``
+        :type  disk: ``int``
 
         :param bandwidth: Amount of bandiwdth included with this size.
-        :type bandwidth: ``int``
+        :type  bandwidth: ``int``
 
         :param price: Price (in US dollars) of running this node for an hour.
-        :type price: ``float``
+        :type  price: ``float``
 
-        :param driver: Driver this image belongs to.
-        :type driver: :class:`.NodeDriver`
+        :param driver: Driver this size belongs to.
+        :type  driver: :class:`.NodeDriver`
+
+        :param extra: Optional provider specific attributes associated with
+                      this size.
+        :type  extra: ``dict``
         """
         self.id = str(id)
         self.name = name
@@ -302,6 +307,7 @@ class NodeSize(UuidMixin):
         self.bandwidth = bandwidth
         self.price = price
         self.driver = driver
+        self.extra = extra or {}
         UuidMixin.__init__(self)
 
     def __repr__(self):
@@ -554,6 +560,10 @@ class VolumeSnapshot(object):
         """
         return self.driver.destroy_volume_snapshot(snapshot=self)
 
+    def __repr__(self):
+        return ('<VolumeSnapshot id=%s size=%s driver=%s>' %
+                (self.id, self.size, self.driver.name))
+
 
 class KeyPair(object):
     """
@@ -638,19 +648,6 @@ class NodeDriver(BaseDriver):
         """
         raise NotImplementedError(
             'list_nodes not implemented for this driver')
-
-    def list_images(self, location=None):
-        """
-        List images on a provider
-
-        :param location: The location at which to list images
-        :type location: :class:`.NodeLocation`
-
-        :return: list of node image objects
-        :rtype: ``list`` of :class:`.NodeImage`
-        """
-        raise NotImplementedError(
-            'list_images not implemented for this driver')
 
     def list_sizes(self, location=None):
         """
@@ -745,7 +742,7 @@ class NodeDriver(BaseDriver):
         :type image:  :class:`.NodeImage`
 
         :param location: Which data center to create a node in. If empty,
-                              undefined behavoir will be selected. (optional)
+                              undefined behavior will be selected. (optional)
         :type location: :class:`.NodeLocation`
 
         :param auth:   Initial authentication information for the node
@@ -804,7 +801,7 @@ class NodeDriver(BaseDriver):
         existing implementation should be able to handle most such.
 
         :param deploy: Deployment to run once machine is online and
-                            availble to SSH.
+                            available to SSH.
         :type deploy: :class:`Deployment`
 
         :param ssh_username: Optional name of the account which is used
@@ -859,7 +856,7 @@ class NodeDriver(BaseDriver):
             pass
         elif 'create_node' in self.features:
             f = self.features['create_node']
-            if not 'generates_password' in f and not "password" in f:
+            if 'generates_password' not in f and "password" not in f:
                 raise NotImplementedError(
                     'deploy_node not implemented for this driver')
         else:
@@ -913,7 +910,7 @@ class NodeDriver(BaseDriver):
                 e = sys.exc_info()[1]
                 deploy_error = e
             else:
-                # Script sucesfully executed, don't try alternate username
+                # Script successfully executed, don't try alternate username
                 deploy_error = None
                 break
 
@@ -985,7 +982,7 @@ class NodeDriver(BaseDriver):
         :type name: ``str``
 
         :param location: Which data center to create a volume in. If
-                               empty, undefined behavoir will be selected.
+                               empty, undefined behavior will be selected.
                                (optional)
         :type location: :class:`.NodeLocation`
 
@@ -1058,6 +1055,92 @@ class NodeDriver(BaseDriver):
         """
         raise NotImplementedError(
             'destroy_volume_snapshot not implemented for this driver')
+
+    ##
+    # Image management methods
+    ##
+
+    def list_images(self, location=None):
+        """
+        List images on a provider.
+
+        :param location: The location at which to list images.
+        :type location: :class:`.NodeLocation`
+
+        :return: list of node image objects.
+        :rtype: ``list`` of :class:`.NodeImage`
+        """
+        raise NotImplementedError(
+            'list_images not implemented for this driver')
+
+    def create_image(self, node, name, description=None):
+        """
+        Creates an image from a node object.
+
+        :param node: Node to run the task on.
+        :type node: :class:`.Node`
+
+        :param name: name for new image.
+        :type name: ``str``
+
+        :param description: description for new image.
+        :type name: ``description``
+
+        :rtype: :class:`.NodeImage`:
+        :return: NodeImage instance on success.
+
+        """
+        raise NotImplementedError(
+            'create_image not implemented for this driver')
+
+    def delete_image(self, node_image):
+        """
+        Deletes a node image from a provider.
+
+        :param node_image: Node image object.
+        :type node_image: :class:`.NodeImage`
+
+        :return: ``True`` if delete_image was successful, ``False`` otherwise.
+        :rtype: ``bool``
+        """
+
+        raise NotImplementedError(
+            'delete_image not implemented for this driver')
+
+    def get_image(self, image_id):
+        """
+        Returns a single node image from a provider.
+
+        :param image_id: Node to run the task on.
+        :type image_id: ``str``
+
+        :rtype :class:`.NodeImage`:
+        :return: NodeImage instance on success.
+        """
+        raise NotImplementedError(
+            'get_image not implemented for this driver')
+
+    def copy_image(self, source_region, node_image, name, description=None):
+        """
+        Copies an image from a source region to the current region.
+
+        :param source_region: Region to copy the node from.
+        :type source_region: ``str``
+
+        :param node_image: NodeImage to copy.
+        :type node_image: :class`.NodeImage`:
+
+        :param name: name for new image.
+        :type name: ``str``
+
+        :param description: description for new image.
+        :type name: ``str``
+
+        :rtype: :class:`.NodeImage`:
+        :return: NodeImage instance on success.
+        """
+        raise NotImplementedError(
+            'copy_image not implemented for this driver')
 
     ##
     # SSH key pair management methods
@@ -1315,7 +1398,7 @@ class NodeDriver(BaseDriver):
         ssh_client = SSHClient(hostname=ssh_hostname,
                                port=ssh_port, username=ssh_username,
                                password=ssh_password,
-                               key=ssh_key_file,
+                               key_files=ssh_key_file,
                                timeout=ssh_timeout)
 
         # Connect to the SSH server running on the node

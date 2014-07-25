@@ -301,7 +301,7 @@ class OpenStack_1_0_Tests(unittest.TestCase, TestCaseMixin):
     driver_klass = OpenStack_1_0_NodeDriver
     driver_args = OPENSTACK_PARAMS
     driver_kwargs = {}
-    #driver_kwargs = {'ex_force_auth_version': '1.0'}
+    # driver_kwargs = {'ex_force_auth_version': '1.0'}
 
     @classmethod
     def create_driver(self):
@@ -537,17 +537,17 @@ class OpenStack_1_0_Tests(unittest.TestCase, TestCaseMixin):
         self.assertTrue("rate" in limits)
         self.assertTrue("absolute" in limits)
 
-    def test_ex_save_image(self):
+    def test_create_image(self):
         node = Node(id=444222, name=None, state=None, public_ips=None,
                     private_ips=None, driver=self.driver)
-        image = self.driver.ex_save_image(node, "imgtest")
+        image = self.driver.create_image(node, "imgtest")
         self.assertEqual(image.name, "imgtest")
         self.assertEqual(image.id, "12345")
 
-    def test_ex_delete_image(self):
+    def test_delete_image(self):
         image = NodeImage(id=333111, name='Ubuntu 8.10 (intrepid)',
                           driver=self.driver)
-        ret = self.driver.ex_delete_image(image)
+        ret = self.driver.delete_image(image)
         self.assertTrue(ret)
 
     def test_ex_list_ip_addresses(self):
@@ -961,11 +961,15 @@ class OpenStack_1_1_Tests(unittest.TestCase, TestCaseMixin):
         node = nodes[0]
 
         self.assertEqual('12065', node.id)
-        self.assertEqual('50.57.94.35', node.public_ips[0])
-        self.assertEqual(
-            '2001:4801:7808:52:16:3eff:fe47:788a', node.public_ips[1])
+        # test public IPv4
+        self.assertTrue('12.16.18.28' in node.public_ips)
+        self.assertTrue('50.57.94.35' in node.public_ips)
+        # test public IPv6
+        self.assertTrue(
+            '2001:4801:7808:52:16:3eff:fe47:788a' in node.public_ips)
+        # test private IPv4
         self.assertTrue('10.182.64.34' in node.private_ips)
-        self.assertTrue('12.16.18.28' in node.private_ips)
+        # test private IPv6
         self.assertTrue(
             'fec0:4801:7808:52:16:3eff:fe60:187d' in node.private_ips)
 
@@ -1072,6 +1076,19 @@ class OpenStack_1_1_Tests(unittest.TestCase, TestCaseMixin):
         self.assertEqual(node.extra['metadata']['My Server Name'], 'Apache1')
         self.assertEqual(node.extra['key_name'], 'devstack')
 
+    def test_create_node_with_availability_zone(self):
+        image = NodeImage(
+            id=11, name='Ubuntu 8.10 (intrepid)', driver=self.driver)
+        size = NodeSize(
+            1, '256 slice', None, None, None, None, driver=self.driver)
+        node = self.driver.create_node(name='racktest', image=image, size=size,
+                                       availability_zone='testaz')
+        self.assertEqual(node.id, '26f7fbee-8ce1-4c28-887a-bfe8e4bb10fe')
+        self.assertEqual(node.name, 'racktest')
+        self.assertEqual(node.extra['password'], 'racktestvJq7d3')
+        self.assertEqual(node.extra['metadata']['My Server Name'], 'Apache1')
+        self.assertEqual(node.extra['availability_zone'], 'testaz')
+
     def test_create_node_with_ex_disk_config(self):
         OpenStack_1_1_MockHttp.type = 'EX_DISK_CONFIG'
         image = NodeImage(
@@ -1154,8 +1171,8 @@ class OpenStack_1_1_Tests(unittest.TestCase, TestCaseMixin):
             e = sys.exc_info()[1]
             self.fail('An error was raised: ' + repr(e))
 
-    def test_ex_save_image(self):
-        image = self.driver.ex_save_image(self.node, 'new_image')
+    def test_create_image(self):
+        image = self.driver.create_image(self.node, 'new_image')
         self.assertEqual(image.name, 'new_image')
         self.assertEqual(image.id, '4949f9ee-2421-4c81-8b49-13119446008b')
 
@@ -1210,19 +1227,19 @@ class OpenStack_1_1_Tests(unittest.TestCase, TestCaseMixin):
         self.assertEqual(size.id, size_id)
         self.assertEqual(size.name, '15.5GB slice')
 
-    def test_ex_get_image(self):
+    def test_get_image(self):
         image_id = '13'
-        image = self.driver.ex_get_image(image_id)
+        image = self.driver.get_image(image_id)
         self.assertEqual(image.id, image_id)
         self.assertEqual(image.name, 'Windows 2008 SP2 x86 (B24)')
         self.assertEqual(image.extra['serverId'], None)
         self.assertEqual(image.extra['minDisk'], "5")
         self.assertEqual(image.extra['minRam'], "256")
 
-    def test_ex_delete_image(self):
+    def test_delete_image(self):
         image = NodeImage(
             id='26365521-8c62-11f9-2c33-283d153ecc3a', name='My Backup', driver=self.driver)
-        result = self.driver.ex_delete_image(image)
+        result = self.driver.delete_image(image)
         self.assertTrue(result)
 
     def test_extract_image_id_from_url(self):
@@ -1491,6 +1508,76 @@ class OpenStack_1_1_Tests(unittest.TestCase, TestCaseMixin):
         metadata = self.driver.ex_get_metadata_for_node(node)
         self.assertEqual(metadata['My Server Name'], 'Apache1')
         self.assertEqual(len(metadata), 1)
+
+    def test_ex_pause_node(self):
+        node = Node(
+            id='12063', name=None, state=None,
+            public_ips=None, private_ips=None, driver=self.driver,
+        )
+        ret = self.driver.ex_pause_node(node)
+        self.assertTrue(ret is True)
+
+    def test_ex_unpause_node(self):
+        node = Node(
+            id='12063', name=None, state=None,
+            public_ips=None, private_ips=None, driver=self.driver,
+        )
+        ret = self.driver.ex_unpause_node(node)
+        self.assertTrue(ret is True)
+
+    def test_ex_suspend_node(self):
+        node = Node(
+            id='12063', name=None, state=None,
+            public_ips=None, private_ips=None, driver=self.driver,
+        )
+        ret = self.driver.ex_suspend_node(node)
+        self.assertTrue(ret is True)
+
+    def test_ex_resume_node(self):
+        node = Node(
+            id='12063', name=None, state=None,
+            public_ips=None, private_ips=None, driver=self.driver,
+        )
+        ret = self.driver.ex_resume_node(node)
+        self.assertTrue(ret is True)
+
+    def test_ex_get_console_output(self):
+        node = Node(
+            id='12086', name=None, state=None,
+            public_ips=None, private_ips=None, driver=self.driver,
+        )
+        resp = self.driver.ex_get_console_output(node)
+        expected_output = 'FAKE CONSOLE OUTPUT\nANOTHER\nLAST LINE'
+        self.assertEqual(resp['output'], expected_output)
+
+    def test_ex_list_snapshots(self):
+        if self.driver_type.type == 'rackspace':
+            self.conn_classes[0].type = 'RACKSPACE'
+            self.conn_classes[1].type = 'RACKSPACE'
+
+        snapshots = self.driver.ex_list_snapshots()
+        self.assertEqual(len(snapshots), 2)
+        self.assertEqual(snapshots[0].extra['name'], 'snap-001')
+
+    def test_ex_create_snapshot(self):
+        volume = self.driver.list_volumes()[0]
+        if self.driver_type.type == 'rackspace':
+            self.conn_classes[0].type = 'RACKSPACE'
+            self.conn_classes[1].type = 'RACKSPACE'
+
+        ret = self.driver.ex_create_snapshot(volume,
+                                             'Test Volume',
+                                             'This is a test')
+        self.assertEqual(ret.id, '3fbbcccf-d058-4502-8844-6feeffdf4cb5')
+
+    def test_ex_delete_snapshot(self):
+        if self.driver_type.type == 'rackspace':
+            self.conn_classes[0].type = 'RACKSPACE'
+            self.conn_classes[1].type = 'RACKSPACE'
+
+        snapshot = self.driver.ex_list_snapshots()[0]
+        ret = self.driver.ex_delete_snapshot(snapshot)
+        self.assertTrue(ret)
 
 
 class OpenStack_1_1_FactoryMethodTests(OpenStack_1_1_Tests):
@@ -1811,6 +1898,70 @@ class OpenStack_1_1_MockHttp(MockHttpTestCase):
             body = ''
             return (httplib.ACCEPTED, body, self.json_content_headers, httplib.responses[httplib.OK])
         raise NotImplementedError()
+
+    def _v1_1_slug_servers_72258_action(self, method, url, body, headers):
+        if method == 'POST':
+            body = self.fixtures.load('_servers_suspend.json')
+            return (httplib.ACCEPTED, body, self.json_content_headers, httplib.responses[httplib.OK])
+        else:
+            raise NotImplementedError()
+
+        return (httplib.OK, body, self.json_content_headers, httplib.responses[httplib.OK])
+
+    def _v1_1_slug_servers_12063_action(self, method, url, body, headers):
+        if method == 'POST':
+            body = self.fixtures.load('_servers_unpause.json')
+            return (httplib.ACCEPTED, body, self.json_content_headers, httplib.responses[httplib.OK])
+        else:
+            raise NotImplementedError()
+
+        return (httplib.OK, body, self.json_content_headers, httplib.responses[httplib.OK])
+
+    def _v1_1_slug_servers_12086_action(self, method, url, body, headers):
+        if method == 'POST':
+            body = self.fixtures.load('_servers_12086_console_output.json')
+            return (httplib.ACCEPTED, body, self.json_content_headers, httplib.responses[httplib.OK])
+        else:
+            raise NotImplementedError()
+
+    def _v1_1_slug_os_snapshots(self, method, url, body, headers):
+        if method == 'GET':
+            body = self.fixtures.load('_os_snapshots.json')
+        elif method == 'POST':
+            body = self.fixtures.load('_os_snapshots_create.json')
+        else:
+            raise NotImplementedError()
+
+        return (httplib.OK, body, self.json_content_headers, httplib.responses[httplib.OK])
+
+    def _v1_1_slug_os_snapshots_RACKSPACE(self, method, url, body, headers):
+        if method == 'GET':
+            body = self.fixtures.load('_os_snapshots_rackspace.json')
+        elif method == 'POST':
+            body = self.fixtures.load('_os_snapshots_create_rackspace.json')
+        else:
+            raise NotImplementedError()
+
+        return (httplib.OK, body, self.json_content_headers, httplib.responses[httplib.OK])
+
+    def _v1_1_slug_os_snapshots_3fbbcccf_d058_4502_8844_6feeffdf4cb5(self, method, url, body, headers):
+        if method == 'DELETE':
+            body = ''
+            status_code = httplib.NO_CONTENT
+        else:
+            raise NotImplementedError()
+
+        return (status_code, body, self.json_content_headers, httplib.responses[httplib.OK])
+
+    def _v1_1_slug_os_snapshots_3fbbcccf_d058_4502_8844_6feeffdf4cb5_RACKSPACE(self, method, url, body, headers):
+        if method == 'DELETE':
+            body = ''
+            status_code = httplib.NO_CONTENT
+        else:
+            raise NotImplementedError()
+
+        return (status_code, body, self.json_content_headers, httplib.responses[httplib.OK])
+
 
 # This exists because the nova compute url in devstack has v2 in there but the v1.1 fixtures
 # work fine.
