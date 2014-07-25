@@ -316,7 +316,7 @@ get all keys call with no arguments')
                     console_key=None, zone=None, **kwargs):
         """Creates the node, and sets the ssh key, console key
         NephoScale will respond with a 200-200 response after sending a valid
-        request. If nowait=True is specified in the args, we then ask a few
+        request. If ex_wait=True is specified in the args, we then ask a few
         times until the server is created and assigned a public IP address,
         so that deploy_node can be run
 
@@ -358,7 +358,7 @@ get all keys call with no arguments')
             ...                     console_key=console_key,
             ...                     server_key=server_key,
             ...                     connect_attempts=10,
-            ...                     nowait=True,
+            ...                     ex_wait=True,
             ...                     zone=location.id)
         """
         hostname = kwargs.get('hostname', name)
