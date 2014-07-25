@@ -136,7 +136,9 @@ class NephoscaleNodeDriver(NodeDriver):
                                     name=value.get('name'),
                                     country='US',
                                     driver=self)
-            locations.append(location)
+            #return only active locations
+            if value.get('activated', True) == True:
+                locations.append(location)
         return locations
 
     def list_images(self):
