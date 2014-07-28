@@ -408,7 +408,10 @@ class SoftLayerNodeDriver(NodeDriver):
 
         if datacenter:
             newCCI['datacenter'] = {'name': datacenter}
-
+        #sshKeys is an optional ssh key id to deploy
+        sshKeys = kwargs['sshKeys']
+        if sshKeys:
+            newCCI['sshKeys'] = [{'id': sshKeys}]
         res = self.connection.request(
             'SoftLayer_Virtual_Guest', 'createObject', newCCI
         ).object
