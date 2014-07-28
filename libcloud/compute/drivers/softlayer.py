@@ -418,12 +418,30 @@ class SoftLayerNodeDriver(NodeDriver):
 
         return self._to_node(raw_node)
 
+    def create_key_pair(self, label, key):
+        """Creates an ssh key, given a label and public key
+        """
+        data = {
+            'key': key,
+            'label': label
+        }
+        res = self.connection.request(
+            'SoftLayer_Security_Ssh_Key', 'createObject', data
+        ).object
+
+        return self._to_key(res)
+
     def _to_image(self, img):
         return NodeImage(
             id=img['template']['operatingSystemReferenceCode'],
             name=img['itemPrice']['item']['description'],
             driver=self.connection.driver
         )
+
+    def _to_key(self, data):
+        return NodeKey(id=data.get('id'),
+                       name=data.get('label'),
+                       key=data.get('key'))
 
     def list_images(self, location=None):
         result = self.connection.request(
@@ -479,3 +497,20 @@ class SoftLayerNodeDriver(NodeDriver):
             object_mask=mask
         ).object
         return [self._to_node(h) for h in res]
+
+    def list_key_pairs(self):
+        res = self.connection.request(
+            'SoftLayer_Account', 'getSshKeys'
+        ).object
+        return [self._to_key(k) for k in res]
+
+
+class NodeKey(object):
+    def __init__(self, id, name, key):
+        self.id = id
+        self.name = name
+        self.key = key
+
+    def __repr__(self):
+        return (('<NodeKey: id=%s, name=%s>') %
+                (self.id, self.name))
