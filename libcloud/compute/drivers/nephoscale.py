@@ -437,10 +437,15 @@ get all keys call with no arguments')
             'network_ports': data.get('network_ports'),
             'is_console_enabled': data.get('is_console_enabled'),
             'service_type': data.get('service_type', {}).get('friendly_name'),
-            'billable_type': data.get('service_type', {}).get('billable_type'),
-             #1 for cloud servers, 2 for dedicated
             'hostname': data.get('hostname')
         }
+        
+        billable_type = data.get('service_type', {}).get('billable_type')
+        #1 for cloud servers, 2 for dedicated
+        if billable_type == 1:
+            extra['tags'] = {'type': 'Cloudlet'}
+        elif billable_type == 2:
+            extra['tags'] = {'type': 'BareMetal'}
 
         node = Node(id=data.get('id'), name=data.get('name'), state=state,
                     public_ips=public_ips, private_ips=private_ips,
