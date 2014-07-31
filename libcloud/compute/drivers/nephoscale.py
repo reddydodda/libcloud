@@ -123,7 +123,7 @@ class NephoscaleNodeDriver(NodeDriver):
     connectionCls = NephoscaleConnection
     features = {'create_node': ['ssh_key']}
 
-    def list_locations(self):
+    def list_locations(self, active=True):
         """
         List available zones for deployment
 
@@ -136,9 +136,13 @@ class NephoscaleNodeDriver(NodeDriver):
                                     name=value.get('name'),
                                     country='US',
                                     driver=self)
-            #return only active locations
-            if value.get('activated', True) == True:
+            if active:
+                #return only active locations
+                if value.get('activated', True) == True:
+                    locations.append(location)
+            else:
                 locations.append(location)
+                
         return locations
 
     def list_images(self):
@@ -186,13 +190,17 @@ class NephoscaleNodeDriver(NodeDriver):
 
         return sorted(sizes, key=lambda k: k.price)
 
-    def list_nodes(self):
+    def list_nodes(self, baremetal=True):
         """
         List available nodes
 
         :rtype: ``list`` of :class:`Node`
         """
-        result = self.connection.request('/server/cloud/').object
+        if baremetal:
+        #show cloud servers and dedicated servers as well
+            result = self.connection.request('/server/').object
+        else:
+            result = self.connection.request('/server/cloud/').object
         nodes = [self._to_node(value) for value in result.get('data', [])]
         return nodes
 
@@ -429,6 +437,8 @@ get all keys call with no arguments')
             'network_ports': data.get('network_ports'),
             'is_console_enabled': data.get('is_console_enabled'),
             'service_type': data.get('service_type', {}).get('friendly_name'),
+            'billable_type': data.get('service_type', {}).get('billable_type'),
+             #1 for cloud servers, 2 for dedicated
             'hostname': data.get('hostname')
         }
 
