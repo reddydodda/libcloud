@@ -138,11 +138,11 @@ class NephoscaleNodeDriver(NodeDriver):
                                     driver=self)
             if active:
                 #return only active locations
-                if value.get('activated', True) == True:
+                if value.get('activated', True) is True:
                     locations.append(location)
             else:
                 locations.append(location)
-                
+
         return locations
 
     def list_images(self):
@@ -169,13 +169,20 @@ class NephoscaleNodeDriver(NodeDriver):
             images.append(image)
         return images
 
-    def list_sizes(self):
+    def list_sizes(self, baremetal=False):
         """
         List available sizes containing prices
 
         :rtype: ``list`` of :class:`NodeSize`
         """
-        result = self.connection.request('/server/type/cloud/').object
+        #cloudlet or baremetal
+        if baremetal:
+            element_uri = 'dedicated'
+        else:
+            element_uri = 'cloud'
+
+        result = self.connection.request('/server/type/%s/'
+                                         % element_uri).object
         sizes = []
         for value in result.get('data', []):
             value_id = value.get('id')
@@ -210,31 +217,36 @@ class NephoscaleNodeDriver(NodeDriver):
         if hostname:
             data['hostname'] = hostname
         params = urlencode(data)
-        result = self.connection.request('/server/cloud/%s/' % node.id,
+        result = self.connection.request('/server/cloud/%s/'
+                                         % node.extra.get('id'),
                                          data=params, method='PUT').object
         return result.get('response') in VALID_RESPONSE_CODES
 
     def reboot_node(self, node):
         """reboot a running node"""
         result = self.connection.request('/server/cloud/%s/initiator/restart/'
-                                         % node.id, method='POST').object
+                                         % node.extra.get('id'),
+                                         method='POST').object
         return result.get('response') in VALID_RESPONSE_CODES
 
     def ex_start_node(self, node):
         """start a stopped node"""
         result = self.connection.request('/server/cloud/%s/initiator/start/'
-                                         % node.id, method='POST').object
+                                         % node.extra.get('id'),
+                                         method='POST').object
         return result.get('response') in VALID_RESPONSE_CODES
 
     def ex_stop_node(self, node):
         """stop a running node"""
         result = self.connection.request('/server/cloud/%s/initiator/stop/'
-                                         % node.id, method='POST').object
+                                         % node.extra.get('id'),
+                                         method='POST').object
         return result.get('response') in VALID_RESPONSE_CODES
 
     def destroy_node(self, node):
         """destroy a node"""
-        result = self.connection.request('/server/cloud/%s/' % node.id,
+        result = self.connection.request('/server/cloud/%s/'
+                                         % node.extra.get('id'),
                                          method='DELETE').object
         return result.get('response') in VALID_RESPONSE_CODES
 
@@ -321,7 +333,7 @@ get all keys call with no arguments')
         return result.get('response') in VALID_RESPONSE_CODES
 
     def create_node(self, name, size, image, server_key=None,
-                    console_key=None, zone=None, **kwargs):
+                    console_key=None, zone=None, baremetal=False, **kwargs):
         """Creates the node, and sets the ssh key, console key
         NephoScale will respond with a 200-200 response after sending a valid
         request. If ex_wait=True is specified in the args, we then ask a few
@@ -383,15 +395,23 @@ get all keys call with no arguments')
                 'console_key': console_key,
                 'zone': zone
                 }
+        #cloudlet or baremetal
+        if baremetal:
+            element_uri = 'dedicated'
+            #not required
+            data.pop('console_key')
+        else:
+            element_uri = 'cloud'
 
         params = urlencode(data)
         try:
-            node = self.connection.request('/server/cloud/', data=params,
+            node = self.connection.request('/server/%s/'
+                                           % element_uri, data=params,
                                            method='POST')
         except Exception:
             e = sys.exc_info()[1]
             raise Exception("Failed to create node %s" % e)
-        node = Node(id='', name=name, state=NodeState.UNKNOWN, public_ips=[],
+        node = Node(id=name, name=name, state=NodeState.UNKNOWN, public_ips=[],
                     private_ips=[], driver=self)
 
         nowait = kwargs.get('ex_wait', False)
@@ -430,6 +450,7 @@ get all keys call with no arguments')
                 else:
                     public_ips.append(ip)
         extra = {
+            'id': data.get('id'),
             'zone_data': data.get('zone'),
             'zone': data.get('zone', {}).get('name'),
             'image': data.get('image', {}).get('friendly_name'),
@@ -439,7 +460,7 @@ get all keys call with no arguments')
             'service_type': data.get('service_type', {}).get('friendly_name'),
             'hostname': data.get('hostname')
         }
-        
+
         billable_type = data.get('service_type', {}).get('billable_type')
         #1 for cloud servers, 2 for dedicated
         if billable_type == 1:
@@ -447,7 +468,7 @@ get all keys call with no arguments')
         elif billable_type == 2:
             extra['tags'] = {'type': 'BareMetal'}
 
-        node = Node(id=data.get('id'), name=data.get('name'), state=state,
+        node = Node(id=data.get('name'), name=data.get('name'), state=state,
                     public_ips=public_ips, private_ips=private_ips,
                     driver=self, extra=extra)
         return node
