@@ -77,6 +77,15 @@ class DigitalOceanConnection(ConnectionUserAndKey):
         params['api_key'] = self.key
         return params
 
+    def add_default_headers(self, headers):
+        """
+        Add parameters that are necessary for every request
+        """
+        #assume v2
+        if not self.key:
+            headers['Authorization'] = "Bearer %s" % self.secret
+        return headers
+
 
 class DigitalOceanNodeDriver(NodeDriver):
     """
@@ -92,6 +101,29 @@ class DigitalOceanNodeDriver(NodeDriver):
     NODE_STATE_MAP = {'new': NodeState.PENDING,
                       'off': NodeState.UNKNOWN,
                       'active': NodeState.RUNNING}
+
+    def __init__(self, key, secret=None, **kwargs):
+        """
+        Supports Digital Ocean API versions v1 and v2
+        v1 needs Client ID and API Key, while v2 needs API Key only
+
+        Eg these will try v1
+        driver = get_driver('digitalocean')
+        conn = driver('248395230482583656845e3f08', '4hd93457398r944aa3546')
+        conn = driver(key='2483956845e3f08', secret='4hd44aa3546')
+
+        while this will try v2
+        conn = driver('38379379853973y3492095e45e3f08')
+
+        """
+
+        super(DigitalOceanNodeDriver, self).__init__(key=key,
+                                                     secret=secret, **kwargs)
+        #assume v2
+        if not secret:
+            self.connection.key = ''
+            self.connection.secret = key
+            self.connection.request_path = '/v2'
 
     def list_nodes(self):
         data = self.connection.request('/droplets').object['droplets']
