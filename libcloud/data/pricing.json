@@ -76,29 +76,41 @@
         },
 
         "rackspacenovahkg": {
+            "performance2-60": {"mswinSQL": "$5.400/hour", "vyatta": "$2.900/hour", "mswin": "$3.200/hour", "mswinSQLWeb": "$3.440/hour", "rhel": "$2.870/hour", "linux": "$2.720/hour"},
+            "performance2-120": {"mswinSQL": "$10.800/hour", "vyatta": "$5.620/hour", "mswin": "$6.400/hour", "mswinSQLWeb": "$6.880/hour", "rhel": "$5.590/hour", "linux": "$5.440/hour"},
             "6": {"mswinSQL": "$1.300/hour", "vyatta": "$0.660/hour", "mswin": "$0.580/hour", "mswinSQLWeb": "$0.640/hour", "rhel": "$0.560/hour", "linux": "$0.480/hour"},
+            "performance2-15": {"mswinSQL": "$1.350/hour", "linux": "$0.680/hour", "vyatta": "$0.860/hour", "mswin": "$0.800/hour", "rhel": "$0.760/hour", "mswinSQLWeb": "$0.860/hour"},
             "3": {"mswin": "$0.080/hour", "rhel": "$0.140/hour", "vyatta": "$0.240/hour", "linux": "$0.060/hour"},
-            "performance1-4": {"mswinSQL": "$0.00/hour"},
+            "performance2-30": {"mswinSQL": "$2.700/hour", "vyatta": "$1.540/hour", "mswin": "$1.600/hour", "mswinSQLWeb": "$1.720/hour", "rhel": "$1.510/hour", "linux": "$1.360/hour"},
+            "performance2-90": {"mswinSQL": "$8.100/hour", "vyatta": "$4.260/hour", "mswin": "$4.800/hour", "mswinSQLWeb": "$5.160/hour", "rhel": "$4.230/hour", "linux": "$4.080/hour"},
+            "performance1-4": {"mswinSQL": "$0.00/hour", "linux": "$0.160/hour", "vyatta": "$0.340/hour", "mswin": "$0.200/hour", "rhel": "$0.240/hour", "mswinSQLWeb": "$0.260/hour"},
             "2": {"rhel": "$0.102/hour", "linux": "$0.022/hour"},
-            "5": {"mswinSQL": "$1.040/hour", "vyatta": "$0.420/hour", "mswin": "$0.320/hour", "mswinSQLWeb": "$0.380/hour", "rhel": "$0.320/hour", "linux": "$0.240/hour"},
+            "performance1-2": {"mswinSQL": "$0.200/hour", "linux": "$0.080/hour", "vyatta": "$0.260/hour", "mswin": "$0.100/hour", "rhel": "$0.160/hour", "mswinSQLWeb": "$0.160/hour"},
             "4": {"mswinSQL": "$0.880/hour", "vyatta": "$0.300/hour", "mswin": "$0.160/hour", "mswinSQLWeb": "$0.220/hour", "rhel": "$0.200/hour", "linux": "$0.120/hour"},
             "7": {"mswinSQL": "$1.900/hour", "vyatta": "$1.080/hour", "mswin": "$1.080/hour", "mswinSQLWeb": "$1.140/hour", "rhel": "$1.050/hour", "linux": "$0.900/hour"},
-            "8": {"mswinSQL": "$2.880/hour", "vyatta": "$1.620/hour", "mswin": "$1.800/hour", "mswinSQLWeb": "$1.890/hour", "rhel": "$1.590/hour", "linux": "$1.440/hour"},
-            "performance1-2": {"mswinSQL": "$0.200/hour"},
-            "performance1-8": {"mswin": "$0.105/hour"}
+            "performance1-1": {"linux": "$0.040/hour", "rhel": "$0.120/hour", "vyatta": "$0.220/hour"},
+            "5": {"mswinSQL": "$1.040/hour", "vyatta": "$0.420/hour", "mswin": "$0.320/hour", "mswinSQLWeb": "$0.380/hour", "rhel": "$0.320/hour", "linux": "$0.240/hour"},
+            "performance1-8": {"mswinSQL": "$1.600/hour", "linux": "$0.320/hour", "vyatta": "$0.500/hour", "mswin": "$0.105/hour", "rhel": "$0.470/hour", "mswinSQLWeb": "$0.520/hour"},
+            "8": {"mswinSQL": "$2.880/hour", "vyatta": "$1.620/hour", "mswin": "$1.800/hour", "mswinSQLWeb": "$1.890/hour", "rhel": "$1.590/hour", "linux": "$1.440/hour"}
         },
 
         "rackspacenovasyd": {
+            "performance2-60": {"mswinSQL": "$5.400/hour", "vyatta": "$2.900/hour", "mswin": "$3.200/hour", "mswinSQLWeb": "$3.440/hour", "rhel": "$2.870/hour", "linux": "$2.720/hour"},
+            "performance2-120": {"mswinSQL": "$10.800/hour", "vyatta": "$5.620/hour", "mswin": "$6.400/hour", "mswinSQLWeb": "$6.880/hour", "rhel": "$5.590/hour", "linux": "$5.440/hour"},
             "6": {"mswinSQL": "$1.300/hour", "vyatta": "$0.660/hour", "mswin": "$0.580/hour", "mswinSQLWeb": "$0.640/hour", "rhel": "$0.560/hour", "linux": "$0.480/hour"},
+            "performance2-15": {"mswinSQL": "$1.350/hour", "linux": "$0.680/hour", "vyatta": "$0.860/hour", "mswin": "$0.800/hour", "rhel": "$0.760/hour", "mswinSQLWeb": "$0.860/hour"},
             "3": {"mswin": "$0.080/hour", "rhel": "$0.140/hour", "vyatta": "$0.240/hour", "linux": "$0.060/hour"},
-            "performance1-4": {"mswinSQL": "$0.00/hour"},
+            "performance2-30": {"mswinSQL": "$2.700/hour", "vyatta": "$1.540/hour", "mswin": "$1.600/hour", "mswinSQLWeb": "$1.720/hour", "rhel": "$1.510/hour", "linux": "$1.360/hour"},
+            "performance2-90": {"mswinSQL": "$8.100/hour", "vyatta": "$4.260/hour", "mswin": "$4.800/hour", "mswinSQLWeb": "$5.160/hour", "rhel": "$4.230/hour", "linux": "$4.080/hour"},
+            "performance1-4": {"mswinSQL": "$0.00/hour", "linux": "$0.160/hour", "vyatta": "$0.340/hour", "mswin": "$0.200/hour", "rhel": "$0.240/hour", "mswinSQLWeb": "$0.260/hour"},
             "2": {"rhel": "$0.102/hour", "linux": "$0.022/hour"},
-            "5": {"mswinSQL": "$1.040/hour", "vyatta": "$0.420/hour", "mswin": "$0.320/hour", "mswinSQLWeb": "$0.380/hour", "rhel": "$0.320/hour", "linux": "$0.240/hour"},
+            "performance1-2": {"mswinSQL": "$0.200/hour", "linux": "$0.080/hour", "vyatta": "$0.260/hour", "mswin": "$0.100/hour", "rhel": "$0.160/hour", "mswinSQLWeb": "$0.160/hour"},
             "4": {"mswinSQL": "$0.880/hour", "vyatta": "$0.300/hour", "mswin": "$0.160/hour", "mswinSQLWeb": "$0.220/hour", "rhel": "$0.200/hour", "linux": "$0.120/hour"},
             "7": {"mswinSQL": "$1.900/hour", "vyatta": "$1.080/hour", "mswin": "$1.080/hour", "mswinSQLWeb": "$1.140/hour", "rhel": "$1.050/hour", "linux": "$0.900/hour"},
-            "8": {"mswinSQL": "$2.880/hour", "vyatta": "$1.620/hour", "mswin": "$1.800/hour", "mswinSQLWeb": "$1.890/hour", "rhel": "$1.590/hour", "linux": "$1.440/hour"},
-            "performance1-2": {"mswinSQL": "$0.200/hour"},
-            "performance1-8": {"mswin": "$0.105/hour"}
+            "performance1-1": {"linux": "$0.040/hour", "rhel": "$0.120/hour", "vyatta": "$0.220/hour"},
+            "5": {"mswinSQL": "$1.040/hour", "vyatta": "$0.420/hour", "mswin": "$0.320/hour", "mswinSQLWeb": "$0.380/hour", "rhel": "$0.320/hour", "linux": "$0.240/hour"},
+            "performance1-8": {"mswinSQL": "$1.600/hour", "linux": "$0.320/hour", "vyatta": "$0.500/hour", "mswin": "$0.105/hour", "rhel": "$0.470/hour", "mswinSQLWeb": "$0.520/hour"},
+            "8": {"mswinSQL": "$2.880/hour", "vyatta": "$1.620/hour", "mswin": "$1.800/hour", "mswinSQLWeb": "$1.890/hour", "rhel": "$1.590/hour", "linux": "$1.440/hour"}
         },
 
         "rackspacenovaord": {
