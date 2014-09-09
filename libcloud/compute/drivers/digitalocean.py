@@ -439,7 +439,7 @@ class DigitalOcean2NodeDriver(NodeDriver):
                     private_ips.append(ip)
             else:
                     public_ips.append(ip)
-        extra_keys = ['name', 'image', 'backup_ids', 'features']
+        extra_keys = ['created_at', 'disk', 'kernel', 'memory', 'size', 'name', 'image', 'backup_ids', 'features']
         extra = {}
         for key in extra_keys:
             if key in data:
