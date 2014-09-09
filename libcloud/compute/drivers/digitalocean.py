@@ -277,7 +277,7 @@ class DigitalOcean2NodeDriver(NodeDriver):
 
     connectionCls = DigitalOcean2Connection
 
-    type = Provider.DIGITAL_OCEAN2
+    type = Provider.DIGITAL_OCEAN
     name = 'Digital Ocean'
     website = 'https://www.digitalocean.com'
 
