@@ -58,7 +58,7 @@ class SSHKey(object):
                 (self.id, self.name, self.pub_key))
 
 
-class DigitalOceanConnection(ConnectionUserAndKey):
+class DigitalOceanFirstGenConnection(ConnectionUserAndKey):
     """
     Connection class for the DigitalOcean driver.
     """
@@ -78,12 +78,12 @@ class DigitalOceanConnection(ConnectionUserAndKey):
         return params
 
 
-class DigitalOceanNodeDriver(NodeDriver):
+class DigitalOceanFirstGenNodeDriver(NodeDriver):
     """
     DigitalOceanNode node driver.
     """
 
-    connectionCls = DigitalOceanConnection
+    connectionCls = DigitalOceanFirstGenConnection
 
     type = Provider.DIGITAL_OCEAN
     name = 'Digital Ocean'
@@ -253,7 +253,7 @@ class DigitalOceanNodeDriver(NodeDriver):
                       pub_key=data.get('ssh_pub_key', None))
 
 
-class DigitalOcean2Connection(ConnectionUserAndKey):
+class DigitalOceanConnection(ConnectionUserAndKey):
     """
     Connection class for the DigitalOcean driver.
     """
@@ -270,12 +270,12 @@ class DigitalOcean2Connection(ConnectionUserAndKey):
         return headers
 
 
-class DigitalOcean2NodeDriver(NodeDriver):
+class DigitalOceanNodeDriver(NodeDriver):
     """
     DigitalOceanNode node driver.
     """
 
-    connectionCls = DigitalOcean2Connection
+    connectionCls = DigitalOceanConnection
 
     type = Provider.DIGITAL_OCEAN
     name = 'Digital Ocean'
@@ -294,7 +294,7 @@ class DigitalOcean2NodeDriver(NodeDriver):
 
         """
 
-        super(DigitalOcean2NodeDriver, self).__init__(key=key, **kwargs)
+        super(DigitalOceanNodeDriver, self).__init__(key=key, **kwargs)
         self.connection.request_path = '/v2'
         self.connection.secret = key
 
