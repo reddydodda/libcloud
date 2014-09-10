@@ -135,6 +135,8 @@ DRIVERS = {
     ('libcloud.compute.drivers.abiquo', 'AbiquoNodeDriver'),
     Provider.DIGITAL_OCEAN:
     ('libcloud.compute.drivers.digitalocean', 'DigitalOceanNodeDriver'),
+    Provider.DIGITAL_OCEAN_FIRST_GEN:
+    ('libcloud.compute.drivers.digitalocean', 'DigitalOceanFirstGenNodeDriver'),
     Provider.NEPHOSCALE:
     ('libcloud.compute.drivers.nephoscale', 'NephoscaleNodeDriver'),
     Provider.CLOUDFRAMES:
