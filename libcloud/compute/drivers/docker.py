@@ -114,7 +114,6 @@ class DockerNodeDriver(NodeDriver):
                                                host=host, port=port)
         if host.startswith('https://'):
             secure = True
-            port = 443
         prefixes = ['http://', 'https://']
         #strip the prefix
         for prefix in prefixes:
