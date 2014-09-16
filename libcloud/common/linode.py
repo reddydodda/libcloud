@@ -102,7 +102,9 @@ class LinodeResponse(JsonResponse):
 
         if not self.success():
             # Raise the first error, as there will usually only be one
-            raise self.errors[0]
+            # However ignore ERRORCODE: 0 since it is not a real error
+            if not self.errors[0].code is 0:
+                raise self.errors[0]
 
     def parse_body(self):
         """Parse the body of the response into JSON objects
