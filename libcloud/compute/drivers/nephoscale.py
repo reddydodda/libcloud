@@ -186,8 +186,10 @@ class NephoscaleNodeDriver(NodeDriver):
         sizes = []
         for value in result.get('data', []):
             value_id = value.get('id')
+            name = "%s - %s" % (value.get('sku').get('name'),
+                value.get('sku').get('description'))
             size = NodeSize(id=value_id,
-                            name=value.get('friendly_name'),
+                            name=name,
                             ram=value.get('ram'),
                             disk=value.get('storage'),
                             bandwidth=None,
