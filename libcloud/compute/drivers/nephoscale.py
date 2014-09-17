@@ -68,6 +68,22 @@ class NodeKey(object):
         return (('<NodeKey: id=%s, name=%s>') %
                 (self.id, self.name))
 
+class NephoScaleNetwork(object):
+    """
+    A Virtual Network.
+    """
+
+    def __init__(self, id, name, cidr, driver, extra=None):
+        self.id = str(id)
+        self.name = name
+        self.cidr = cidr
+        self.driver = driver
+        self.extra = extra or {}
+
+    def __repr__(self):
+        return '<NephoScaleNetwork id="%s" name="%s" cidr="%s">' % (self.id,
+                                                                   self.name,
+                                                                   self.cidr,)
 
 class NephoscaleResponse(JsonResponse):
     """
@@ -212,6 +228,29 @@ class NephoscaleNodeDriver(NodeDriver):
             result = self.connection.request('/server/cloud/').object
         nodes = [self._to_node(value) for value in result.get('data', [])]
         return nodes
+
+    def ex_list_networks(self):
+        """
+        List available networks
+
+        """
+        result = self.connection.request('/network/cidr/ipv4/').object
+        networks = []
+        for value in result.get('data', []):
+            extra = {'ip_version': value.get('ip_version'),
+                     'ipaddress_list': value.get('ipaddress_list'),
+                     'ipaddress_list_assigned': value.get('ipaddress_list_assigned'),
+                     'ipaddress_list_unassigned': value.get('ipaddress_list_unassigned'),
+                     'zone': value.get('zone')
+                     }
+            cidr = value.get('cidr_str')
+            network = NephoScaleNetwork(id=value.get('id'),
+                              name=cidr,
+                              driver=self,
+                              extra=extra,
+                              cidr=cidr)
+            networks.append(network)
+        return networks
 
     def rename_node(self, node, name, hostname=None):
         """rename a cloud server, optionally specify hostname too"""
