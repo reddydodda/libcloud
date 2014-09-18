@@ -427,6 +427,8 @@ class DigitalOceanNodeDriver(NodeDriver):
     def ex_resize_node(self, node, size):
         """Resizes a Droplet from one plan to another
 
+        Droplet needs to be down
+
         """
         params = {"type": "resize", "size": size}
         res = self.connection.request('/droplets/%s/actions/' % node.id,
