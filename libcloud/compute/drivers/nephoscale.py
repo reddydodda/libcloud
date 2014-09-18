@@ -68,6 +68,7 @@ class NodeKey(object):
         return (('<NodeKey: id=%s, name=%s>') %
                 (self.id, self.name))
 
+
 class NephoScaleNetwork(object):
     """
     A Virtual Network.
@@ -82,8 +83,9 @@ class NephoScaleNetwork(object):
 
     def __repr__(self):
         return '<NephoScaleNetwork id="%s" name="%s" cidr="%s">' % (self.id,
-                                                                   self.name,
-                                                                   self.cidr,)
+                                                                    self.name,
+                                                                    self.cidr,)
+
 
 class NephoscaleResponse(JsonResponse):
     """
@@ -203,7 +205,7 @@ class NephoscaleNodeDriver(NodeDriver):
         for value in result.get('data', []):
             value_id = value.get('id')
             name = "%s - %s" % (value.get('sku').get('name'),
-                value.get('sku').get('description'))
+                   value.get('sku').get('description'))
             size = NodeSize(id=value_id,
                             name=name,
                             ram=value.get('ram'),
@@ -239,16 +241,18 @@ class NephoscaleNodeDriver(NodeDriver):
         for value in result.get('data', []):
             extra = {'ip_version': value.get('ip_version'),
                      'ipaddress_list': value.get('ipaddress_list'),
-                     'ipaddress_list_assigned': value.get('ipaddress_list_assigned'),
-                     'ipaddress_list_unassigned': value.get('ipaddress_list_unassigned'),
+                     'ipaddress_list_assigned':
+                     value.get('ipaddress_list_assigned'),
+                     'ipaddress_list_unassigned':
+                     value.get('ipaddress_list_unassigned'),
                      'zone': value.get('zone')
                      }
             cidr = value.get('cidr_str')
             network = NephoScaleNetwork(id=value.get('id'),
-                              name=cidr,
-                              driver=self,
-                              extra=extra,
-                              cidr=cidr)
+                                        name=cidr,
+                                        driver=self,
+                                        extra=extra,
+                                        cidr=cidr)
             networks.append(network)
         return networks
 
@@ -374,7 +378,8 @@ get all keys call with no arguments')
         return result.get('response') in VALID_RESPONSE_CODES
 
     def create_node(self, name, size, image, server_key=None,
-                    console_key=None, zone=None, baremetal=False, **kwargs):
+                    console_key=None, zone=None, baremetal=False,
+                    ips=None, **kwargs):
         """Creates the node, and sets the ssh key, console key
         NephoScale will respond with a 200-200 response after sending a valid
         request. If ex_wait=True is specified in the args, we then ask a few
@@ -443,7 +448,10 @@ get all keys call with no arguments')
             data.pop('console_key')
         else:
             element_uri = 'cloud'
-
+        #Comma delimited list of IP addresses to associate with the server
+        #eg "ips": "208.166.64.4, 10.128.0.4"
+        if ips:
+            data['ips'] = ips
         params = urlencode(data)
         try:
             node = self.connection.request('/server/%s/'
