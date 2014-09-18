@@ -29,6 +29,7 @@ from libcloud.compute.base import NodeDriver
 from libcloud.compute.base import Node, NodeImage, NodeSize, NodeLocation
 from libcloud.utils.networking import is_private_subnet
 
+
 class DigitalOceanResponse(JsonResponse):
     def parse_error(self):
         if self.status == httplib.FOUND and '/api/error' in self.body:
@@ -423,6 +424,15 @@ class DigitalOceanNodeDriver(NodeDriver):
                                       method='DELETE')
         return res.status == httplib.OK
 
+    def ex_resize_node(self, node, size):
+        """Resizes a Droplet from one plan to another
+
+        """
+        params = {"type": "resize", "size": size}
+        res = self.connection.request('/droplets/%s/actions/' % node.id,
+                                      params=params, method='POST')
+        return res.status in [httplib.OK, httplib.CREATED, httplib.ACCEPTED]
+
     def _to_node(self, data):
         if 'status' in data:
             state = self.NODE_STATE_MAP.get(data['status'], NodeState.UNKNOWN)
@@ -432,14 +442,15 @@ class DigitalOceanNodeDriver(NodeDriver):
         public_ips = []
         private_ips = []
         networks = data.get('networks', {})
-        
+
         for network in networks.get('v4', []):
             ip = network['ip_address']
             if is_private_subnet(ip):
                     private_ips.append(ip)
             else:
                     public_ips.append(ip)
-        extra_keys = ['created_at', 'disk', 'kernel', 'memory', 'size', 'name', 'image', 'backup_ids', 'features']
+        extra_keys = ['created_at', 'disk', 'kernel', 'memory', 'size', 'name',
+                      'image', 'backup_ids', 'features']
         extra = {}
         for key in extra_keys:
             if key in data:
