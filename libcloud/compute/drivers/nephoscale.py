@@ -87,6 +87,22 @@ class NephoScaleNetwork(object):
                                                                     self.cidr,)
 
 
+class NephoScaleDomain(object):
+    """
+    A Network Domain.
+    """
+
+    def __init__(self, id, name, cidr, driver, extra=None):
+        self.id = str(id)
+        self.name = name
+        self.cidr = cidr
+        self.driver = driver
+        self.extra = extra or {}
+
+    def __repr__(self):
+        return '<NephoScaleDomain id="%s">' % (self.id)
+
+
 class NephoscaleResponse(JsonResponse):
     """
     Nephoscale API Response
@@ -199,7 +215,7 @@ class NephoscaleNodeDriver(NodeDriver):
         else:
             element_uri = 'cloud'
 
-        result = self.connection.request('/server/type/%s/'
+        result = self.connection.request('/server/type/%s/?sort=ram'
                                          % element_uri).object
         sizes = []
         for value in result.get('data', []):
@@ -214,8 +230,8 @@ class NephoscaleNodeDriver(NodeDriver):
                             price=self._get_size_price(size_id=str(value_id)),
                             driver=self)
             sizes.append(size)
-
-        return sorted(sizes, key=lambda k: k.price)
+        return sizes
+        #return sorted(sizes, key=lambda k: k.price)
 
     def list_nodes(self, baremetal=True):
         """
@@ -255,6 +271,41 @@ class NephoscaleNodeDriver(NodeDriver):
                                         cidr=cidr)
             networks.append(network)
         return networks
+
+    def ex_list_domains(self):
+        """
+        List available domains
+
+        """
+        result = self.connection.request('/network/domain/').object
+        domains = []
+        for value in result.get('data', []):
+            extra = {}
+            cidr = value.get('cidr')
+            domain = NephoScaleDomain(id=value.get('id'),
+                                      name=value.get('id'),
+                                      driver=self,
+                                      extra=extra,
+                                      cidr=cidr)
+            domains.append(domain)
+        return domains
+
+    def ex_list_unassigned_ips(self, public=True):
+        """List available unassigned ipv4 addresses
+
+        If public = False, return ipv4 private addresses
+
+        """
+        if public:
+            ip_type = 0
+        else:
+            ip_type = 1
+        url = '/network/cidr/ipv4/?ip_type=%s&fields=ipaddress_list_unassigned' % ip_type
+        result = self.connection.request(url).object
+        ips = []
+        for value in result.get('data', []):
+            ips.extend(value.get('ipaddress_list_unassigned', []))
+        return ips
 
     def rename_node(self, node, name, hostname=None):
         """rename a cloud server, optionally specify hostname too"""
@@ -449,9 +500,23 @@ get all keys call with no arguments')
         else:
             element_uri = 'cloud'
         #Comma delimited list of IP addresses to associate with the server
-        #eg "ips": "208.166.64.4, 10.128.0.4"
+        #eg "ips": "208.166.64.4, 10.128.0.4".
+        #If ips are set, NephoScale need to have the network specified as well
+        #eg  'networks': '59887,59889'
+
         if ips:
+            if type(ips) == list:
+                ips = ','.join(ips)
             data['ips'] = ips
+
+            networks = []
+            domains = self.ex_list_domains()
+            for ip in ips.split(','):
+                ip = ip.replace(' ', '')
+                network = self.get_network_domain_from_ip(domains, ip)
+                networks.append(network)
+            data['networks'] = ','.join(networks)
+
         params = urlencode(data)
         try:
             node = self.connection.request('/server/%s/'
@@ -528,6 +593,17 @@ get all keys call with no arguments')
                        password=data.get('password'),
                        key_group=data.get('key_group'),
                        public_key=data.get('public_key'))
+
+    def get_network_domain_from_ip(self, domains, ip):
+        """Returns the network domain id an ip belongs to
+        Used in create_node, if ips are specified
+        """
+        network_domain = ''
+        for domain in domains:
+            for cidr in domain.cidr:
+                if ip in cidr.get('ipaddress_list', []):
+                    network_domain = domain.id
+        return network_domain
 
     def random_password(self, size=8):
         value = os.urandom(size)
