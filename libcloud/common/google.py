@@ -502,7 +502,7 @@ class GoogleBaseConnection(ConnectionUserAndKey, PollingConnection):
                           read/write access to Compute, Storage, and DNS.
         :type     scopes: ``list``
         """
-        self.credential_file = credential_file or '~/.gce_libcloud_auth'
+        self.credential_file = credential_file or '~/.gce_libcloud_auth+%s' % user_id
 
         if auth_type is None:
             # Try to guess.  Service accounts use an email address

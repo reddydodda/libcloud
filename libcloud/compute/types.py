@@ -118,6 +118,7 @@ class Provider(object):
     HOSTVIRTUAL = 'hostvirtual'
     ABIQUO = 'abiquo'
     DIGITAL_OCEAN = 'digitalocean'
+    DIGITAL_OCEAN_FIRST_GEN = 'digitalocean_first_gen'
     NEPHOSCALE = 'nephoscale'
     CLOUDFRAMES = 'cloudframes'
     EXOSCALE = 'exoscale'
