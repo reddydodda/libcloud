@@ -276,10 +276,10 @@ class AzureNodeDriver(NodeDriver):
             self._get_hosted_service_path(ex_cloud_service_name) +
             '?embed-detail=True',
             None)
-        if response.status != 200 :
-            raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
-                                (response.error, response.body, response.status)
-                                , driver=self)
+        #if response.status != 200 :
+        #    raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
+        #                        (response.error, response.body, response.status)
+        #                        , driver=self)
 
         data =  self._parse_response(response, HostedService)
 
