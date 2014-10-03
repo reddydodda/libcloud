@@ -312,8 +312,7 @@ _KNOWN_SERIALIZATION_XFORMS = {
     'os': 'OS',
     'persistent_vm_downtime_info': 'PersistentVMDowntimeInfo',
     'copy_id': 'CopyId',
-    }
-
+}
 
 
 class AzureNodeDriver(NodeDriver):
@@ -325,7 +324,8 @@ class AzureNodeDriver(NodeDriver):
     _instance_types = AZURE_COMPUTE_INSTANCE_TYPES
     _blob_url = ".blob.core.windows.net"
     features = {'create_node': ['password']}
-    service_location = collections.namedtuple('service_location',['is_affinity_group', 'service_location'])
+    service_location = collections.namedtuple(
+        'service_location', ['is_affinity_group', 'service_location'])
 
     NODE_STATE_MAP = {
         'RoleStateUnknown': NodeState.UNKNOWN,
@@ -355,14 +355,15 @@ class AzureNodeDriver(NodeDriver):
         self.subscription_id = subscription_id
         self.key_file = key_file
         super(AzureNodeDriver, self).__init__(self.subscription_id, self.key_file,
-                                           secure=True, **kwargs)
+                                              secure=True, **kwargs)
 
     def ex_list_cloud_services(self):
         """
         List cloud services
 
         """
-        data = self._perform_get('/' + self.subscription_id + '/services/hostedservices', HostedServices)
+        data = self._perform_get(
+            '/' + self.subscription_id + '/services/hostedservices', HostedServices)
 
         services = [i.service_name for i in data]
         return services
@@ -373,7 +374,8 @@ class AzureNodeDriver(NodeDriver):
 
         :rtype: ``list`` of :class:`NodeSize`
         """
-        #TODO: grub data from https://management.core.windows.net/subscription_id/hostedservices
+        # TODO: grub data from
+        # https://management.core.windows.net/subscription_id/hostedservices
 
         sizes = [self._to_node_size(value) for value in self._instance_types]
 
@@ -390,7 +392,8 @@ class AzureNodeDriver(NodeDriver):
         images = [self._to_image(i) for i in data]
 
         if location != None:
-            images = [image for image in images if location in image.extra["location"]]
+            images = [
+                image for image in images if location in image.extra["location"]]
 
         return images
 
@@ -400,7 +403,8 @@ class AzureNodeDriver(NodeDriver):
 
         :rtype: ``list`` of :class:`NodeLocation`
         """
-        data = self._perform_get('/' + self.subscription_id + '/locations', Locations)
+        data = self._perform_get(
+            '/' + self.subscription_id + '/locations', Locations)
 
         return [self._to_location(l) for l in data]
 
@@ -418,19 +422,19 @@ class AzureNodeDriver(NodeDriver):
 
         :rtype: ``list`` of :class:`Node`
         """
-        #if not ex_cloud_service_name:
+        # if not ex_cloud_service_name:
         #    raise ValueError("ex_cloud_service_name is required.")
 
         response = self._perform_get(
             self._get_hosted_service_path(ex_cloud_service_name) +
             '?embed-detail=True',
             None)
-        #if response.status != 200 :
+        # if response.status != 200 :
         #    raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
         #                        (response.error, response.body, response.status)
         #                        , driver=self)
 
-        data =  self._parse_response(response, HostedService)
+        data = self._parse_response(response, HostedService)
 
         try:
             return [self._to_node(n) for n in
@@ -502,7 +506,7 @@ class AzureNodeDriver(NodeDriver):
 
         data = self._perform_get(self._get_disk_path(), Disks)
 
-        volumes = [self._to_volume(volume=v,node=node) for v in data]
+        volumes = [self._to_volume(volume=v, node=node) for v in data]
 
         return volumes
 
@@ -592,7 +596,8 @@ class AzureNodeDriver(NodeDriver):
         if "ex_admin_user_id" not in kwargs:
             raise ValueError("ex_cloud_service_name is required.")
 
-        node_list = self.list_nodes(ex_cloud_service_name=ex_cloud_service_name)
+        node_list = self.list_nodes(
+            ex_cloud_service_name=ex_cloud_service_name)
         network_config = ConfigurationSet()
         network_config.configuration_set_type = 'NetworkConfiguration'
 
@@ -609,7 +614,7 @@ class AzureNodeDriver(NodeDriver):
             if node_list is None:
                 port = "3389"
             else:
-                port = random.randint(41952,65535)
+                port = random.randint(41952, 65535)
                 endpoints = self._get_deployment(
                     service_name=ex_cloud_service_name,
                     deployment_slot=ex_deployment_slot)
@@ -620,7 +625,7 @@ class AzureNodeDriver(NodeDriver):
                         ports += [ep.public_port]
 
                     while port in ports:
-                        port = random.randint(41952,65535)
+                        port = random.randint(41952, 65535)
 
             endpoint = ConfigurationSetInputEndpoint(
                 name='Remote Desktop',
@@ -634,7 +639,7 @@ class AzureNodeDriver(NodeDriver):
             if node_list is None:
                 port = "22"
             else:
-                port = random.randint(41952,65535)
+                port = random.randint(41952, 65535)
                 endpoints = self._get_deployment(
                     service_name=ex_cloud_service_name,
                     deployment_slot=ex_deployment_slot)
@@ -645,7 +650,7 @@ class AzureNodeDriver(NodeDriver):
                         ports += [ep.public_port]
 
                     while port in ports:
-                        port = random.randint(41952,65535)
+                        port = random.randint(41952, 65535)
 
             endpoint = ConfigurationSetInputEndpoint(
                 name='SSH',
@@ -684,7 +689,7 @@ class AzureNodeDriver(NodeDriver):
                         service_name=ex_storage_service_name,
                         location=_storage_location.service_location,
                         is_affinity_group=_storage_location.is_affinity_group
-                        )
+                    )
 
             if "ex_deployment_name" in kwargs:
                 ex_deployment_name = kwargs['ex_deployment_name']
@@ -696,7 +701,7 @@ class AzureNodeDriver(NodeDriver):
 
             # Azure's pattern in the UI.
             disk_name = "{0}-{1}-{2}.vhd".format(
-                ex_cloud_service_name,name,time.strftime("%Y-%m-%d"))
+                ex_cloud_service_name, name, time.strftime("%Y-%m-%d"))
             media_link = blob_url + "/vhds/" + disk_name
             disk_config = OSVirtualHardDisk(image, media_link)
 
@@ -740,27 +745,27 @@ class AzureNodeDriver(NodeDriver):
                         service_name=ex_storage_service_name,
                         location=_storage_location.service_location,
                         is_affinity_group=_storage_location.is_affinity_group
-                        )
+                    )
 
             blob_url = "http://" + ex_storage_service_name + \
                        ".blob.core.windows.net"
             disk_name = "{0}-{1}-{2}.vhd".format(
-                ex_cloud_service_name,name,time.strftime("%Y-%m-%d"))
+                ex_cloud_service_name, name, time.strftime("%Y-%m-%d"))
             media_link = blob_url + "/vhds/" + disk_name
             disk_config = OSVirtualHardDisk(image, media_link)
 
             response = self._perform_post(
                 self._get_role_path(ex_cloud_service_name,
-                    _deployment_name),
+                                    _deployment_name),
                 AzureXmlSerializer.add_role_to_xml(
-                    name, # role_name
-                    machine_config, # system_config
-                    disk_config, # os_virtual_hard_disk
-                    'PersistentVMRole', # role_type
-                    network_config, # network_config
-                    None, # availability_set_name
-                    None, # data_virtual_hard_disks
-                    size)) # role_size)
+                    name,  # role_name
+                    machine_config,  # system_config
+                    disk_config,  # os_virtual_hard_disk
+                    'PersistentVMRole',  # role_type
+                    network_config,  # network_config
+                    None,  # availability_set_name
+                    None,  # data_virtual_hard_disks
+                    size))  # role_size)
 
             if response.status != 202:
                 raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
@@ -817,7 +822,7 @@ class AzureNodeDriver(NodeDriver):
         if _server_deployment_count > 1:
             path = self._get_role_path(ex_cloud_service_name,
                                        _deployment_name, node.id)
-            path += '?comp=media' # forces deletion of attached disks
+            path += '?comp=media'  # forces deletion of attached disks
 
             data = self._perform_delete(path)
 
@@ -858,7 +863,7 @@ class AzureNodeDriver(NodeDriver):
         if not location:
             raise ValueError("location is required.")
 
-        response =  self._perform_cloud_service_create(
+        response = self._perform_cloud_service_create(
             self._get_hosted_service_path(),
             AzureXmlSerializer.create_hosted_service_to_xml(
                 ex_cloud_service_name,
@@ -873,7 +878,6 @@ class AzureNodeDriver(NodeDriver):
         return True
 
     def destroy_cloud_service(self, ex_cloud_service_name=None):
-
         """
         deletes an azure cloud service.
 
@@ -885,19 +889,19 @@ class AzureNodeDriver(NodeDriver):
 
         if not ex_cloud_service_name:
             raise ValueError("ex_cloud_service_name is required.")
-        #add check to ensure all nodes have been deleted
+        # add check to ensure all nodes have been deleted
         response = self._perform_cloud_service_delete(
             self._get_hosted_service_path(ex_cloud_service_name))
 
         if response.status != 200:
             raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
-                                (response.error, response.body, response.status)
-                                , driver=self)
+                                (response.error, response.body, response.status), driver=self)
 
         return True
 
     """ Functions not implemented
     """
+
     def create_volume_snapshot(self):
         raise NotImplementedError(
             'You cannot create snapshots of '
@@ -1010,9 +1014,8 @@ class AzureNodeDriver(NodeDriver):
             name=data.display_name,
             country=country,
             driver=self.connection.driver,
-            available_services =data.available_services,
-            virtual_machine_role_sizes =
-            (data.compute_capabilities).virtual_machines_role_sizes)
+            available_services=data.available_services,
+            virtual_machine_role_sizes=(data.compute_capabilities).virtual_machines_role_sizes)
 
     def _to_node_size(self, data):
         """
@@ -1028,8 +1031,8 @@ class AzureNodeDriver(NodeDriver):
             price=data["price"],
             driver=self.connection.driver,
             extra={
-                'max_data_disks' : data["max_data_disks"],
-                'cores' : data["cores"]
+                'max_data_disks': data["max_data_disks"],
+                'cores': data["cores"]
             })
 
     def _to_image(self, data):
@@ -1039,12 +1042,12 @@ class AzureNodeDriver(NodeDriver):
             name=data.label,
             driver=self.connection.driver,
             extra={
-                'os' : data.os,
-                'category' : data.category,
-                'description' : data.description,
-                'location' : data.location,
-                'affinity_group' : data.affinity_group,
-                'media_link' : data.media_link
+                'os': data.os,
+                'category': data.category,
+                'description': data.description,
+                'location': data.location,
+                'affinity_group': data.affinity_group,
+                'media_link': data.media_link
             })
 
     def _to_volume(self, volume, node):
@@ -1068,10 +1071,11 @@ class AzureNodeDriver(NodeDriver):
                     extra['source_image_name'] = volume.source_image_name
 
                     return StorageVolume(id=volume.name,
-                        name=volume.name,
-                        size=int(volume.logical_disk_size_in_gb),
-                        driver=self.connection.driver,
-                        extra=extra)
+                                         name=volume.name,
+                                         size=int(
+                                             volume.logical_disk_size_in_gb),
+                                         driver=self.connection.driver,
+                                         extra=extra)
         else:
             extra = {}
             extra['affinity_group'] = volume.affinity_group
@@ -1088,10 +1092,10 @@ class AzureNodeDriver(NodeDriver):
             extra['source_image_name'] = volume.source_image_name
 
             return StorageVolume(id=volume.name,
-                name=volume.name,
-                size=int(volume.logical_disk_size_in_gb),
-                driver=self.connection.driver,
-                extra=extra)
+                                 name=volume.name,
+                                 size=int(volume.logical_disk_size_in_gb),
+                                 driver=self.connection.driver,
+                                 extra=extra)
 
     def _get_deployment(self, **kwargs):
         _service_name = kwargs['service_name']
@@ -1103,11 +1107,9 @@ class AzureNodeDriver(NodeDriver):
 
         if response.status != 200:
             raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
-                                (response.error, response.body, response.status)
-                                , driver=self)
+                                (response.error, response.body, response.status), driver=self)
 
         return self._parse_response(response, Deployment)
-
 
     def _get_cloud_service_location(self, service_name=None):
 
@@ -1152,7 +1154,7 @@ class AzureNodeDriver(NodeDriver):
                     kwargs['location'],
                     None,  # Location
                     True,  # geo_replication_enabled
-                    None)) # extended_properties
+                    None))  # extended_properties
 
             if response.status != 202:
                 raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
@@ -1169,13 +1171,12 @@ class AzureNodeDriver(NodeDriver):
                     None,  # Affinity Group
                     kwargs['location'],  # Location
                     True,  # geo_replication_enabled
-                    None)) # extended_properties
+                    None))  # extended_properties
 
             if response.status != 202:
                 raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
                                     (response.error, response.body,
                                      response.status), driver=self)
-
 
         # We need to wait for this to be created before we can
         # create the storage container and the instance.
@@ -1204,17 +1205,17 @@ class AzureNodeDriver(NodeDriver):
         return response
 
     def _perform_post(self, path, body, response_type=None, async=False):
-            request = AzureHTTPRequest()
-            request.method = 'POST'
-            request.host = azure_service_management_host
-            request.path = path
-            request.body = self._get_request_body(body)
-            request.path, request.query = \
-                self._update_request_uri_query(request)
-            request.headers = self._update_management_header(request)
-            response = self._perform_request(request)
+        request = AzureHTTPRequest()
+        request.method = 'POST'
+        request.host = azure_service_management_host
+        request.path = path
+        request.body = self._get_request_body(body)
+        request.path, request.query = \
+            self._update_request_uri_query(request)
+        request.headers = self._update_management_header(request)
+        response = self._perform_request(request)
 
-            return response
+        return response
 
     def _perform_delete(self, path, async=False):
         request = AzureHTTPRequest()
@@ -1227,8 +1228,7 @@ class AzureNodeDriver(NodeDriver):
 
         if response.status != 202:
             raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
-                                (response.error, response.body, response.status)
-                                , driver=self)
+                                (response.error, response.body, response.status), driver=self)
 
         if async:
             return self._parse_response_for_async_op(response)
@@ -1244,10 +1244,6 @@ class AzureNodeDriver(NodeDriver):
                 method=request.method)
         except Exception, e:
             print e.message
-
-
-
-
 
     def _update_request_uri_query(self, request):
         '''pulls the query string out of the URI and moves it into
@@ -1272,7 +1268,7 @@ class AzureNodeDriver(NodeDriver):
             for name, value in request.query:
                 if value is not None:
                     request.path += name + '=' + \
-                                    url_quote(value, '/()$=\',') + '&'
+                        url_quote(value, '/()$=\',') + '&'
             request.path = request.path[:-1]
 
         return request.path, request.query
@@ -1292,25 +1288,25 @@ class AzureNodeDriver(NodeDriver):
                 if 'content-type' == key.lower():
                     break
             else:
-                request.headers['Content-Type']='application/xml'
+                request.headers['Content-Type'] = 'application/xml'
 
         return request.headers
 
     def send_request_headers(self, connection, request_headers):
-            for name, value in request_headers:
-                if value:
-                    connection.putheader(name, value)
+        for name, value in request_headers:
+            if value:
+                connection.putheader(name, value)
 
-            connection.putheader('User-Agent', _USER_AGENT_STRING)
-            connection.endheaders()
+        connection.putheader('User-Agent', _USER_AGENT_STRING)
+        connection.endheaders()
 
     def send_request_body(self, connection, request_body):
-            if request_body:
-                assert isinstance(request_body, bytes)
-                connection.send(request_body)
-            elif (not isinstance(connection, HTTPSConnection) and
-                  not isinstance(connection, httplib.HTTPConnection)):
-                connection.send(None)
+        if request_body:
+            assert isinstance(request_body, bytes)
+            connection.send(request_body)
+        elif (not isinstance(connection, HTTPSConnection) and
+              not isinstance(connection, httplib.HTTPConnection)):
+            connection.send(None)
 
     def _parse_response(self, response, return_type):
         '''
@@ -1342,23 +1338,24 @@ class AzureNodeDriver(NodeDriver):
                 setattr(return_obj,
                         name,
                         self._fill_list_of(node,
-                                      value.list_type,
-                                      value.xml_element_name))
+                                           value.list_type,
+                                           value.xml_element_name))
             elif isinstance(value, _scalar_list_of):
                 setattr(return_obj,
                         name,
                         self._fill_scalar_list_of(node,
-                                             value.list_type,
-                                             self._get_serialization_name(name),
-                                             value.xml_element_name))
+                                                  value.list_type,
+                                                  self._get_serialization_name(
+                                                      name),
+                                                  value.xml_element_name))
             elif isinstance(value, _dict_of):
                 setattr(return_obj,
                         name,
                         self._fill_dict_of(node,
-                                      self._get_serialization_name(name),
-                                      value.pair_xml_element_name,
-                                      value.key_xml_element_name,
-                                      value.value_xml_element_name))
+                                           self._get_serialization_name(name),
+                                           value.pair_xml_element_name,
+                                           value.key_xml_element_name,
+                                           value.value_xml_element_name))
             elif isinstance(value, WindowsAzureData):
                 setattr(return_obj,
                         name,
@@ -1384,7 +1381,7 @@ class AzureNodeDriver(NodeDriver):
     def _fill_list_of(self, xmldoc, element_type, xml_element_name):
         xmlelements = self._get_child_nodes(xmldoc, xml_element_name)
         return [self._parse_response_body_from_xml_node(
-            xmlelement, element_type) \
+            xmlelement, element_type)
             for xmlelement in xmlelements]
 
     def _parse_response_body_from_xml_node(self, node, return_type):
@@ -1402,8 +1399,8 @@ class AzureNodeDriver(NodeDriver):
         if xmlelements:
             xmlelements = \
                 self._get_child_nodes(xmlelements[0], xml_element_name)
-            return [self._get_node_value(xmlelement, element_type) \
-                for xmlelement in xmlelements]
+            return [self._get_node_value(xmlelement, element_type)
+                    for xmlelement in xmlelements]
 
     def _get_node_value(self, xmlelement, data_type):
         value = xmlelement.firstChild.nodeValue
@@ -1414,7 +1411,7 @@ class AzureNodeDriver(NodeDriver):
         else:
             return data_type(value)
 
-    def _get_serialization_name(self,element_name):
+    def _get_serialization_name(self, element_name):
         """converts a Python name into a serializable name"""
         known = _KNOWN_SERIALIZATION_XFORMS.get(element_name)
         if known is not None:
@@ -1431,8 +1428,8 @@ class AzureNodeDriver(NodeDriver):
         return ''.join(name.capitalize() for name in element_name.split('_'))
 
     def _fill_dict_of(
-            self, xmldoc, parent_xml_element_name, pair_xml_element_name,
-                      key_xml_element_name, value_xml_element_name):
+        self, xmldoc, parent_xml_element_name, pair_xml_element_name,
+            key_xml_element_name, value_xml_element_name):
         return_obj = {}
 
         xmlelements = self._get_child_nodes(xmldoc, parent_xml_element_name)
@@ -1544,7 +1541,7 @@ class AzureNodeDriver(NodeDriver):
             for name, value in vars(source).items():
                 if value is not None:
                     if isinstance(value, list) or \
-                        isinstance(value, WindowsAzureData):
+                            isinstance(value, WindowsAzureData):
                         xmlstr += self._convert_class_to_xml(value, False)
                     else:
                         xmlstr += ('<' + self._get_serialization_name(name) +
@@ -1566,16 +1563,16 @@ class AzureNodeDriver(NodeDriver):
         return result
 
     def _get_deployment_path_using_name(self, service_name,
-                                            deployment_name=None):
-            return self._get_path('services/hostedservices/'
-                                  + _str(service_name) +
-                                  '/deployments', deployment_name)
+                                        deployment_name=None):
+        return self._get_path('services/hostedservices/'
+                              + _str(service_name) +
+                              '/deployments', deployment_name)
 
     def _get_path(self, resource, name):
-            path = '/' + self.subscription_id + '/' + resource
-            if name is not None:
-                path += '/' + _str(name)
-            return path
+        path = '/' + self.subscription_id + '/' + resource
+        if name is not None:
+            path += '/' + _str(name)
+        return path
 
     def _get_image_path(self, image_name=None):
         return self._get_path('services/images', image_name)
@@ -1618,10 +1615,10 @@ class AzureNodeDriver(NodeDriver):
 
         if operation_status.status == 'Failed':
             raise LibcloudError(
-                'Message: Async request for operation %s has failed'%
+                'Message: Async request for operation %s has failed' %
                 operation_type, driver=self)
 
-    #def get_connection(self):
+    # def get_connection(self):
     #    certificate_path = "/Users/baldwin/.azure/managementCertificate.pem"
     #    port = HTTPS_PORT
 
@@ -1636,8 +1633,11 @@ class AzureNodeDriver(NodeDriver):
 
 Borrowed from the Azure SDK for Python.
 """
+
+
 def _lower(text):
     return text.lower()
+
 
 class AzureXmlSerializer():
 
@@ -1670,15 +1670,15 @@ class AzureXmlSerializer():
     @staticmethod
     def regenerate_keys_to_xml(key_type):
         return AzureXmlSerializer.doc_from_data('RegenerateKeys',
-                                            [('KeyType', key_type)])
+                                                [('KeyType', key_type)])
 
     @staticmethod
     def update_hosted_service_to_xml(label, description, extended_properties):
         return AzureXmlSerializer.doc_from_data('UpdateHostedService',
-                                            [('Label', label,
-                                              AzureNodeDriver._encode_base64),
-                                             ('Description', description)],
-                                            extended_properties)
+                                                [('Label', label,
+                                                  AzureNodeDriver._encode_base64),
+                                                 ('Description', description)],
+                                                extended_properties)
 
     @staticmethod
     def create_hosted_service_to_xml(service_name, label, description,
@@ -1704,7 +1704,7 @@ class AzureXmlSerializer():
              ('Label', label, AzureNodeDriver._encode_base64),
              ('Configuration', configuration),
              ('StartDeployment',
-             start_deployment, _lower),
+              start_deployment, _lower),
              ('TreatWarningsAsError', treat_warnings_as_error, _lower)],
             extended_properties)
 
@@ -1929,8 +1929,8 @@ class AzureXmlSerializer():
                  ('Port', endpoint.port)])
 
             if endpoint.load_balancer_probe.path or\
-                endpoint.load_balancer_probe.port or\
-                endpoint.load_balancer_probe.protocol:
+                    endpoint.load_balancer_probe.port or\
+                    endpoint.load_balancer_probe.protocol:
                 xml += '<LoadBalancerProbe>'
                 xml += AzureXmlSerializer.data_to_xml(
                     [('Path', endpoint.load_balancer_probe.path),
@@ -1957,7 +1957,7 @@ class AzureXmlSerializer():
                     network_configuration_set, os_virtual_hard_disk, role_name,
                     role_size, role_type, system_configuration_set):
         xml = AzureXmlSerializer.data_to_xml([('RoleName', role_name),
-                                          ('RoleType', role_type)])
+                                              ('RoleType', role_type)])
 
         xml += '<ConfigurationSets>'
 
@@ -2076,8 +2076,9 @@ class AzureXmlSerializer():
                                           data_virtual_hard_disks, role_size,
                                           virtual_network_name):
         xml = AzureXmlSerializer.data_to_xml([('Name', deployment_name),
-                                          ('DeploymentSlot', deployment_slot),
-                                          ('Label', label)])
+                                              ('DeploymentSlot',
+                                               deployment_slot),
+                                              ('Label', label)])
         xml += '<RoleList>'
         xml += '<Role>'
         xml += AzureXmlSerializer.role_to_xml(
@@ -2128,8 +2129,8 @@ class AzureXmlSerializer():
         '''Wraps the specified xml in an xml root element with default azure
         namespaces'''
         xml = ''.join(['<', document_element_name,
-                      ' xmlns:i="http://www.w3.org/2001/XMLSchema-instance"',
-                      ' xmlns="http://schemas.microsoft.com/windowsazure">'])
+                       ' xmlns:i="http://www.w3.org/2001/XMLSchema-instance"',
+                       ' xmlns="http://schemas.microsoft.com/windowsazure">'])
         xml += inner_xml
         xml += ''.join(['</', document_element_name, '>'])
         return xml
@@ -2152,13 +2153,12 @@ class AzureXmlSerializer():
                                 '<Name>',
                                 _str(key),
                                 '</Name>',
-                               '<Value>',
-                               _str(val),
-                               '</Value>',
-                               '</ExtendedProperty>'])
+                                '<Value>',
+                                _str(val),
+                                '</Value>',
+                                '</ExtendedProperty>'])
             xml += '</ExtendedProperties>'
         return xml
-
 
 
 """Data Classes
@@ -2166,11 +2166,13 @@ class AzureXmlSerializer():
 Borrowed from the Azure SDK for Python.
 """
 
+
 class WindowsAzureData(object):
 
     ''' This is the base of data class.
     It is only used to check whether it is instance or not. '''
     pass
+
 
 class OSVirtualHardDisk(WindowsAzureData):
 
@@ -2183,6 +2185,7 @@ class OSVirtualHardDisk(WindowsAzureData):
         self.disk_name = disk_name
         self.os = u''  # undocumented, not used when adding a role
 
+
 class LinuxConfigurationSet(WindowsAzureData):
 
     def __init__(self, host_name=None, user_name=None, user_password=None,
@@ -2194,6 +2197,7 @@ class LinuxConfigurationSet(WindowsAzureData):
         self.disable_ssh_password_authentication =\
             disable_ssh_password_authentication
         self.ssh = SSH()
+
 
 class WindowsConfigurationSet(WindowsAzureData):
 
@@ -2211,6 +2215,7 @@ class WindowsConfigurationSet(WindowsAzureData):
         self.domain_join = DomainJoin()
         self.stored_certificate_settings = StoredCertificateSettings()
 
+
 class DomainJoin(WindowsAzureData):
 
     def __init__(self):
@@ -2218,12 +2223,14 @@ class DomainJoin(WindowsAzureData):
         self.join_domain = u''
         self.machine_object_ou = u''
 
+
 class Credentials(WindowsAzureData):
 
     def __init__(self):
         self.domain = u''
         self.username = u''
         self.password = u''
+
 
 class StoredCertificateSettings(WindowsAzureData):
 
@@ -2238,6 +2245,7 @@ class StoredCertificateSettings(WindowsAzureData):
 
     def __getitem__(self, index):
         return self.stored_certificate_settings[index]
+
 
 class CertificateSetting(WindowsAzureData):
 
@@ -2260,11 +2268,13 @@ class CertificateSetting(WindowsAzureData):
         self.store_name = store_name
         self.store_location = store_location
 
+
 class SSH(WindowsAzureData):
 
     def __init__(self):
         self.public_keys = PublicKeys()
         self.key_pairs = KeyPairs()
+
 
 class PublicKeys(WindowsAzureData):
 
@@ -2280,11 +2290,13 @@ class PublicKeys(WindowsAzureData):
     def __getitem__(self, index):
         return self.public_keys[index]
 
+
 class PublicKey(WindowsAzureData):
 
     def __init__(self, fingerprint=u'', path=u''):
         self.fingerprint = fingerprint
         self.path = path
+
 
 class KeyPairs(WindowsAzureData):
 
@@ -2300,11 +2312,13 @@ class KeyPairs(WindowsAzureData):
     def __getitem__(self, index):
         return self.key_pairs[index]
 
+
 class KeyPair(WindowsAzureData):
 
     def __init__(self, fingerprint=u'', path=u''):
         self.fingerprint = fingerprint
         self.path = path
+
 
 class LoadBalancerProbe(WindowsAzureData):
 
@@ -2312,6 +2326,7 @@ class LoadBalancerProbe(WindowsAzureData):
         self.path = u''
         self.port = u''
         self.protocol = u''
+
 
 class ConfigurationSets(WindowsAzureData):
 
@@ -2327,6 +2342,7 @@ class ConfigurationSets(WindowsAzureData):
     def __getitem__(self, index):
         return self.configuration_sets[index]
 
+
 class ConfigurationSet(WindowsAzureData):
 
     def __init__(self):
@@ -2334,6 +2350,7 @@ class ConfigurationSet(WindowsAzureData):
         self.role_type = u''
         self.input_endpoints = ConfigurationSetInputEndpoints()
         self.subnet_names = _scalar_list_of(str, 'SubnetName')
+
 
 class ConfigurationSetInputEndpoints(WindowsAzureData):
 
@@ -2350,6 +2367,7 @@ class ConfigurationSetInputEndpoints(WindowsAzureData):
     def __getitem__(self, index):
         return self.input_endpoints[index]
 
+
 class ConfigurationSetInputEndpoint(WindowsAzureData):
 
     def __init__(self, name=u'', protocol=u'', port=u'', local_port=u'',
@@ -2362,6 +2380,7 @@ class ConfigurationSetInputEndpoint(WindowsAzureData):
         self.port = port
         self.load_balancer_probe = LoadBalancerProbe()
         self.protocol = protocol
+
 
 class Locations(WindowsAzureData):
 
@@ -2377,6 +2396,7 @@ class Locations(WindowsAzureData):
     def __getitem__(self, index):
         return self.locations[index]
 
+
 class Location(WindowsAzureData):
 
     def __init__(self):
@@ -2386,16 +2406,17 @@ class Location(WindowsAzureData):
         self.compute_capabilities = ComputeCapability()
 
 
-
 class ComputeCapability(WindowsAzureData):
 
     def __init__(self):
         self.virtual_machines_role_sizes = _scalar_list_of(str, 'RoleSize')
 
+
 class VirtualMachinesRoleSizes(WindowsAzureData):
 
     def __init__(self):
         self.role_size = _scalar_list_of(str, 'RoleSize')
+
 
 class Images(WindowsAzureData):
 
@@ -2411,6 +2432,7 @@ class Images(WindowsAzureData):
     def __getitem__(self, index):
         return self.images[index]
 
+
 class OSImage(WindowsAzureData):
 
     def __init__(self):
@@ -2424,6 +2446,7 @@ class OSImage(WindowsAzureData):
         self.os = u''
         self.eula = u''
         self.description = u''
+
 
 class HostedServices(WindowsAzureData):
 
@@ -2439,6 +2462,7 @@ class HostedServices(WindowsAzureData):
     def __getitem__(self, index):
         return self.hosted_services[index]
 
+
 class HostedService(WindowsAzureData):
 
     def __init__(self):
@@ -2446,6 +2470,7 @@ class HostedService(WindowsAzureData):
         self.service_name = u''
         self.hosted_service_properties = HostedServiceProperties()
         self.deployments = Deployments()
+
 
 class HostedServiceProperties(WindowsAzureData):
 
@@ -2460,6 +2485,7 @@ class HostedServiceProperties(WindowsAzureData):
         self.extended_properties = _dict_of(
             'ExtendedProperty', 'Name', 'Value')
 
+
 class Deployments(WindowsAzureData):
 
     def __init__(self):
@@ -2473,6 +2499,7 @@ class Deployments(WindowsAzureData):
 
     def __getitem__(self, index):
         return self.deployments[index]
+
 
 class Deployment(WindowsAzureData):
 
@@ -2498,12 +2525,14 @@ class Deployment(WindowsAzureData):
         self.extended_properties = _dict_of(
             'ExtendedProperty', 'Name', 'Value')
 
+
 class UpgradeStatus(WindowsAzureData):
 
     def __init__(self):
         self.upgrade_type = u''
         self.current_upgrade_domain_state = u''
         self.current_upgrade_domain = u''
+
 
 class RoleInstanceList(WindowsAzureData):
 
@@ -2518,6 +2547,7 @@ class RoleInstanceList(WindowsAzureData):
 
     def __getitem__(self, index):
         return self.role_instances[index]
+
 
 class RoleInstance(WindowsAzureData):
 
@@ -2536,6 +2566,7 @@ class RoleInstance(WindowsAzureData):
         self.fqdn = u''
         self.host_name = u''
 
+
 class InstanceEndpoints(WindowsAzureData):
 
     def __init__(self):
@@ -2550,6 +2581,7 @@ class InstanceEndpoints(WindowsAzureData):
     def __getitem__(self, index):
         return self.instance_endpoints[index]
 
+
 class InstanceEndpoint(WindowsAzureData):
 
     def __init__(self):
@@ -2558,6 +2590,7 @@ class InstanceEndpoint(WindowsAzureData):
         self.public_port = u''
         self.local_port = u''
         self.protocol = u''
+
 
 class InputEndpoints(WindowsAzureData):
 
@@ -2573,12 +2606,14 @@ class InputEndpoints(WindowsAzureData):
     def __getitem__(self, index):
         return self.input_endpoints[index]
 
+
 class InputEndpoint(WindowsAzureData):
 
     def __init__(self):
         self.role_name = u''
         self.vip = u''
         self.port = u''
+
 
 class RoleList(WindowsAzureData):
 
@@ -2594,11 +2629,13 @@ class RoleList(WindowsAzureData):
     def __getitem__(self, index):
         return self.roles[index]
 
+
 class Role(WindowsAzureData):
 
     def __init__(self):
         self.role_name = u''
         self.os_version = u''
+
 
 class PersistentVMDowntimeInfo(WindowsAzureData):
 
@@ -2607,10 +2644,12 @@ class PersistentVMDowntimeInfo(WindowsAzureData):
         self.end_time = u''
         self.status = u''
 
+
 class AsynchronousOperationResult(WindowsAzureData):
 
     def __init__(self, request_id=None):
         self.request_id = request_id
+
 
 class Disks(WindowsAzureData):
 
@@ -2625,6 +2664,7 @@ class Disks(WindowsAzureData):
 
     def __getitem__(self, index):
         return self.disks[index]
+
 
 class Disk(WindowsAzureData):
 
@@ -2641,6 +2681,7 @@ class Disk(WindowsAzureData):
         self.os = u''
         self.source_image_name = u''
 
+
 class AttachedTo(WindowsAzureData):
 
     def __init__(self):
@@ -2648,11 +2689,13 @@ class AttachedTo(WindowsAzureData):
         self.deployment_name = u''
         self.role_name = u''
 
+
 class OperationError(WindowsAzureData):
 
     def __init__(self):
         self.code = u''
         self.message = u''
+
 
 class Operation(WindowsAzureData):
 
@@ -2661,6 +2704,7 @@ class Operation(WindowsAzureData):
         self.status = u''
         self.http_status_code = u''
         self.error = OperationError()
+
 
 class OperatingSystem(WindowsAzureData):
 
@@ -2671,6 +2715,7 @@ class OperatingSystem(WindowsAzureData):
         self.is_active = True
         self.family = 0
         self.family_label = _Base64String()
+
 
 class OperatingSystems(WindowsAzureData):
 
@@ -2686,12 +2731,14 @@ class OperatingSystems(WindowsAzureData):
     def __getitem__(self, index):
         return self.operating_systems[index]
 
+
 class OperatingSystemFamily(WindowsAzureData):
 
     def __init__(self):
         self.name = u''
         self.label = _Base64String()
         self.operating_systems = OperatingSystems()
+
 
 class OperatingSystemFamilies(WindowsAzureData):
 
@@ -2706,6 +2753,7 @@ class OperatingSystemFamilies(WindowsAzureData):
 
     def __getitem__(self, index):
         return self.operating_system_families[index]
+
 
 class Subscription(WindowsAzureData):
 
@@ -2725,10 +2773,12 @@ class Subscription(WindowsAzureData):
         self.max_local_network_sites = 0
         self.max_dns_servers = 0
 
+
 class AvailabilityResponse(WindowsAzureData):
 
     def __init__(self):
         self.result = False
+
 
 class SubscriptionCertificates(WindowsAzureData):
 
@@ -2744,6 +2794,7 @@ class SubscriptionCertificates(WindowsAzureData):
     def __getitem__(self, index):
         return self.subscription_certificates[index]
 
+
 class SubscriptionCertificate(WindowsAzureData):
 
     def __init__(self):
@@ -2752,7 +2803,9 @@ class SubscriptionCertificate(WindowsAzureData):
         self.subscription_certificate_data = u''
         self.created = u''
 
+
 class AzureHTTPRequest(object):
+
     def __init__(self):
         self.host = ''
         self.method = ''
@@ -2762,7 +2815,9 @@ class AzureHTTPRequest(object):
         self.body = ''
         self.protocol_override = None
 
+
 class AzureHTTPResponse(object):
+
     def __init__(self, status, message, headers, body):
         self.status = status
         self.message = message
@@ -2772,8 +2827,10 @@ class AzureHTTPResponse(object):
 """Helper Functions
 """
 
+
 class _Base64String(str):
     pass
+
 
 class _list_of(list):
 
@@ -2788,6 +2845,7 @@ class _list_of(list):
             self.xml_element_name = xml_element_name
         super(_list_of, self).__init__()
 
+
 class _scalar_list_of(list):
 
     """a list of scalar types which carries with it the type that's
@@ -2798,6 +2856,7 @@ class _scalar_list_of(list):
         self.list_type = list_type
         self.xml_element_name = xml_element_name
         super(_scalar_list_of, self).__init__()
+
 
 class _dict_of(dict):
 
@@ -2811,9 +2870,12 @@ class _dict_of(dict):
         self.value_xml_element_name = value_xml_element_name
         super(_dict_of, self).__init__()
 
+
 class AzureNodeLocation(NodeLocation):
 
-    # we can also have something in here for available services which is an extra to the API with Azure
+    # we can also have something in here for available services which is an
+    # extra to the API with Azure
+
     def __init__(self, id, name, country, driver, available_services,
                  virtual_machine_role_sizes):
         super(AzureNodeLocation, self).__init__(id, name, country, driver)
