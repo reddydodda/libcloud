@@ -2675,5 +2675,5 @@ class AzureNodeLocation(NodeLocation):
         return (('<AzureNodeLocation: id=%s, name=%s, country=%s, '
                  'driver=%s services=%s virtualMachineRoleSizes=%s >')
                 % (self.id, self.name, self.country,
-                   self.driver.name, ','.join(self.available_service),
+                   self.driver.name, ','.join(self.available_services),
                    ','.join(self.virtual_machine_role_sizes)))
