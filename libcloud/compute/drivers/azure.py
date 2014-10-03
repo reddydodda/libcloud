@@ -61,88 +61,239 @@ X_MS_VERSION = '2013-08-01'
 Sizes must be hardcoded because Microsoft doesn't provide an API to fetch them.
 From http://msdn.microsoft.com/en-us/library/windowsazure/dn197896.aspx
 """
-AZURE_COMPUTE_INSTANCE_TYPES = {
-    'A0': {
-        'id': 'A0',
-        'name': 'ExtraSmall Instance',
+
+AZURE_COMPUTE_INSTANCE_TYPES = [
+    {
+        'id': 'ExtraSmall',
+        'name': 'ExtraSmall (1 cores, 768 MB)',
         'ram': 768,
-        'disk': 127,
+        'disk': 20,
         'bandwidth': None,
-        'price': '0.02',
-        'max_data_disks': 1,
-        'cores': 'Shared'
+        'price': '$0.02/hr',
+        'max_data_disks': None,
+        'cores': '1'
     },
-    'A1': {
-        'id': 'A1',
-        'name': 'Small Instance',
+    {
+        'id': 'Small',
+        'name': 'Small (1 cores, 1792 MB)',
         'ram': 1792,
-        'disk': 127,
+        'disk': 70,
         'bandwidth': None,
-        'price': '0.09',
-        'max_data_disks': 2,
+        'price': '$0.06/hr',
+        'max_data_disks': None,
         'cores': 1
     },
-    'A2': {
-        'id': 'A2',
-        'name': 'Medium Instance',
+    {
+        'id': 'Medium',
+        'name': 'Medium (2 cores, 3584 MB)',
+        'ram': 3584,
+        'disk': 135,
+        'bandwidth': None,
+        'price': '$0.12/hr',
+        'max_data_disks': None,
+        'cores': 2
+    },
+    {
+        'id': 'Large',
+        'name': 'Large Instance',
+        'ram': 7168,
+        'disk': 285,
+        'bandwidth': None,
+        'price': '$0.24/hr',
+        'max_data_disks': None,
+        'cores': 4
+    },
+    {
+        'id': 'ExtraLarge',
+        'name': 'ExtraLarge (8 cores, 14336 MB)',
+        'ram': 14336,
+        'disk': 605,
+        'bandwidth': None,
+        'price': '$0.48/hr',
+        'max_data_disks': None,
+        'cores': 8
+    },
+    {
+        'id': 'A5',
+        'name': 'A5 (2 cores, 14336 MB)',
+        'ram': 14336,
+        'disk': 135,
+        'bandwidth': None,
+        'price': '$0.25/hr',
+        'max_data_disks': None,
+        'cores': 2
+    },
+    {
+        'id': 'A6',
+        'name': 'A6 (4 cores, 28672 MB)',
+        'ram': 28672,
+        'disk': 285,
+        'bandwidth': None,
+        'price': '$0.50/hr',
+        'max_data_disks': None,
+        'cores': 4
+    },
+    {
+        'id': 'A7',
+        'name': 'A7 (8 cores, 57344 MB)',
+        'ram': 57344,
+        'disk': 605,
+        'bandwidth': None,
+        'price': '$1/hr',
+        'max_data_disks': None,
+        'cores': 8
+    },
+    {
+        'id': 'A8',
+        'name': 'A8 (8 cores, 57344 MB)',
+        'ram': 57344,
+        'disk': 382,
+        'bandwidth': None,
+        'price': '$1.97/hr',
+        'max_data_disks': None,
+        'cores': 8
+    },
+    {
+        'id': 'A9',
+        'name': 'A9 (16 cores, 114688 MB)',
+        'ram': 114688,
+        'disk': 382,
+        'bandwidth': None,
+        'price': '$4.47/hr',
+        'max_data_disks': None,
+        'cores': 16
+    },
+    {
+        'id': 'Basic_A0',
+        'name': 'Basic_A0 (1 cores, 768 MB)',
+        'ram': 768,
+        'disk': 20.00,
+        'bandwidth': None,
+        'price': '$0.018/hr',
+        'max_data_disks': None,
+        'cores': 1
+    },
+    {
+        'id': 'Basic_A1',
+        'name': 'Basic_A1 (1 cores, 1792 MB)',
+        'ram': 1792,
+        'disk': 40.00,
+        'bandwidth': None,
+        'price': '$0.047/hr',
+        'max_data_disks': None,
+        'cores': 1
+    },
+    {
+        'id': 'Basic_A2',
+        'name': 'Basic_A2 (2 cores, 3584 MB)',
+        'ram': 3584,
+        'disk': 60.00,
+        'bandwidth': None,
+        'price': '$0.094/hr',
+        'max_data_disks': None,
+        'cores': 2
+    },
+    {
+        'id': 'Basic_A3 (4 cores, 7168 MB)',
+        'name': 'A7 Instance',
+        'ram': 7168,
+        'disk': 120.00,
+        'bandwidth': None,
+        'price': '$0.188/hr',
+        'max_data_disks': None,
+        'cores': 4
+    },
+    {
+        'id': 'Basic_A4',
+        'name': 'Basic_A4 (8 cores, 14336 MB)',
+        'ram': 14336,
+        'disk': 240.00,
+        'bandwidth': None,
+        'price': '$0.376/hr',
+        'max_data_disks': None,
+        'cores': 8
+    },
+    {
+        'id': 'Standard_D1',
+        'name': 'Standard_D1 (1 cores, 3584 MB)',
         'ram': 3584,
         'disk': 127,
         'bandwidth': None,
-        'price': '0.18',
-        'max_data_disks': 4,
-        'cores': 2
+        'price': None,
+        'max_data_disks': None,
+        'cores': 8
     },
-    'A3': {
-        'id': 'A3',
-        'name': 'Large Instance',
+    {
+        'id': 'Standard_D2',
+        'name': 'Standard_D2 (2 cores, 7168 MB)',
         'ram': 7168,
-        'disk': 127,
+        'disk': 102,
         'bandwidth': None,
-        'price': '0.36',
-        'max_data_disks': 8,
-        'cores': 4
-    },
-    'A4': {
-        'id': 'A4',
-        'name': 'ExtraLarge Instance',
-        'ram': 14336,
-        'disk': 127,
-        'bandwidth': None,
-        'price': '0.72',
-        'max_data_disks': 16,
+        'price': None,
+        'max_data_disks': None,
         'cores': 8
     },
-    'A5': {
-        'id': 'A5',
-        'name': 'Memory Intensive Instance',
+    {
+        'id': 'Standard_D3',
+        'name': 'Standard_D3 (4 cores, 14336 MB)',
         'ram': 14336,
-        'disk': 127,
+        'disk': 256,
         'bandwidth': None,
-        'price': '0.40',
-        'max_data_disks': 4,
-        'cores': 2
+        'price': None,
+        'max_data_disks': None,
+        'cores': 8
     },
-    'A6': {
-        'id': 'A6',
-        'name': 'A6 Instance',
+    {
+        'id': 'Standard_D4',
+        'name': 'Standard_D4 (8 cores, 28672 MB)',
         'ram': 28672,
-        'disk': 127,
+        'disk': 512,
         'bandwidth': None,
-        'price': '0.80',
-        'max_data_disks': 8,
-        'cores': 4
-    },
-    'A7': {
-        'id': 'A7',
-        'name': 'A7 Instance',
-        'ram': 57344,
-        'disk': 127,
-        'bandwidth': None,
-        'price': '1.60',
-        'max_data_disks': 16,
+        'price': None,
+        'max_data_disks': None,
         'cores': 8
-    }    
-}
+    },
+    {
+        'id': 'Standard_D11',
+        'name': 'Standard_D11 (2 cores, 14336 MB)',
+        'ram': 14336,
+        'disk': 102,
+        'bandwidth': None,
+        'price': None,
+        'max_data_disks': None,
+        'cores': 8
+    },
+    {
+        'id': 'Standard_D12',
+        'name': 'Standard_D12 (4 cores, 28672 MB)',
+        'ram': 28672,
+        'disk': 256,
+        'bandwidth': None,
+        'price': None,
+        'max_data_disks': None,
+        'cores': 8
+    },
+    {
+        'id': 'Standard_D13',
+        'name': 'Standard_D13 (8 cores, 57344 MB)',
+        'ram': 57344,
+        'disk': 512,
+        'bandwidth': None,
+        'price': None,
+        'max_data_disks': None,
+        'cores': 8
+    },
+    {
+        'id': 'Standard_D14',
+        'name': 'Standard_D14 (16 cores, 114688 MB)',
+        'ram': 114688,
+        'disk': 1024,
+        'bandwidth': None,
+        'price': None,
+        'max_data_disks': None,
+        'cores': 8
+    }
+]
 
 _KNOWN_SERIALIZATION_XFORMS = {
     'include_apis': 'IncludeAPIs',
@@ -215,18 +366,16 @@ class AzureNodeDriver(NodeDriver):
 
         services = [i.service_name for i in data]
         return services
-       
+
     def list_sizes(self):
         """
         Lists all sizes
 
         :rtype: ``list`` of :class:`NodeSize`
         """
-        sizes = []
+        #TODO: grub data from https://management.core.windows.net/subscription_id/hostedservices
 
-        for key, values in self._instance_types.items():
-            node_size = self._to_node_size(copy.deepcopy(values))
-            sizes.append(node_size)
+        sizes = [self._to_node_size(value) for value in self._instance_types]
 
         return sizes
 
@@ -235,7 +384,7 @@ class AzureNodeDriver(NodeDriver):
         Lists all images
 
         :rtype: ``list`` of :class:`NodeImage`
-        """        
+        """
         data = self._perform_get(self._get_image_path(), Images)
 
         images = [self._to_image(i) for i in data]
@@ -259,10 +408,10 @@ class AzureNodeDriver(NodeDriver):
         """
         List all nodes
 
-        ex_cloud_service_name parameter is used to scope the request 
+        ex_cloud_service_name parameter is used to scope the request
         to a specific Cloud Service. This is a required parameter as
         nodes cannot exist outside of a Cloud Service nor be shared
-        between a Cloud Service within Azure. 
+        between a Cloud Service within Azure.
 
         :param      ex_cloud_service_name: Cloud Service name
         :type       ex_cloud_service_name: ``str``
@@ -294,10 +443,10 @@ class AzureNodeDriver(NodeDriver):
         """
         Reboots a node.
 
-        ex_cloud_service_name parameter is used to scope the request 
+        ex_cloud_service_name parameter is used to scope the request
         to a specific Cloud Service. This is a required parameter as
         nodes cannot exist outside of a Cloud Service nor be shared
-        between a Cloud Service within Azure. 
+        between a Cloud Service within Azure.
 
         :param      ex_cloud_service_name: Cloud Service name
         :type       ex_cloud_service_name: ``str``
@@ -363,16 +512,16 @@ class AzureNodeDriver(NodeDriver):
            Reference: http://bit.ly/1fIsCb7
            [www.windowsazure.com/en-us/documentation/]
 
-           We default to: 
+           We default to:
 
            + 3389/TCP - RDP - 1st Microsoft instance.
-           + RANDOM/TCP - RDP - All succeeding Microsoft instances. 
+           + RANDOM/TCP - RDP - All succeeding Microsoft instances.
 
-           + 22/TCP - SSH - 1st Linux instance 
+           + 22/TCP - SSH - 1st Linux instance
            + RANDOM/TCP - SSH - All succeeding Linux instances.
 
-          The above replicates the standard behavior of the Azure UI. 
-          You can retrieve the assigned ports to each instance by 
+          The above replicates the standard behavior of the Azure UI.
+          You can retrieve the assigned ports to each instance by
           using the following private function:
 
           _get_endpoint_ports(service_name)
@@ -407,7 +556,7 @@ class AzureNodeDriver(NodeDriver):
         image = kwargs['image']
 
         password = None
-        auth = self._get_and_check_auth(kwargs["auth"])        
+        auth = self._get_and_check_auth(kwargs["auth"])
         password = auth.password
 
         if not ex_cloud_service_name:
@@ -447,8 +596,8 @@ class AzureNodeDriver(NodeDriver):
         network_config = ConfigurationSet()
         network_config.configuration_set_type = 'NetworkConfiguration'
 
-        # We do this because we need to pass a Configuration to the 
-        # method. This will be either Linux or Windows. 
+        # We do this because we need to pass a Configuration to the
+        # method. This will be either Linux or Windows.
         if re.search("Win|SQL|SharePoint|Visual|Dynamics|DynGP|BizTalk",
                      image, re.I):
             machine_config = WindowsConfigurationSet(
@@ -513,17 +662,17 @@ class AzureNodeDriver(NodeDriver):
 
         _storage_location = self._get_cloud_service_location(
             service_name=ex_cloud_service_name)
-        
+
         # OK, bit annoying here. You must create a deployment before
         # you can create an instance; however, the deployment function
         # creates the first instance, but all subsequent instances
-        # must be created using the add_role function. 
+        # must be created using the add_role function.
         #
         # So, yeah, annoying.
         if node_list is None:
             # This is the first node in this cloud service.
             if "ex_storage_service_name" in kwargs:
-                ex_storage_service_name = kwargs['ex_storage_service_name'] 
+                ex_storage_service_name = kwargs['ex_storage_service_name']
             else:
                 ex_storage_service_name = ex_cloud_service_name
                 ex_storage_service_name = re.sub(
@@ -584,7 +733,7 @@ class AzureNodeDriver(NodeDriver):
                 ex_storage_service_name = re.sub(
                     ur'[\W_]+', u'', ex_storage_service_name.lower(),
                     flags=re.UNICODE)
-                
+
                 if self._is_storage_service_unique(
                         service_name=ex_storage_service_name):
                     self._create_storage_account(
@@ -601,11 +750,11 @@ class AzureNodeDriver(NodeDriver):
             disk_config = OSVirtualHardDisk(image, media_link)
 
             response = self._perform_post(
-                self._get_role_path(ex_cloud_service_name, 
+                self._get_role_path(ex_cloud_service_name,
                     _deployment_name),
                 AzureXmlSerializer.add_role_to_xml(
                     name, # role_name
-                    machine_config, # system_config 
+                    machine_config, # system_config
                     disk_config, # os_virtual_hard_disk
                     'PersistentVMRole', # role_type
                     network_config, # network_config
@@ -633,18 +782,18 @@ class AzureNodeDriver(NodeDriver):
                      ex_deployment_slot=None):
         """Remove Azure Virtual Machine
 
-        This removes the instance, but does not 
+        This removes the instance, but does not
         remove the disk. You will need to use destroy_volume.
         Azure sometimes has an issue where it will hold onto
-        a blob lease for an extended amount of time. 
+        a blob lease for an extended amount of time.
 
         :keyword     ex_cloud_service_name: Required.
                      Name of the Azure Cloud Service.
         :type        ex_cloud_service_name:  ``str``
 
         :keyword     ex_deployment_slot: Optional: The name of the deployment
-                                         slot. If this is not passed in we 
-                                         default to production. 
+                                         slot. If this is not passed in we
+                                         default to production.
         :type        ex_deployment_slot:  ``str``
         """
 
@@ -869,7 +1018,7 @@ class AzureNodeDriver(NodeDriver):
         """
         Convert the AZURE_COMPUTE_INSTANCE_TYPES into NodeSize
         """
-        
+
         return NodeSize(
             id=data["id"],
             name=data["name"],
@@ -900,7 +1049,7 @@ class AzureNodeDriver(NodeDriver):
 
     def _to_volume(self, volume, node):
 
-        if node: 
+        if node:
             if hasattr(volume.attached_to, 'role_name'):
                 if volume.attached_to.role_name == node.id:
                     extra = {}
@@ -989,7 +1138,7 @@ class AzureNodeDriver(NodeDriver):
             '/operations/isavailable/' +
             _str(service_name) + '',
             AvailabilityResponse)
-                
+
         return _check_availability.result
 
     def _create_storage_account(self, **kwargs):
@@ -1028,7 +1177,7 @@ class AzureNodeDriver(NodeDriver):
                                      response.status), driver=self)
 
 
-        # We need to wait for this to be created before we can 
+        # We need to wait for this to be created before we can
         # create the storage container and the instance.
         self._ex_complete_async_azure_operation(response,
                                                 "create_storage_account")
@@ -1485,7 +1634,7 @@ class AzureNodeDriver(NodeDriver):
 
 """XML Serializer
 
-Borrowed from the Azure SDK for Python. 
+Borrowed from the Azure SDK for Python.
 """
 def _lower(text):
     return text.lower()
@@ -2014,7 +2163,7 @@ class AzureXmlSerializer():
 
 """Data Classes
 
-Borrowed from the Azure SDK for Python. 
+Borrowed from the Azure SDK for Python.
 """
 
 class WindowsAzureData(object):
