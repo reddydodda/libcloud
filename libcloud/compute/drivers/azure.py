@@ -498,7 +498,6 @@ class AzureNodeDriver(NodeDriver):
         """
         Starts a node
         """
-        #FIXME!
         if not ex_cloud_service_name:
             raise ValueError("ex_cloud_service_name is required.")
 
@@ -512,11 +511,13 @@ class AzureNodeDriver(NodeDriver):
             service_name=ex_cloud_service_name,
             deployment_slot=ex_deployment_slot).name
 
+        start_txt = '<StartRoleOperation xmlns="http://schemas.microsoft.com/windowsazure" xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><OperationType>StartRoleOperation</OperationType></StartRoleOperation>'
+
         try:
             response = self._perform_post(
                 self._get_deployment_path_using_name(
                     ex_cloud_service_name, _deployment_name) + '/roleinstances/'
-                + _str(node.id) + '?comp=start', '')
+                + _str(node.id) + '/Operations', start_txt)
 
             if response.status != 202:
                 raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
@@ -535,7 +536,6 @@ class AzureNodeDriver(NodeDriver):
         """
         Stops a node
         """
-        #FIXME!
         if not ex_cloud_service_name:
             raise ValueError("ex_cloud_service_name is required.")
 
@@ -548,12 +548,14 @@ class AzureNodeDriver(NodeDriver):
         _deployment_name = self._get_deployment(
             service_name=ex_cloud_service_name,
             deployment_slot=ex_deployment_slot).name
-#'<Error xmlns="http://schemas.microsoft.com/windowsazure" xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Code>ResourceNotFound</Code><Message>The resource service name hostedservices is not supported.</Message></Error>'
+
+        shutdown_txt = '<ShutdownRoleOperation xmlns="http://schemas.microsoft.com/windowsazure" xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><OperationType>ShutdownRoleOperation</OperationType><PostShutdownAction>Stopped</PostShutdownAction></ShutdownRoleOperation>'
+
         try:
             response = self._perform_post(
                 self._get_deployment_path_using_name(
                     ex_cloud_service_name, _deployment_name) + '/roleinstances/'
-                + _str(node.id) + '?comp=shutdown', '')
+                + _str(node.id) + '/Operations', shutdown_txt)
 
             if response.status != 202:
                 raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
