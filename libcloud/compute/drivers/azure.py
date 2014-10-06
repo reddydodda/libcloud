@@ -341,10 +341,10 @@ class AzureNodeDriver(NodeDriver):
         'StoppedVM': NodeState.STOPPED,
         'RestartingRole': NodeState.REBOOTING,
         'CyclingRole': NodeState.TERMINATED,
-        'FailedStartingRole': NodeState.TERMINATED,
-        'FailedStartingVM': NodeState.TERMINATED,
-        'UnresponsiveRole': NodeState.TERMINATED,
-        'StoppedDeallocated': NodeState.TERMINATED,
+        'FailedStartingRole': NodeState.STOPPED,
+        'FailedStartingVM': NodeState.STOPPED,
+        'UnresponsiveRole': NodeState.STOPPED,
+        'StoppedDeallocated': NodeState.STOPPED,
     }
 
     def __init__(self, subscription_id=None, key_file=None, **kwargs):
@@ -480,6 +480,80 @@ class AzureNodeDriver(NodeDriver):
                 self._get_deployment_path_using_name(
                     ex_cloud_service_name, _deployment_name) + '/roleinstances/'
                 + _str(node.id) + '?comp=reboot', '')
+
+            if response.status != 202:
+                raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
+                                    (response.error, response.body,
+                                     response.status), driver=self)
+
+            if self._parse_response_for_async_op(response):
+                return True
+            else:
+                return False
+        except Exception, e:
+            return False
+
+    def ex_start_node(self, node=None, ex_cloud_service_name=None,
+                    ex_deployment_slot=None):
+        """
+        Starts a node
+        """
+        #FIXME!
+        if not ex_cloud_service_name:
+            raise ValueError("ex_cloud_service_name is required.")
+
+        if not ex_deployment_slot:
+            ex_deployment_slot = "production"
+
+        if not node:
+            raise ValueError("node is required.")
+
+        _deployment_name = self._get_deployment(
+            service_name=ex_cloud_service_name,
+            deployment_slot=ex_deployment_slot).name
+
+        try:
+            response = self._perform_post(
+                self._get_deployment_path_using_name(
+                    ex_cloud_service_name, _deployment_name) + '/roleinstances/'
+                + _str(node.id) + '?comp=start', '')
+
+            if response.status != 202:
+                raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
+                                    (response.error, response.body,
+                                     response.status), driver=self)
+
+            if self._parse_response_for_async_op(response):
+                return True
+            else:
+                return False
+        except Exception, e:
+            return False
+
+    def ex_stop_node(self, node=None, ex_cloud_service_name=None,
+                    ex_deployment_slot=None):
+        """
+        Stops a node
+        """
+        #FIXME!
+        if not ex_cloud_service_name:
+            raise ValueError("ex_cloud_service_name is required.")
+
+        if not ex_deployment_slot:
+            ex_deployment_slot = "production"
+
+        if not node:
+            raise ValueError("node is required.")
+
+        _deployment_name = self._get_deployment(
+            service_name=ex_cloud_service_name,
+            deployment_slot=ex_deployment_slot).name
+#'<Error xmlns="http://schemas.microsoft.com/windowsazure" xmlns:i="http://www.w3.org/2001/XMLSchema-instance"><Code>ResourceNotFound</Code><Message>The resource service name hostedservices is not supported.</Message></Error>'
+        try:
+            response = self._perform_post(
+                self._get_deployment_path_using_name(
+                    ex_cloud_service_name, _deployment_name) + '/roleinstances/'
+                + _str(node.id) + '?comp=shutdown', '')
 
             if response.status != 202:
                 raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
@@ -957,23 +1031,21 @@ class AzureNodeDriver(NodeDriver):
         """
         Convert the data from a Azure response object into a Node
         """
-
+        if not data.instance_endpoints:
+            data.instance_endpoints = []
         if len(data.instance_endpoints) >= 1:
             public_ip = data.instance_endpoints[0].vip
         else:
             public_ip = []
 
+        remote_desktop_port = []
+        ssh_port = []
         for port in data.instance_endpoints:
             if port.name == 'Remote Desktop':
                 remote_desktop_port = port.public_port
-            else:
-                remote_desktop_port = []
 
             if port.name == "SSH":
                 ssh_port = port.public_port
-            else:
-                ssh_port = []
-
         return Node(
             id=data.role_name,
             name=data.role_name,
@@ -1617,6 +1689,15 @@ class AzureNodeDriver(NodeDriver):
             raise LibcloudError(
                 'Message: Async request for operation %s has failed' %
                 operation_type, driver=self)
+
+    def get_cloud_service_from_node_id(self, node_id):
+        "Return cloud service for a node. Used in reboot/destroy/stop/start"
+        for service in self.ex_list_cloud_services():
+            nodes = self.list_nodes(ex_cloud_service_name=service)
+            for node in nodes:
+                if node.id == node_id:
+                    return service
+        return None
 
     # def get_connection(self):
     #    certificate_path = "/Users/baldwin/.azure/managementCertificate.pem"
@@ -2565,6 +2646,7 @@ class RoleInstance(WindowsAzureData):
         self.power_state = u''
         self.fqdn = u''
         self.host_name = u''
+        self.location = u''
 
 
 class InstanceEndpoints(WindowsAzureData):
