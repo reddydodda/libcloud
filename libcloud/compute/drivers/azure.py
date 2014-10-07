@@ -23,6 +23,8 @@ import random
 import sys
 import copy
 import base64
+import os
+import binascii
 
 from libcloud.utils.py3 import urlquote as url_quote
 from libcloud.utils.py3 import urlunquote as url_unquote
@@ -323,7 +325,7 @@ class AzureNodeDriver(NodeDriver):
 
     _instance_types = AZURE_COMPUTE_INSTANCE_TYPES
     _blob_url = ".blob.core.windows.net"
-    features = {'create_node': ['password']}
+    features = {'create_node': ['password', 'ssh_key']}
     service_location = collections.namedtuple(
         'service_location', ['is_affinity_group', 'service_location'])
 
@@ -586,7 +588,7 @@ class AzureNodeDriver(NodeDriver):
 
         return volumes
 
-    def create_node(self, ex_cloud_service_name=None, **kwargs):
+    def create_node(self, name, size, image, location, ex_cloud_service_name=None, **kwargs):
         """Create Azure Virtual Machine
 
            Reference: http://bit.ly/1fIsCb7
@@ -631,16 +633,16 @@ class AzureNodeDriver(NodeDriver):
            :type        ex_admin_user_id:  ``str``
 
         """
-        name = kwargs['name']
-        size = kwargs['size']
-        image = kwargs['image']
 
-        password = None
-        auth = self._get_and_check_auth(kwargs["auth"])
-        password = auth.password
-
+        password = kwargs.get("password", self.random_password())
         if not ex_cloud_service_name:
-            raise ValueError("ex_cloud_service_name is required.")
+            try:
+                self.create_cloud_service(name, location=location)
+                ex_cloud_service_name = name
+            except:
+                #assume the cloud service already exists
+                ex_cloud_service_name = name + str(random.randint(1, 100000))
+                self.create_cloud_service(ex_cloud_service_name, location=location)
 
         if "ex_deployment_slot" in kwargs:
             ex_deployment_slot = kwargs['ex_deployment_slot']
@@ -653,24 +655,6 @@ class AzureNodeDriver(NodeDriver):
         else:
             # This mimics the Azure UI behavior.
             ex_admin_user_id = "azureuser"
-
-        if "ex_storage_service_name" not in kwargs:
-            raise ValueError("ex_storage_service_name is required.")
-
-        if "size" not in kwargs:
-            raise ValueError("size is required. ")
-
-        if "image" not in kwargs:
-            raise ValueError("image is required.")
-
-        if "name" not in kwargs:
-            raise ValueError("name is required.")
-
-        if "ex_admin_user_id" not in kwargs:
-            raise ValueError("ex_cloud_service_name is required.")
-
-        if "ex_admin_user_id" not in kwargs:
-            raise ValueError("ex_cloud_service_name is required.")
 
         node_list = self.list_nodes(
             ex_cloud_service_name=ex_cloud_service_name)
@@ -687,7 +671,7 @@ class AzureNodeDriver(NodeDriver):
 
             machine_config.domain_join = None
 
-            if node_list is None:
+            if node_list == []:
                 port = "3389"
             else:
                 port = random.randint(41952, 65535)
@@ -712,7 +696,7 @@ class AzureNodeDriver(NodeDriver):
                 enable_direct_server_return=False
             )
         else:
-            if node_list is None:
+            if node_list == []:
                 port = "22"
             else:
                 port = random.randint(41952, 65535)
@@ -744,43 +728,55 @@ class AzureNodeDriver(NodeDriver):
         _storage_location = self._get_cloud_service_location(
             service_name=ex_cloud_service_name)
 
+
+        if "ex_storage_service_name" in kwargs:
+            ex_storage_service_name = kwargs['ex_storage_service_name']
+        else:
+            ex_storage_service_name = ex_cloud_service_name
+            ex_storage_service_name = re.sub(
+                ur'[\W_]+', u'', ex_storage_service_name.lower(),
+                flags=re.UNICODE)
+            if self._is_storage_service_unique(
+                    service_name=ex_storage_service_name):
+                self._create_storage_account(
+                    service_name=ex_storage_service_name,
+                    location=_storage_location.service_location,
+                    is_affinity_group=_storage_location.is_affinity_group
+                )
+            else:
+                ex_storage_service_name = ex_storage_service_name + str(random.randint(1, 100000))
+                self._create_storage_account(
+                    service_name=ex_storage_service_name,
+                    location=_storage_location.service_location,
+                    is_affinity_group=_storage_location.is_affinity_group
+                )
+
+
+        if "ex_deployment_name" in kwargs:
+            ex_deployment_name = kwargs['ex_deployment_name']
+        else:
+            ex_deployment_name = ex_cloud_service_name
+
+        blob_url = "http://" + ex_storage_service_name \
+                   + ".blob.core.windows.net"
+
+        # Azure's pattern in the UI.
+        disk_name = "{0}-{1}-{2}.vhd".format(
+            ex_cloud_service_name, name, time.strftime("%Y-%m-%d"))
+        media_link = blob_url + "/vhds/" + disk_name
+        disk_config = OSVirtualHardDisk(image, media_link)
+
+
+
         # OK, bit annoying here. You must create a deployment before
         # you can create an instance; however, the deployment function
         # creates the first instance, but all subsequent instances
         # must be created using the add_role function.
         #
         # So, yeah, annoying.
-        if node_list is None:
+
+        if node_list == []:
             # This is the first node in this cloud service.
-            if "ex_storage_service_name" in kwargs:
-                ex_storage_service_name = kwargs['ex_storage_service_name']
-            else:
-                ex_storage_service_name = ex_cloud_service_name
-                ex_storage_service_name = re.sub(
-                    ur'[\W_]+', u'', ex_storage_service_name.lower(),
-                    flags=re.UNICODE)
-                if self._is_storage_service_unique(
-                        service_name=ex_storage_service_name):
-                    self._create_storage_account(
-                        service_name=ex_storage_service_name,
-                        location=_storage_location.service_location,
-                        is_affinity_group=_storage_location.is_affinity_group
-                    )
-
-            if "ex_deployment_name" in kwargs:
-                ex_deployment_name = kwargs['ex_deployment_name']
-            else:
-                ex_deployment_name = ex_cloud_service_name
-
-            blob_url = "http://" + ex_storage_service_name \
-                       + ".blob.core.windows.net"
-
-            # Azure's pattern in the UI.
-            disk_name = "{0}-{1}-{2}.vhd".format(
-                ex_cloud_service_name, name, time.strftime("%Y-%m-%d"))
-            media_link = blob_url + "/vhds/" + disk_name
-            disk_config = OSVirtualHardDisk(image, media_link)
-
             response = self._perform_post(
                 self._get_deployment_path_using_name(ex_cloud_service_name),
                 AzureXmlSerializer.virtual_machine_deployment_to_xml(
@@ -807,41 +803,21 @@ class AzureNodeDriver(NodeDriver):
                 service_name=ex_cloud_service_name,
                 deployment_slot=ex_deployment_slot).name
 
-            if "ex_storage_service_name" in kwargs:
-                ex_storage_service_name = kwargs['ex_storage_service_name']
-            else:
-                ex_storage_service_name = ex_cloud_service_name
-                ex_storage_service_name = re.sub(
-                    ur'[\W_]+', u'', ex_storage_service_name.lower(),
-                    flags=re.UNICODE)
-
-                if self._is_storage_service_unique(
-                        service_name=ex_storage_service_name):
-                    self._create_storage_account(
-                        service_name=ex_storage_service_name,
-                        location=_storage_location.service_location,
-                        is_affinity_group=_storage_location.is_affinity_group
-                    )
-
-            blob_url = "http://" + ex_storage_service_name + \
-                       ".blob.core.windows.net"
-            disk_name = "{0}-{1}-{2}.vhd".format(
-                ex_cloud_service_name, name, time.strftime("%Y-%m-%d"))
-            media_link = blob_url + "/vhds/" + disk_name
-            disk_config = OSVirtualHardDisk(image, media_link)
-
-            response = self._perform_post(
-                self._get_role_path(ex_cloud_service_name,
-                                    _deployment_name),
-                AzureXmlSerializer.add_role_to_xml(
-                    name,  # role_name
-                    machine_config,  # system_config
-                    disk_config,  # os_virtual_hard_disk
-                    'PersistentVMRole',  # role_type
-                    network_config,  # network_config
-                    None,  # availability_set_name
-                    None,  # data_virtual_hard_disks
-                    size))  # role_size)
+            try:
+                response = self._perform_post(
+                    self._get_role_path(ex_cloud_service_name,
+                                        _deployment_name),
+                    AzureXmlSerializer.add_role_to_xml(
+                        name,  # role_name
+                        machine_config,  # system_config
+                        disk_config,  # os_virtual_hard_disk
+                        'PersistentVMRole',  # role_type
+                        network_config,  # network_config
+                        None,  # availability_set_name
+                        None,  # data_virtual_hard_disks
+                        size))  # role_size)
+            except Exception as exc:
+                raise LibcloudError('Failed to create node: %r', exc)
 
             if response.status != 202:
                 raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
@@ -1700,6 +1676,16 @@ class AzureNodeDriver(NodeDriver):
                 if node.id == node_id:
                     return service
         return None
+
+    def random_password(self):
+        "provide a random valid password for Azure"
+        random_char = "!@#$%^&*()_+"[random.randint(0,11)]
+        random_int = random.randint(0,10)
+        random_lower = ''
+        for i in range(8):
+            random_lower += "abcdefghijklmnopqrstuvwxyz"[random.randint(0,25)]
+        random_upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[random.randint(0,25)]
+        return random_lower + random_upper + str(random_int) + random_char
 
     # def get_connection(self):
     #    certificate_path = "/Users/baldwin/.azure/managementCertificate.pem"
