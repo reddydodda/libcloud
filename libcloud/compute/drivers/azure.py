@@ -196,8 +196,8 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'cores': 2
     },
     {
-        'id': 'Basic_A3 (4 cores, 7168 MB)',
-        'name': 'A7 Instance',
+        'id': 'Basic_A3',
+        'name': 'Basic_A3 (4 cores, 7168 MB)',
         'ram': 7168,
         'disk': 120.00,
         'bandwidth': None,
