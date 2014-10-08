@@ -412,7 +412,34 @@ class AzureNodeDriver(NodeDriver):
 
     def list_nodes(self, ex_cloud_service_name=None):
         """
-        List all nodes
+        List nodes for a cloud service, or for all cloud services
+        If ex_cloud_service_name specified, list nodes for this cloud
+        service, otherwise show all nodes
+
+        :param      ex_cloud_service_name: Cloud Service name
+        :type       ex_cloud_service_name: ``str``
+
+        :rtype: ``list`` of :class:`Node`
+        """
+
+        if ex_cloud_service_name:
+            return self.list_nodes_for_cloud_service(ex_cloud_service_name=ex_cloud_service_name)
+        else:
+            services = self.ex_list_cloud_services()
+            machines = []
+            for service in services:
+                try:
+                    nodes = self.list_nodes_for_cloud_service(ex_cloud_service_name=service)
+                    if nodes:
+                        machines.extend(nodes)
+                except:
+                    pass
+        return machines
+
+
+    def list_nodes_for_cloud_service(self, ex_cloud_service_name):
+        """
+        List nodes for cloud service
 
         ex_cloud_service_name parameter is used to scope the request
         to a specific Cloud Service. This is a required parameter as
@@ -424,8 +451,6 @@ class AzureNodeDriver(NodeDriver):
 
         :rtype: ``list`` of :class:`Node`
         """
-        # if not ex_cloud_service_name:
-        #    raise ValueError("ex_cloud_service_name is required.")
 
         response = self._perform_get(
             self._get_hosted_service_path(ex_cloud_service_name) +
@@ -439,8 +464,11 @@ class AzureNodeDriver(NodeDriver):
         data = self._parse_response(response, HostedService)
 
         try:
-            return [self._to_node(n) for n in
+            nodes = [self._to_node(n) for n in
                     data.deployments[0].role_instance_list]
+            for node in nodes:
+                node.extra['cloud_service_name'] = ex_cloud_service_name
+            return nodes
         except IndexError:
             return []
 
@@ -635,13 +663,16 @@ class AzureNodeDriver(NodeDriver):
         """
 
         password = kwargs.get("password", self.random_password())
+        name = re.sub(ur'[\W_]+', u'', name.lower(), flags=re.UNICODE)
+        #sanitize name
+
         if not ex_cloud_service_name:
             try:
                 self.create_cloud_service(name, location=location)
                 ex_cloud_service_name = name
             except:
-                #assume the cloud service already exists
-                ex_cloud_service_name = name + str(random.randint(1, 100000))
+                #assume the cloud service exists, randomize
+                ex_cloud_service_name = name + 'mistio' + str(random.randint(1, 1000))
                 self.create_cloud_service(ex_cloud_service_name, location=location)
 
         if "ex_deployment_slot" in kwargs:
@@ -655,8 +686,7 @@ class AzureNodeDriver(NodeDriver):
         else:
             # This mimics the Azure UI behavior.
             ex_admin_user_id = "azureuser"
-
-        node_list = self.list_nodes(
+        node_list = self.list_nodes_for_cloud_service(
             ex_cloud_service_name=ex_cloud_service_name)
         network_config = ConfigurationSet()
         network_config.configuration_set_type = 'NetworkConfiguration'
