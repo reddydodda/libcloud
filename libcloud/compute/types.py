@@ -123,7 +123,6 @@ class Provider(object):
     CLOUDFRAMES = 'cloudframes'
     EXOSCALE = 'exoscale'
     IKOULA = 'ikoula'
-    AZURE_COMPUTE = 'azure_compute'
     DOCKER = 'docker'
     OUTSCALE_SAS = 'outscale_sas'
     OUTSCALE_INC = 'outscale_inc'

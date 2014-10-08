@@ -147,8 +147,6 @@ DRIVERS = {
     ('libcloud.compute.drivers.exoscale', 'ExoscaleNodeDriver'),
     Provider.IKOULA:
     ('libcloud.compute.drivers.ikoula', 'IkoulaNodeDriver'),
-    Provider.AZURE_COMPUTE:
-    ('libcloud.compute.drivers.azure_compute', 'AzureNodeDriver'),
     Provider.DOCKER:
     ('libcloud.compute.drivers.docker', 'DockerNodeDriver'),
     Provider.OUTSCALE_SAS:
