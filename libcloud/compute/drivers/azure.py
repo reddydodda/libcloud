@@ -774,7 +774,7 @@ class AzureNodeDriver(NodeDriver):
                     is_affinity_group=_storage_location.is_affinity_group
                 )
             else:
-                ex_storage_service_name = ex_storage_service_name + str(random.randint(1, 100000))
+                ex_storage_service_name = ex_storage_service_name + 'mistio' + str(random.randint(1, 100000))
                 self._create_storage_account(
                     service_name=ex_storage_service_name,
                     location=_storage_location.service_location,
