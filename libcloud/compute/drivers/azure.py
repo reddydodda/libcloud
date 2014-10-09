@@ -661,6 +661,9 @@ class AzureNodeDriver(NodeDriver):
            :type        ex_admin_user_id:  ``str``
 
         """
+        location = location.id
+        image = image.id
+        size = size.id
 
         password = kwargs.get("password", self.random_password())
         name = re.sub(ur'[\W_]+', u'', name.lower(), flags=re.UNICODE)
@@ -804,7 +807,6 @@ class AzureNodeDriver(NodeDriver):
         # must be created using the add_role function.
         #
         # So, yeah, annoying.
-
         if node_list == []:
             # This is the first node in this cloud service.
             response = self._perform_post(
@@ -862,7 +864,8 @@ class AzureNodeDriver(NodeDriver):
             state=NodeState.PENDING,
             public_ips=[],
             private_ips=[],
-            driver=self.connection.driver
+            driver=self.connection.driver,
+            extra={'username': ex_admin_user_id, 'password': password}
         )
 
     def destroy_node(self, node=None, ex_cloud_service_name=None,
@@ -1046,6 +1049,10 @@ class AzureNodeDriver(NodeDriver):
         else:
             public_ip = []
 
+        if public_ip:
+            public_ips = [public_ip]
+        else:
+            public_ips = []
         remote_desktop_port = []
         ssh_port = []
         for port in data.instance_endpoints:
@@ -1059,7 +1066,7 @@ class AzureNodeDriver(NodeDriver):
             name=data.role_name,
             state=self.NODE_STATE_MAP.get(
                 data.instance_status, NodeState.UNKNOWN),
-            public_ips=[public_ip],
+            public_ips=public_ips,
             private_ips=[data.ip_address],
             driver=AzureNodeDriver,
             extra={
@@ -1709,7 +1716,7 @@ class AzureNodeDriver(NodeDriver):
 
     def random_password(self):
         "provide a random valid password for Azure"
-        random_char = "!@#$%^&*()_+"[random.randint(0,11)]
+        random_char = "!@#$%^*()_+"[random.randint(0,11)]
         random_int = random.randint(0,10)
         random_lower = ''
         for i in range(8):
