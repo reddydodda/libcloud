@@ -25,11 +25,12 @@ import copy
 import base64
 import os
 import binascii
+import multiprocessing.pool
 
 from libcloud.utils.py3 import urlquote as url_quote
 from libcloud.utils.py3 import urlunquote as url_unquote
 from libcloud.common.azure import AzureServiceManagementConnection
-from libcloud.compute.providers import Provider
+from libcloud.compute.providers import Provider, get_driver
 from libcloud.compute.base import Node, NodeDriver, NodeLocation, NodeSize
 from libcloud.compute.base import NodeImage, StorageVolume
 from libcloud.compute.base import KeyPair
@@ -425,15 +426,22 @@ class AzureNodeDriver(NodeDriver):
         if ex_cloud_service_name:
             return self.list_nodes_for_cloud_service(ex_cloud_service_name=ex_cloud_service_name)
         else:
+            #first get a list of services
+            #then get VMs for each service
+            #use multiprocessing to query services on parallel
             services = self.ex_list_cloud_services()
-            machines = []
-            for service in services:
+            def _list_one(service):
+                driver = get_driver(self.type)(self.key, self.secret)
                 try:
-                    nodes = self.list_nodes_for_cloud_service(ex_cloud_service_name=service)
-                    if nodes:
-                        machines.extend(nodes)
+                    return driver.list_nodes_for_cloud_service(service)
                 except:
-                    pass
+                    return []
+            pool = multiprocessing.pool.ThreadPool(8)
+            results = pool.map(_list_one, services)
+            machines = []
+            for result in results:
+                machines.extend(result)
+
         return machines
 
 
