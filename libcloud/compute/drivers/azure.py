@@ -429,6 +429,9 @@ class AzureNodeDriver(NodeDriver):
             #first get a list of services
             #then get VMs for each service
             #use multiprocessing to query services on parallel
+            #since libcloud driver instance is not thread safe, the easiest solution is 
+            #to create a new driver instance inside each thread.
+            #http://ci.apache.org/projects/libcloud/docs/other/using-libcloud-in-multithreaded-and-async-environments.html
             services = self.ex_list_cloud_services()
             def _list_one(service):
                 driver = get_driver(self.type)(self.key, self.secret)
