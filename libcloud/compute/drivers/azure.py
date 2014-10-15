@@ -429,7 +429,7 @@ class AzureNodeDriver(NodeDriver):
             #first get a list of services
             #then get VMs for each service
             #use multiprocessing to query services on parallel
-            #since libcloud driver instance is not thread safe, the easiest solution is 
+            #since libcloud driver instance is not thread safe, the easiest solution is
             #to create a new driver instance inside each thread.
             #http://ci.apache.org/projects/libcloud/docs/other/using-libcloud-in-multithreaded-and-async-environments.html
             services = self.ex_list_cloud_services()
@@ -1145,7 +1145,8 @@ class AzureNodeDriver(NodeDriver):
                 'description': data.description,
                 'location': data.location,
                 'affinity_group': data.affinity_group,
-                'media_link': data.media_link
+                'media_link': data.media_link,
+                'show_in_gui': data.show_in_gui
             })
 
     def _to_volume(self, volume, node):
@@ -1907,13 +1908,14 @@ class AzureXmlSerializer():
              ('SubscriptionCertificateData', data)])
 
     @staticmethod
-    def os_image_to_xml(label, media_link, name, os):
+    def os_image_to_xml(label, media_link, name, os, showingui):
         return AzureXmlSerializer.doc_from_data(
             'OSImage',
             [('Label', label),
              ('MediaLink', media_link),
              ('Name', name),
-             ('OS', os)])
+             ('OS', os),
+             ('ShowInGui', showingui)])
 
     @staticmethod
     def data_virtual_hard_disk_to_xml(host_caching, disk_label, disk_name, lun,
@@ -2562,6 +2564,7 @@ class OSImage(WindowsAzureData):
         self.name = u''
         self.os = u''
         self.eula = u''
+        self.show_in_gui = u''
         self.description = u''
 
 
