@@ -479,6 +479,7 @@ class AzureNodeDriver(NodeDriver):
                     data.deployments[0].role_instance_list]
             for node in nodes:
                 node.extra['cloud_service_name'] = ex_cloud_service_name
+                node.extra['location'] = data.hosted_service_properties.location
             return nodes
         except IndexError:
             return []
@@ -1146,7 +1147,8 @@ class AzureNodeDriver(NodeDriver):
                 'location': data.location,
                 'affinity_group': data.affinity_group,
                 'media_link': data.media_link,
-                'show_in_gui': data.show_in_gui
+                'show_in_gui': data.show_in_gui,
+                'is_premium': data.is_premium
             })
 
     def _to_volume(self, volume, node):
@@ -1908,14 +1910,15 @@ class AzureXmlSerializer():
              ('SubscriptionCertificateData', data)])
 
     @staticmethod
-    def os_image_to_xml(label, media_link, name, os, showingui):
+    def os_image_to_xml(label, media_link, name, os, showingui, ispremium):
         return AzureXmlSerializer.doc_from_data(
             'OSImage',
             [('Label', label),
              ('MediaLink', media_link),
              ('Name', name),
              ('OS', os),
-             ('ShowInGui', showingui)])
+             ('ShowInGui', showingui),
+             ('IsPremium', ispremium)])
 
     @staticmethod
     def data_virtual_hard_disk_to_xml(host_caching, disk_label, disk_name, lun,
@@ -2565,6 +2568,7 @@ class OSImage(WindowsAzureData):
         self.os = u''
         self.eula = u''
         self.show_in_gui = u''
+        self.is_premium = u''
         self.description = u''
 
 
