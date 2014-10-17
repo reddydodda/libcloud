@@ -468,7 +468,7 @@ class DigitalOceanNodeDriver(NodeDriver):
         return node
 
     def _to_image(self, data):
-        data = data.get('images')
+        data = data.get('images', data)#17 Oct, DO messes API v1 with v2
         extra = {'distribution': data.get('distribution')}
         return NodeImage(id=data['id'], name=data['name'], extra=extra,
                          driver=self)
