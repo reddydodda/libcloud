@@ -228,7 +228,7 @@ class DigitalOceanFirstGenNodeDriver(NodeDriver):
         return node
 
     def _to_image(self, data):
-        extra = {'distribution': data['distribution']}
+        extra = {'distribution': data.get('distribution')}
         return NodeImage(id=data['id'], name=data['name'], extra=extra,
                          driver=self)
 
@@ -468,7 +468,7 @@ class DigitalOceanNodeDriver(NodeDriver):
         return node
 
     def _to_image(self, data):
-        extra = {'distribution': data['distribution']}
+        extra = {'distribution': data.get('distribution')}
         return NodeImage(id=data['id'], name=data['name'], extra=extra,
                          driver=self)
 
