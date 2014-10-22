@@ -836,12 +836,6 @@ class AzureNodeDriver(NodeDriver):
                     None,
                     size,
                     None))
-
-            if response.status != 202:
-                raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
-                                    (response.error, response.body, response.status), driver=self)
-
-            self._ex_complete_async_azure_operation(response)
         else:
             _deployment_name = self._get_deployment(
                 service_name=ex_cloud_service_name,
@@ -863,12 +857,16 @@ class AzureNodeDriver(NodeDriver):
             except Exception as exc:
                 raise LibcloudError('Failed to create node: %r', exc)
 
-            if response.status != 202:
+        if response.status != 202:
                 raise LibcloudError('Message: %s, Body: %s, Status code: %d' %
                                     (response.error, response.body,
                                      response.status), driver=self)
 
+        try:
             self._ex_complete_async_azure_operation(response)
+        except:
+            pass
+            #this might fail for other reasons, but node is created
 
         return Node(
             id=name,
