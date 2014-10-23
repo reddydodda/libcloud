@@ -17,13 +17,19 @@ Softlayer driver
 """
 
 import time
+try:
+    from Crypto.PublicKey import RSA
+    crypto = True
+except ImportError:
+    crypto = False
 
 from libcloud.common.base import ConnectionUserAndKey
 from libcloud.common.xmlrpc import XMLRPCResponse, XMLRPCConnection
 from libcloud.common.types import InvalidCredsError, LibcloudError
 from libcloud.compute.types import Provider, NodeState
 from libcloud.compute.base import NodeDriver, Node, NodeLocation, NodeSize, \
-    NodeImage
+    NodeImage, KeyPair
+from libcloud.compute.types import KeyPairDoesNotExistError
 
 DEFAULT_DOMAIN = 'mist.io'
 DEFAULT_CPU_SIZE = 1
@@ -165,7 +171,6 @@ class SoftLayerConnection(XMLRPCConnection, ConnectionUserAndKey):
 
         args = ({'headers': headers}, ) + args
         endpoint = '%s/%s' % (self.endpoint, service)
-
         return super(SoftLayerConnection, self).request(method, *args,
                                                         **{'endpoint':
                                                             endpoint})
@@ -211,7 +216,7 @@ class SoftLayerNodeDriver(NodeDriver):
     website = 'http://www.softlayer.com/'
     type = Provider.SOFTLAYER
 
-    features = {'create_node': ['generates_password']}
+    features = {'create_node': ['generates_password', 'ssh_key']}
 
     def _to_node(self, host):
         try:
@@ -337,6 +342,8 @@ class SoftLayerNodeDriver(NodeDriver):
         :type       ex_datacenter: ``str``
         :keyword    ex_os: e.g. UBUNTU_LATEST
         :type       ex_os: ``str``
+        :keyword    ex_keyname: The name of the key pair
+        :type       ex_keyname: ``str``
         """
         name = kwargs['name']
         os = 'DEBIAN_LATEST'
@@ -412,6 +419,7 @@ class SoftLayerNodeDriver(NodeDriver):
         sshKeys = kwargs['sshKeys']
         if sshKeys:
             newCCI['sshKeys'] = [{'id': sshKeys}]
+
         res = self.connection.request(
             'SoftLayer_Virtual_Guest', 'createObject', newCCI
         ).object
@@ -433,6 +441,7 @@ class SoftLayerNodeDriver(NodeDriver):
         ).object
 
         return self._to_key(res)
+
 
     def _to_image(self, img):
         return NodeImage(
@@ -495,8 +504,8 @@ class SoftLayerNodeDriver(NodeDriver):
             },
         }
         res = self.connection.request(
-            "SoftLayer_Account",
-            "getVirtualGuests",
+            'SoftLayer_Account',
+            'getVirtualGuests',
             object_mask=mask
         ).object
         return [self._to_node(h) for h in res]
