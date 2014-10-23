@@ -974,6 +974,19 @@ class OpenStackNetwork(object):
                                                                    self.cidr,)
 
 
+class OpenStackNeutronNetwork(object):
+    """
+
+    """
+
+    def __init__(self, id, name):
+        self.id = id
+        self.name = name
+
+    def __repr__(self):
+        return '<OpenStackNeutronNetwork id=%s name=%s>' % (self.id, self.name)
+
+
 class OpenStackSecurityGroup(object):
     """
     A Security Group.
@@ -1513,6 +1526,13 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
                                 cidr=obj.get('cidr', None),
                                 driver=self)
 
+    def _to_neutron_networks(self, obj):
+        networks = obj['networks']
+        return [self._to_neutron_network(network) for network in networks]
+
+    def _to_neutron_network(self, obj):
+        return OpenStackNeutronNetwork(id=obj['id'], name=obj['name'])
+
     def ex_list_networks(self):
         """
         Get a list of Networks that are available.
@@ -1521,6 +1541,15 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         """
         response = self.connection.request(self._networks_url_prefix).object
         return self._to_networks(response)
+
+    def ex_list_neutron_networks(self):
+        self.connection.service_name = "neutron"
+        self.connection.service_type = "network"
+        self._networks_url_prefix = "/v2.0/networks"
+        self.connection.get_service_catalog()
+
+        response = self.connection.request(self._networks_url_prefix).object
+        return self._to_neutron_networks(response)
 
     def ex_create_network(self, name, cidr):
         """
