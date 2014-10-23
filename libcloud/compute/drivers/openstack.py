@@ -1220,10 +1220,14 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
 
         return self._to_node(server_object)
 
+    def _restore_compute_endpoint(self):
+        self.connection.service_name = "nova"
+        self.connection.service_type = "compute"
+        self.connection.get_service_catalog()
+
     def _init_neutron_endpoint(self):
         self.connection.service_name = "neutron"
         self.connection.service_type = "network"
-
         self.connection.get_service_catalog()
 
     def _to_images(self, obj, ex_only_active):
@@ -1555,6 +1559,7 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
     def ex_list_neutron_networks(self):
         self._init_neutron_endpoint()
         response = self.connection.request(self._neutron_networks_url_prefix).object
+        self._restore_compute_endpoint()
         return self._to_neutron_networks(response)
 
     def ex_create_network(self, name, cidr):
