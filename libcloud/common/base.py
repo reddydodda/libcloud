@@ -550,7 +550,6 @@ class Connection(object):
         # prefer the attribute base_url if its set or sent
         connection = None
         secure = self.secure
-
         if getattr(self, 'base_url', None) and base_url is None:
             (host, port,
              secure, request_path) = self._tuple_from_url(self.base_url)
@@ -565,7 +564,7 @@ class Connection(object):
             kwargs.update({'host': host})
 
         if not hasattr(kwargs, 'port'):
-            kwargs.update({'port': port})
+            kwargs.update({'port': int(port)})
 
         if not hasattr(kwargs, 'key_file') and hasattr(self, 'key_file' ):
             kwargs.update({'key_file': self.key_file})
