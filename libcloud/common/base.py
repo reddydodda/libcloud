@@ -260,7 +260,7 @@ class RawResponse(Response):
         return self._reason
 
 
-# TODO: Move this to a better location/package
+#TODO: Move this to a better location/package
 class LoggingConnection():
     """
     Debug class to log all HTTP(s) requests as they could be made
@@ -367,11 +367,7 @@ class LoggingConnection():
 
         cmd.extend(['-i'])
 
-        if method.lower() == 'head':
-            # HEAD method need special handling
-            cmd.extend(["--head"])
-        else:
-            cmd.extend(["-X", pquote(method)])
+        cmd.extend(["-X", pquote(method)])
 
         for h in headers:
             cmd.extend(["-H", pquote("%s: %s" % (h, headers[h]))])
@@ -442,7 +438,7 @@ class Connection(object):
     """
     A Base Connection class to derive from.
     """
-    # conn_classes = (LoggingHTTPSConnection)
+    #conn_classes = (LoggingHTTPSConnection)
     conn_classes = (LibcloudHTTPConnection, LibcloudHTTPSConnection)
 
     responseCls = Response
@@ -539,7 +535,7 @@ class Connection(object):
 
         return (host, port, secure, request_path)
 
-    def connect(self, host=None, port=None, base_url=None):
+    def connect(self, host=None, port=None, base_url=None, **kwargs):
         """
         Establish a connection with the API server.
 
@@ -565,7 +561,19 @@ class Connection(object):
             host = host or self.host
             port = port or self.port
 
-        kwargs = {'host': host, 'port': int(port)}
+        if not hasattr(kwargs, 'host'):
+            kwargs.update({'host': host})
+
+        if not hasattr(kwargs, 'port'):
+            kwargs.update({'port': port})
+
+        if not hasattr(kwargs, 'key_file') and hasattr(self, 'key_file' ):
+            kwargs.update({'key_file': self.key_file})
+
+        if not hasattr(kwargs, 'cert_file') and hasattr(self, 'cert_file' ):
+            kwargs.update({'cert_file': self.cert_file})
+
+        #kwargs = {'host': host, 'port': int(port)}
 
         # Timeout is only supported in Python 2.6 and later
         # http://docs.python.org/library/httplib.html#httplib.HTTPConnection
@@ -580,7 +588,7 @@ class Connection(object):
         # which proxies to your endpoint, and lets you easily capture
         # connections in cleartext when you setup the proxy to do SSL
         # for you
-        # connection = self.conn_classes[False]("127.0.0.1", 8080)
+        #connection = self.conn_classes[False]("127.0.0.1", 8080)
 
         self.connection = connection
 
@@ -601,7 +609,7 @@ class Connection(object):
         """
         Append a token to a user agent string.
 
-        Users of the library should call this to uniquely identify their
+        Users of the library should call this to uniquely identify thier
         requests to a provider.
 
         :type token: ``str``
@@ -936,6 +944,20 @@ class ConnectionKey(Connection):
                                             proxy_url=proxy_url)
         self.key = key
 
+class CertificateConnection(Connection):
+    """
+    Base connection class which accepts a single ``cert_file`` argument.
+    """
+    def __init__(self, cert_file, secure=True, host=None, port=None, url=None,
+                 timeout=None):
+        """
+        Initialize `cert_file`; set `secure` to an ``int`` based on
+        passed value.
+        """
+        super(CertificateConnection, self).__init__(secure=secure, host=host,
+                                            port=port, url=url, timeout=timeout)
+
+        self.cert_file = cert_file
 
 class ConnectionUserAndKey(ConnectionKey):
     """

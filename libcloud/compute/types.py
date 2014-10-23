@@ -74,11 +74,13 @@ class Provider(object):
     :cvar NEPHOSCALE: NephoScale driver
     :cvar EXOSCALE: Exoscale driver.
     :cvar IKOULA: Ikoula driver.
+    :cvar AZURE: Azure driver.
     :cvar DOCKER: Docker driver.
     :cvar OUTSCALE_SAS: Outscale SAS driver.
     :cvar OUTSCALE_INC: Outscale INC driver.
     :cvar PROFIT_BRICKS: ProfitBricks driver.
     """
+    AZURE = 'azure'
     DUMMY = 'dummy'
     EC2 = 'ec2_us_east'
     RACKSPACE = 'rackspace'
