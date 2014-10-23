@@ -976,12 +976,14 @@ class OpenStackNetwork(object):
 
 class OpenStackNeutronNetwork(object):
     """
-
+    An instance of a neutron network
     """
 
-    def __init__(self, id, name):
+    def __init__(self, id, name, status = None, subnets=[], ):
         self.id = id
         self.name = name
+        self.status = status
+        self.subnets = subnets
 
     def __repr__(self):
         return '<OpenStackNeutronNetwork id=%s name=%s>' % (self.id, self.name)
@@ -1149,6 +1151,7 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
 
     features = {"create_node": ["generates_password"]}
     _networks_url_prefix = '/os-networks'
+    _neutron_networks_url_prefix = "/v2.0/networks"
 
     def __init__(self, *args, **kwargs):
         self._ex_force_api_version = str(kwargs.pop('ex_force_api_version',
@@ -1216,6 +1219,12 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         server_object['adminPass'] = create_response.get('adminPass', None)
 
         return self._to_node(server_object)
+
+    def _init_neutron_endpoint(self):
+        self.connection.service_name = "neutron"
+        self.connection.service_type = "network"
+
+        self.connection.get_service_catalog()
 
     def _to_images(self, obj, ex_only_active):
         images = []
@@ -1531,7 +1540,8 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         return [self._to_neutron_network(network) for network in networks]
 
     def _to_neutron_network(self, obj):
-        return OpenStackNeutronNetwork(id=obj['id'], name=obj['name'])
+        return OpenStackNeutronNetwork(id=obj['id'], name=obj['name'],
+                                       status=obj['status'], subnets=obj['subnets'])
 
     def ex_list_networks(self):
         """
@@ -1543,12 +1553,8 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         return self._to_networks(response)
 
     def ex_list_neutron_networks(self):
-        self.connection.service_name = "neutron"
-        self.connection.service_type = "network"
-        self._networks_url_prefix = "/v2.0/networks"
-        self.connection.get_service_catalog()
-
-        response = self.connection.request(self._networks_url_prefix).object
+        self._init_neutron_endpoint()
+        response = self.connection.request(self._neutron_networks_url_prefix).object
         return self._to_neutron_networks(response)
 
     def ex_create_network(self, name, cidr):
