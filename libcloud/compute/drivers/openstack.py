@@ -72,6 +72,7 @@ class OpenStackComputeConnection(OpenStackBaseConnection):
     service_type = 'compute'
     service_name = 'nova'
     service_region = 'RegionOne'
+    default_content_type = None
 
 
 class OpenStackNodeDriver(NodeDriver, OpenStackDriverMixin):
@@ -1587,9 +1588,19 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         return self._to_networks(response)
 
     def ex_list_neutron_networks(self):
+        """
+        Get a list of Neutron Networks
+
+        :rtype: ``list`` of `OpenStackNeutronNetwork`
+        """
+
+        # This is a hack to get the neutron endpoint
         self._init_neutron_endpoint()
+
         networks = self.connection.request(self._neutron_networks_url_prefix).object
         subnets = self.connection.request(self._neutron_subnets_url_prefix).object
+
+        # This is hack to change the endpoint to compute and nova
         self._restore_compute_endpoint()
         return self._to_neutron_networks(networks, subnets)
 
@@ -1609,6 +1620,41 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         response = self.connection.request(self._networks_url_prefix,
                                            method='POST', data=data).object
         return self._to_network(response['network'])
+
+    def ex_create_neutron_network(self, name, admin_state_up=True, shared=False):
+        """
+        Create a new neutron Network
+
+        :param name: Name of the network which should be used
+        :type name: ``str``
+
+        :param admin_state_up: The administrative state of the network
+        :type admin_state_up: ``bool``
+
+        :param shared: Admin-only. Indicates whether this network is shared across all tenants.
+        :type shared: ``bool``
+
+        :param tenant_id: The ID of the tenant that owns the network.
+        :type tenant_id: ``str``
+
+        :return: :class:`OpenStackNeutronNetwork`
+        """
+
+        #
+
+        data = {
+            'network': {
+                'name': name,
+                'admin_state_up': admin_state_up,
+                'shared': shared,
+            }
+        }
+
+        self._init_neutron_endpoint()
+        response = self.connection.request(self._neutron_networks_url_prefix,
+                                           method="POST", data=data).object
+
+        return self._to_neutron_network(response['network'], [])
 
     def ex_delete_network(self, network):
         """
