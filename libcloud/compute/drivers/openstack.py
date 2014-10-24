@@ -1572,7 +1572,8 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
                 added_subnets.append(
                 OpenStackNeutronSubnet(
                     id=sub['id'], name=sub['name'], enable_dhcp=sub['enable_dhcp'],
-                    allocation_pools=sub['allocation_pools'], gateway_ip=sub['gateway_ip'], cidr=sub['cidr'])
+                    allocation_pools=sub['allocation_pools'], gateway_ip=sub['gateway_ip'],
+                    cidr=sub['cidr'])
                 )
 
         return OpenStackNeutronNetwork(id=obj['id'], name=obj['name'],
@@ -1652,9 +1653,37 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
 
         self._init_neutron_endpoint()
         response = self.connection.request(self._neutron_networks_url_prefix,
-                                           method="POST", data=data).object
+                                           method='POST', data=data).object
 
+        self._restore_compute_endpoint()
         return self._to_neutron_network(response['network'], [])
+
+    def ex_create_neutron_subnet(self, name, network_id, cidr, allocation_pools=[], gateway_ip=None,
+                                 ip_version="4", enable_dhcp=True):
+
+        data = {
+            'subnet': {
+                'name': name,
+                'network_id': network_id,
+                'ip_version': ip_version,
+                'cidr': cidr,
+                'gateway_ip': gateway_ip,
+                'allocation_pools': allocation_pools,
+                'enable_dhcp': enable_dhcp
+            }
+        }
+
+        self._init_neutron_endpoint()
+        response = self.connection.request(self._neutron_subnets_url_prefix,
+                                           method='POST', data=data).object
+        self._restore_compute_endpoint()
+
+        subnet = response['subnet']
+        return OpenStackNeutronSubnet(name=subnet['name'],id=subnet['id'], cidr=subnet['cidr'],
+                                      enable_dhcp=subnet['enable_dhcp'],
+                                      allocation_pools=subnet['allocation_pools'],
+                                      gateway_ip=subnet['gateway_ip'],
+                                      dns_nameservers=subnet['dns_nameservers'])
 
     def ex_delete_network(self, network):
         """
