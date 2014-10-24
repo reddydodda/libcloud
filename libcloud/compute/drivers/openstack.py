@@ -1241,15 +1241,32 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
 
         return self._to_node(server_object)
 
-    def _restore_compute_endpoint(self):
-        self.connection.service_name = "nova"
-        self.connection.service_type = "compute"
-        self.connection.get_service_catalog()
+    def _neutron_endpoint(func):
+        """
+        This is a hack. To change the endpoint to neutron and back to
+        compute/nova.
+        """
 
-    def _init_neutron_endpoint(self):
-        self.connection.service_name = "neutron"
-        self.connection.service_type = "network"
-        self.connection.get_service_catalog()
+        def neutron_connection(self):
+            self.connection.service_name = "neutron"
+            self.connection.service_type = "network"
+            self.connection.get_service_catalog()
+
+        def restore_connection(self):
+            self.connection.service_name = "nova"
+            self.connection.service_type = "compute"
+            self.connection.get_service_catalog()
+
+        from functools import wraps
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            neutron_connection(args[0])
+            re = func(*args, **kwargs)
+            restore_connection(args[0])
+            return re
+
+        return wrapper
 
     def _to_images(self, obj, ex_only_active):
         images = []
@@ -1588,6 +1605,7 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         response = self.connection.request(self._networks_url_prefix).object
         return self._to_networks(response)
 
+    @_neutron_endpoint
     def ex_list_neutron_networks(self):
         """
         Get a list of Neutron Networks
@@ -1595,14 +1613,9 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         :rtype: ``list`` of `OpenStackNeutronNetwork`
         """
 
-        # This is a hack to get the neutron endpoint
-        self._init_neutron_endpoint()
-
         networks = self.connection.request(self._neutron_networks_url_prefix).object
         subnets = self.connection.request(self._neutron_subnets_url_prefix).object
 
-        # This is hack to change the endpoint to compute and nova
-        self._restore_compute_endpoint()
         return self._to_neutron_networks(networks, subnets)
 
     def ex_create_network(self, name, cidr):
@@ -1622,6 +1635,7 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
                                            method='POST', data=data).object
         return self._to_network(response['network'])
 
+    @_neutron_endpoint
     def ex_create_neutron_network(self, name, admin_state_up=True, shared=False):
         """
         Create a new neutron Network
@@ -1651,13 +1665,12 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
             }
         }
 
-        self._init_neutron_endpoint()
         response = self.connection.request(self._neutron_networks_url_prefix,
                                            method='POST', data=data).object
 
-        self._restore_compute_endpoint()
         return self._to_neutron_network(response['network'], [])
 
+    @_neutron_endpoint
     def ex_create_neutron_subnet(self, name, network_id, cidr, allocation_pools=[], gateway_ip=None,
                                  ip_version="4", enable_dhcp=True):
 
@@ -1673,10 +1686,8 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
             }
         }
 
-        self._init_neutron_endpoint()
         response = self.connection.request(self._neutron_subnets_url_prefix,
                                            method='POST', data=data).object
-        self._restore_compute_endpoint()
 
         subnet = response['subnet']
         return OpenStackNeutronSubnet(name=subnet['name'],id=subnet['id'], cidr=subnet['cidr'],
