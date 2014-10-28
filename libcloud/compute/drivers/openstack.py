@@ -1671,6 +1671,18 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         return self._to_neutron_network(response['network'], [])
 
     @_neutron_endpoint
+    def ex_delete_neutron_network(self, network_id):
+        """
+        Delete neutron network
+        """
+
+        response = self.connection.request(self._neutron_networks_url_prefix +
+                                            "/%s/" % network_id,
+                                            method='DELETE')
+
+        return response
+
+    @_neutron_endpoint
     def ex_create_neutron_subnet(self, name, network_id, cidr, allocation_pools=[], gateway_ip=None,
                                  ip_version="4", enable_dhcp=True):
 
@@ -1695,6 +1707,17 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
                                       allocation_pools=subnet['allocation_pools'],
                                       gateway_ip=subnet['gateway_ip'],
                                       dns_nameservers=subnet['dns_nameservers'])
+
+    def ex_delete_neutron_subnet(self, subnet_id):
+        """
+        Delete neutron subnet
+        """
+
+        response = self.connection.request(self._neutron_subnets_url_prefix +
+                                            "/%s/" % subnet_id,
+                                            method='DELETE')
+
+        return response
 
     def ex_delete_network(self, network):
         """
