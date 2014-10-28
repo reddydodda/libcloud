@@ -1676,9 +1676,11 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         Delete neutron network
         """
 
+        import ipdb
+        ipdb.set_trace()
+
         response = self.connection.request(self._neutron_networks_url_prefix +
-                                            "/%s/" % network_id,
-                                            method='DELETE')
+                                           "/%s" % network_id, method='DELETE').object
 
         return response
 
@@ -1708,14 +1710,14 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
                                       gateway_ip=subnet['gateway_ip'],
                                       dns_nameservers=subnet['dns_nameservers'])
 
+    @_neutron_endpoint
     def ex_delete_neutron_subnet(self, subnet_id):
         """
         Delete neutron subnet
         """
 
         response = self.connection.request(self._neutron_subnets_url_prefix +
-                                            "/%s/" % subnet_id,
-                                            method='DELETE')
+                                           "/%s" % subnet_id, method='DELETE').onject
 
         return response
 
