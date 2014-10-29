@@ -1675,10 +1675,6 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         """
         Delete neutron network
         """
-
-        import ipdb
-        ipdb.set_trace()
-
         response = self.connection.request(self._neutron_networks_url_prefix +
                                            "/%s" % network_id, method='DELETE').object
 
