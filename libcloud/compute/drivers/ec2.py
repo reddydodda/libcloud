@@ -674,9 +674,6 @@ REGION_DETAILS = {
             't2.micro',
             't2.small',
             't2.medium'
-            't2.micro',
-            't2.small',
-            't2.medium'
         ]
     },
     'nimbus': {
@@ -1801,11 +1798,14 @@ class EC2RouteTable(object):
     Note: This class is VPC specific.
     """
 
-    def __init__(self, id, routes, subnet_associations,
+    def __init__(self, id, name, routes, subnet_associations,
                  propagating_gateway_ids, extra=None):
         """
         :param      id: The ID of the route table.
         :type       id: ``str``
+
+        :param      name: The name of the route table.
+        :type       name: ``str``
 
         :param      routes: A list of routes in the route table.
         :type       routes: ``list`` of :class:`EC2Route`
@@ -1822,6 +1822,7 @@ class EC2RouteTable(object):
         """
 
         self.id = id
+        self.name = name
         self.routes = routes
         self.subnet_associations = subnet_associations
         self.propagating_gateway_ids = propagating_gateway_ids
@@ -1930,7 +1931,7 @@ class BaseEC2NodeDriver(NodeDriver):
         'terminated': NodeState.TERMINATED
     }
 
-    def list_nodes(self, ex_node_ids=None):
+    def list_nodes(self, ex_node_ids=None, ex_filters=None):
         """
         List all nodes
 
@@ -1941,21 +1942,34 @@ class BaseEC2NodeDriver(NodeDriver):
         :param      ex_node_ids: List of ``node.id``
         :type       ex_node_ids: ``list`` of ``str``
 
+        :param      ex_filters: The filters so that the response includes
+                             information for only certain nodes.
+        :type       ex_filters: ``dict``
+
         :rtype: ``list`` of :class:`Node`
         """
+
         params = {'Action': 'DescribeInstances'}
+
         if ex_node_ids:
             params.update(self._pathlist('InstanceId', ex_node_ids))
+
+        if ex_filters:
+            params.update(self._build_filters(ex_filters))
+
         elem = self.connection.request(self.path, params=params).object
+
         nodes = []
         for rs in findall(element=elem, xpath='reservationSet/item',
                           namespace=NAMESPACE):
             nodes += self._to_nodes(rs, 'instancesSet/item')
 
         nodes_elastic_ips_mappings = self.ex_describe_addresses(nodes)
+
         for node in nodes:
             ips = nodes_elastic_ips_mappings[node.id]
             node.public_ips.extend(ips)
+
         return nodes
 
     def list_sizes(self, location=None):
@@ -2053,10 +2067,9 @@ class BaseEC2NodeDriver(NodeDriver):
             'Action': 'DescribeVolumes',
         }
         if node:
-            params.update({
-                'Filter.1.Name': 'attachment.instance-id',
-                'Filter.1.Value': node.id,
-            })
+            filters = {'attachment.instance-id': node.id}
+            params.update(self._build_filters(filters))
+
         response = self.connection.request(self.path, params=params).object
         volumes = [self._to_volume(el) for el in response.findall(
             fixxpath(xpath='volumeSet/item', namespace=NAMESPACE))
@@ -2226,7 +2239,7 @@ class BaseEC2NodeDriver(NodeDriver):
                      is io1.
         :type iops: ``int``
         """
-        valid_volume_types = ['standard', 'io1', 'g2']
+        valid_volume_types = ['standard', 'io1', 'gp2']
 
         params = {
             'Action': 'CreateVolume',
@@ -2248,7 +2261,10 @@ class BaseEC2NodeDriver(NodeDriver):
         volume = self._to_volume(
             self.connection.request(self.path, params=params).object,
             name=name)
-        self.ex_create_tags(volume, {'Name': name})
+
+        if self.ex_create_tags(volume, {'Name': name}):
+            volume.extra['tags']['Name'] = name
+
         return volume
 
     def attach_volume(self, node, volume, device):
@@ -2300,8 +2316,8 @@ class BaseEC2NodeDriver(NodeDriver):
         response = self.connection.request(self.path, params=params).object
         snapshot = self._to_snapshot(response, name)
 
-        if name:
-            self.ex_create_tags(snapshot, {'Name': name})
+        if name and self.ex_create_tags(snapshot, {'Name': name}):
+            snapshot.extra['tags']['Name'] = name
 
         return snapshot
 
@@ -2400,10 +2416,9 @@ class BaseEC2NodeDriver(NodeDriver):
             'Action': 'DeleteKeyPair',
             'KeyName': key_pair.name
         }
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result, xpath='return',
-                           namespace=NAMESPACE)
-        return element == 'true'
+        res = self.connection.request(self.path, params=params).object
+
+        return self._get_boolean(res)
 
     def copy_image(self, image, source_region, name=None, description=None):
         """
@@ -2517,7 +2532,7 @@ class BaseEC2NodeDriver(NodeDriver):
     def ex_register_image(self, name, description=None, architecture=None,
                           image_location=None, root_device_name=None,
                           block_device_mapping=None, kernel_id=None,
-                          ramdisk_id=None):
+                          ramdisk_id=None, virtualization_type=None):
         """
         Registers an Amazon Machine Image based off of an EBS-backed instance.
         Can also be used to create images from snapshots. More information
@@ -2552,6 +2567,11 @@ class BaseEC2NodeDriver(NodeDriver):
         :param      ramdisk_id: RAM disk for AMI (optional)
         :type       ramdisk_id: ``str``
 
+        :param      virtualization_type: The type of virtualization for the
+                                         AMI you are registering, paravirt
+                                         or hvm (optional)
+        :type       virtualization_type: ``str``
+
         :rtype:     :class:`NodeImage`
         """
 
@@ -2579,6 +2599,9 @@ class BaseEC2NodeDriver(NodeDriver):
 
         if ramdisk_id is not None:
             params['RamDiskId'] = ramdisk_id
+
+        if virtualization_type is not None:
+            params['VirtualizationType'] = virtualization_type
 
         image = self._to_image(
             self.connection.request(self.path, params=params).object
@@ -2641,10 +2664,10 @@ class BaseEC2NodeDriver(NodeDriver):
         element = response.findall(fixxpath(xpath='vpc',
                                             namespace=NAMESPACE))[0]
 
-        network = self._to_network(element)
+        network = self._to_network(element, name)
 
-        if name is not None:
-            self.ex_create_tags(network, {'Name': name})
+        if name and self.ex_create_tags(network, {'Name': name}):
+            network.extra['tags']['Name'] = name
 
         return network
 
@@ -2659,11 +2682,9 @@ class BaseEC2NodeDriver(NodeDriver):
         """
         params = {'Action': 'DeleteVpc', 'VpcId': vpc.id}
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result, xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_list_subnets(self, subnet_ids=None, filters=None):
         """
@@ -2724,10 +2745,10 @@ class BaseEC2NodeDriver(NodeDriver):
         element = response.findall(fixxpath(xpath='subnet',
                                             namespace=NAMESPACE))[0]
 
-        subnet = self._to_subnet(element)
+        subnet = self._to_subnet(element, name)
 
-        if name is not None:
-            self.ex_create_tags(subnet, {'Name': name})
+        if name and self.ex_create_tags(subnet, {'Name': name}):
+            subnet.extra['tags']['Name'] = name
 
         return subnet
 
@@ -2742,12 +2763,9 @@ class BaseEC2NodeDriver(NodeDriver):
         """
         params = {'Action': 'DeleteSubnet', 'SubnetId': subnet.id}
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result,
-                           xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_list_security_groups(self):
         """
@@ -2849,11 +2867,9 @@ class BaseEC2NodeDriver(NodeDriver):
         """
         params = {'Action': 'DeleteSecurityGroup', 'GroupId': group_id}
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result, xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_delete_security_group_by_name(self, group_name):
         """
@@ -2866,11 +2882,9 @@ class BaseEC2NodeDriver(NodeDriver):
         """
         params = {'Action': 'DeleteSecurityGroup', 'GroupName': group_name}
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result, xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_delete_security_group(self, name):
         """
@@ -2915,10 +2929,9 @@ class BaseEC2NodeDriver(NodeDriver):
                   'ToPort': str(to_port),
                   'CidrIp': cidr_ip}
         try:
-            resp = self.connection.request(
+            res = self.connection.request(
                 self.path, params=params.copy()).object
-            return bool(findtext(element=resp, xpath='return',
-                                 namespace=NAMESPACE))
+            return self._get_boolean(res)
         except Exception:
             e = sys.exc_info()[1]
             if e.args[0].find('InvalidPermission.Duplicate') == -1:
@@ -2972,11 +2985,9 @@ class BaseEC2NodeDriver(NodeDriver):
 
         params["Action"] = 'AuthorizeSecurityGroupIngress'
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result, xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_authorize_security_group_egress(self, id, from_port, to_port,
                                            cidr_ips, group_pairs=None,
@@ -3028,11 +3039,9 @@ class BaseEC2NodeDriver(NodeDriver):
 
         params["Action"] = 'AuthorizeSecurityGroupEgress'
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result, xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_revoke_security_group_ingress(self, id, from_port, to_port,
                                          cidr_ips=None, group_pairs=None,
@@ -3082,11 +3091,9 @@ class BaseEC2NodeDriver(NodeDriver):
 
         params["Action"] = 'RevokeSecurityGroupIngress'
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result, xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_revoke_security_group_egress(self, id, from_port, to_port,
                                         cidr_ips=None, group_pairs=None,
@@ -3138,11 +3145,9 @@ class BaseEC2NodeDriver(NodeDriver):
 
         params['Action'] = 'RevokeSecurityGroupEgress'
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result, xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_authorize_security_group_permissive(self, name):
         """
@@ -3211,12 +3216,11 @@ class BaseEC2NodeDriver(NodeDriver):
         """
         params = {'Action': 'DescribeAvailabilityZones'}
 
+        filters = {'region-name': self.region_name}
         if only_available:
-            params.update({'Filter.0.Name': 'state'})
-            params.update({'Filter.0.Value.0': 'available'})
+            filters['state'] = 'available'
 
-        params.update({'Filter.1.Name': 'region-name'})
-        params.update({'Filter.1.Value.0': self.region_name})
+        params.update(self._build_filters(filters))
 
         result = self.connection.request(self.path,
                                          params=params.copy()).object
@@ -3251,12 +3255,14 @@ class BaseEC2NodeDriver(NodeDriver):
         :return: dict Node tags
         :rtype: ``dict``
         """
-        params = {'Action': 'DescribeTags',
-                  'Filter.0.Name': 'resource-id',
-                  'Filter.0.Value.0': resource.id,
-                  'Filter.1.Name': 'resource-type',
-                  'Filter.1.Value.0': 'instance',
-                  }
+        params = {'Action': 'DescribeTags'}
+
+        filters = {
+            'resource-id': resource.id,
+            'resource-type': 'instance'
+        }
+
+        params.update(self._build_filters(filters))
 
         result = self.connection.request(self.path, params=params).object
 
@@ -3284,11 +3290,10 @@ class BaseEC2NodeDriver(NodeDriver):
             params['Tag.%d.Key' % i] = key
             params['Tag.%d.Value' % i] = tags[key]
 
-        result = self.connection.request(self.path,
-                                         params=params.copy()).object
-        element = findtext(element=result, xpath='return',
-                           namespace=NAMESPACE)
-        return element == 'true'
+        res = self.connection.request(self.path,
+                                      params=params.copy()).object
+
+        return self._get_boolean(res)
 
     def ex_delete_tags(self, resource, tags):
         """
@@ -3312,11 +3317,10 @@ class BaseEC2NodeDriver(NodeDriver):
             params['Tag.%d.Key' % i] = key
             params['Tag.%d.Value' % i] = tags[key]
 
-        result = self.connection.request(self.path,
-                                         params=params.copy()).object
-        element = findtext(element=result, xpath='return',
-                           namespace=NAMESPACE)
-        return element == 'true'
+        res = self.connection.request(self.path,
+                                      params=params.copy()).object
+
+        return self._get_boolean(res)
 
     def ex_get_metadata_for_node(self, node):
         """
@@ -3546,8 +3550,8 @@ class BaseEC2NodeDriver(NodeDriver):
         """
         Create a network interface within a VPC subnet.
 
-        :param      node: EC2NetworkSubnet instance
-        :type       node: :class:`EC2NetworkSubnet`
+        :param      subnet: EC2NetworkSubnet instance
+        :type       subnet: :class:`EC2NetworkSubnet`
 
         :param      name:  Optional name of the interface
         :type       name:  ``str``
@@ -3583,9 +3587,8 @@ class BaseEC2NodeDriver(NodeDriver):
 
         interface = self._to_interface(element, name)
 
-        if name is not None:
-            tags = {'Name': name}
-            self.ex_create_tags(resource=interface, tags=tags)
+        if name and self.ex_create_tags(interface, {'Name': name}):
+            interface.extra['tags']['Name'] = name
 
         return interface
 
@@ -3601,11 +3604,9 @@ class BaseEC2NodeDriver(NodeDriver):
         params = {'Action': 'DeleteNetworkInterface',
                   'NetworkInterfaceId': network_interface.id}
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result, xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_attach_network_interface_to_node(self, network_interface,
                                             node, device_index):
@@ -3656,11 +3657,9 @@ class BaseEC2NodeDriver(NodeDriver):
         if force:
             params['Force'] = True
 
-        result = self.connection.request(self.path, params=params).object
+        res = self.connection.request(self.path, params=params).object
 
-        element = findtext(element=result, xpath='return',
-                           namespace=NAMESPACE)
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_modify_instance_attribute(self, node, attributes):
         """
@@ -3682,18 +3681,17 @@ class BaseEC2NodeDriver(NodeDriver):
         params = {'Action': 'ModifyInstanceAttribute'}
         params.update(attributes)
 
-        result = self.connection.request(self.path,
-                                         params=params.copy()).object
-        element = findtext(element=result, xpath='return',
-                           namespace=NAMESPACE)
-        return element == 'true'
+        res = self.connection.request(self.path,
+                                      params=params.copy()).object
+
+        return self._get_boolean(res)
 
     def ex_modify_image_attribute(self, image, attributes):
         """
         Modify image attributes.
 
-        :param      node: Node instance
-        :type       node: :class:`Node`
+        :param      image: NodeImage instance
+        :type       image: :class:`NodeImage`
 
         :param      attributes: Dictionary with node attributes
         :type       attributes: ``dict``
@@ -3707,11 +3705,10 @@ class BaseEC2NodeDriver(NodeDriver):
         params = {'Action': 'ModifyImageAttribute'}
         params.update(attributes)
 
-        result = self.connection.request(self.path,
-                                         params=params.copy()).object
-        element = findtext(element=result, xpath='return',
-                           namespace=NAMESPACE)
-        return element == 'true'
+        res = self.connection.request(self.path,
+                                      params=params.copy()).object
+
+        return self._get_boolean(res)
 
     def ex_change_node_size(self, node, new_size):
         """
@@ -3796,7 +3793,12 @@ class BaseEC2NodeDriver(NodeDriver):
                                   namespace=NAMESPACE)
 
         timestamp = parse_date(timestamp)
-        output = base64.b64decode(b(encoded_string)).decode('utf-8')
+
+        if encoded_string:
+            output = base64.b64decode(b(encoded_string)).decode('utf-8')
+        else:
+            # No console output
+            output = None
 
         return {'instance_id': node.id,
                 'timestamp': timestamp,
@@ -4093,8 +4095,8 @@ class BaseEC2NodeDriver(NodeDriver):
 
         gateway = self._to_internet_gateway(element[0], name)
 
-        if name is not None:
-            self.ex_create_tags(gateway, {'Name': name})
+        if name and self.ex_create_tags(gateway, {'Name': name}):
+            gateway.extra['tags']['Name'] = name
 
         return gateway
 
@@ -4110,12 +4112,9 @@ class BaseEC2NodeDriver(NodeDriver):
         params = {'Action': 'DeleteInternetGateway',
                   'InternetGatewayId': gateway.id}
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result,
-                           xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_attach_internet_gateway(self, gateway, network):
         """
@@ -4133,12 +4132,9 @@ class BaseEC2NodeDriver(NodeDriver):
                   'InternetGatewayId': gateway.id,
                   'VpcId': network.id}
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result,
-                           xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_detach_internet_gateway(self, gateway, network):
         """
@@ -4156,12 +4152,9 @@ class BaseEC2NodeDriver(NodeDriver):
                   'InternetGatewayId': gateway.id,
                   'VpcId': network.id}
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result,
-                           xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_list_route_tables(self, route_table_ids=None, filters=None):
         """
@@ -4208,10 +4201,10 @@ class BaseEC2NodeDriver(NodeDriver):
         element = response.findall(fixxpath(xpath='routeTable',
                                             namespace=NAMESPACE))[0]
 
-        route_table = self._to_route_table(element)
+        route_table = self._to_route_table(element, name=name)
 
-        if name:
-            self.ex_create_tags(route_table, {'Name': name})
+        if name and self.ex_create_tags(route_table, {'Name': name}):
+            route_table.extra['tags']['Name'] = name
 
         return route_table
 
@@ -4228,12 +4221,9 @@ class BaseEC2NodeDriver(NodeDriver):
         params = {'Action': 'DeleteRouteTable',
                   'RouteTableId': route_table.id}
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result,
-                           xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_associate_route_table(self, route_table, subnet):
         """
@@ -4282,12 +4272,9 @@ class BaseEC2NodeDriver(NodeDriver):
         params = {'Action': 'DisassociateRouteTable',
                   'AssociationId': subnet_association_id}
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result,
-                           xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_replace_route_table_association(self, subnet_association,
                                            route_table):
@@ -4374,12 +4361,9 @@ class BaseEC2NodeDriver(NodeDriver):
         if vpc_peering_connection:
             params['VpcPeeringConnectionId'] = vpc_peering_connection.id
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result,
-                           xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_delete_route(self, route_table, cidr):
         """
@@ -4398,12 +4382,9 @@ class BaseEC2NodeDriver(NodeDriver):
                   'RouteTableId': route_table.id,
                   'DestinationCidrBlock': cidr}
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result,
-                           xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def ex_replace_route(self, route_table, cidr,
                          internet_gateway=None, node=None,
@@ -4453,12 +4434,9 @@ class BaseEC2NodeDriver(NodeDriver):
         if vpc_peering_connection:
             params['VpcPeeringConnectionId'] = vpc_peering_connection.id
 
-        result = self.connection.request(self.path, params=params).object
-        element = findtext(element=result,
-                           xpath='return',
-                           namespace=NAMESPACE)
+        res = self.connection.request(self.path, params=params).object
 
-        return element == 'true'
+        return self._get_boolean(res)
 
     def _to_nodes(self, object, xpath):
         return [self._to_node(el)
@@ -4559,6 +4537,8 @@ class BaseEC2NodeDriver(NodeDriver):
         # Get our extra dictionary
         extra = self._get_extra_dict(
             element, RESOURCE_EXTRA_ATTRIBUTES_MAP['volume'])
+
+        extra['tags'] = tags
 
         return StorageVolume(id=volId,
                              name=name,
@@ -4722,7 +4702,7 @@ class BaseEC2NodeDriver(NodeDriver):
             fixxpath(xpath='vpcSet/item', namespace=NAMESPACE))
         ]
 
-    def _to_network(self, element):
+    def _to_network(self, element, name=None):
         # Get the network id
         vpc_id = findtext(element=element,
                           xpath='vpcId',
@@ -4733,7 +4713,7 @@ class BaseEC2NodeDriver(NodeDriver):
 
         # Set our name if the Name key/value if available
         # If we don't get anything back then use the vpc_id
-        name = tags.get('Name', vpc_id)
+        name = name if name else tags.get('Name', vpc_id)
 
         cidr_block = findtext(element=element,
                               xpath='cidrBlock',
@@ -4795,7 +4775,7 @@ class BaseEC2NodeDriver(NodeDriver):
             fixxpath(xpath='subnetSet/item', namespace=NAMESPACE))
         ]
 
-    def _to_subnet(self, element):
+    def _to_subnet(self, element, name=None):
         # Get the subnet ID
         subnet_id = findtext(element=element,
                              xpath='subnetId',
@@ -4805,7 +4785,7 @@ class BaseEC2NodeDriver(NodeDriver):
         tags = self._get_resource_tags(element)
 
         # If we don't get anything back then use the subnet_id
-        name = tags.get('Name', subnet_id)
+        name = name if name else tags.get('Name', subnet_id)
 
         state = findtext(element=element,
                          xpath='state',
@@ -4989,7 +4969,7 @@ class BaseEC2NodeDriver(NodeDriver):
             fixxpath(xpath='routeTableSet/item', namespace=NAMESPACE))
         ]
 
-    def _to_route_table(self, element):
+    def _to_route_table(self, element, name=None):
         # route table id
         route_table_id = findtext(element=element,
                                   xpath='routeTableId',
@@ -5020,7 +5000,9 @@ class BaseEC2NodeDriver(NodeDriver):
                                                     xpath='gatewayId',
                                                     namespace=NAMESPACE))
 
-        return EC2RouteTable(route_table_id, routes, subnet_associations,
+        name = name if name else tags.get('Name', id)
+
+        return EC2RouteTable(route_table_id, name, routes, subnet_associations,
                              propagating_gateway_ids, extra=extra)
 
     def _to_routes(self, element, xpath):
@@ -5130,10 +5112,8 @@ class BaseEC2NodeDriver(NodeDriver):
         """
         Add instance filter to the provided params dictionary.
         """
-        params.update({
-            'Filter.0.Name': 'instance-id',
-            'Filter.0.Value.0': node.id
-        })
+        filters = {'instance-id': node.id}
+        params.update(self._build_filters(filters))
 
         return params
 

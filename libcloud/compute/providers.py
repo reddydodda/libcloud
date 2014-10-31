@@ -27,6 +27,8 @@ __all__ = [
     "get_driver"]
 
 DRIVERS = {
+    Provider.AZURE:
+    ('libcloud.compute.drivers.azure', 'AzureNodeDriver'),
     Provider.DUMMY:
     ('libcloud.compute.drivers.dummy', 'DummyNodeDriver'),
     Provider.EC2_US_EAST:
@@ -151,6 +153,10 @@ DRIVERS = {
     ('libcloud.compute.drivers.ec2', 'OutscaleSASNodeDriver'),
     Provider.OUTSCALE_INC:
     ('libcloud.compute.drivers.ec2', 'OutscaleINCNodeDriver'),
+    Provider.VSPHERE:
+    ('libcloud.compute.drivers.vsphere', 'VSphereNodeDriver'),
+    Provider.PROFIT_BRICKS:
+    ('libcloud.compute.drivers.profitbricks', 'ProfitBricksNodeDriver'),
 
     # Deprecated
     Provider.CLOUDSIGMA_US:
