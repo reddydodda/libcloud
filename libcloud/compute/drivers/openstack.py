@@ -72,6 +72,7 @@ class OpenStackComputeConnection(OpenStackBaseConnection):
     service_type = 'compute'
     service_name = 'nova'
     service_region = 'RegionOne'
+    default_content_type = None
 
 
 class OpenStackNodeDriver(NodeDriver, OpenStackDriverMixin):
@@ -974,6 +975,40 @@ class OpenStackNetwork(object):
                                                                    self.cidr,)
 
 
+class OpenStackNeutronNetwork(object):
+    """
+    An instance of a neutron network
+    """
+
+    def __init__(self, id, name, status = None, subnets=[], ):
+        self.id = id
+        self.name = name
+        self.status = status
+        self.subnets = subnets
+
+    def __repr__(self):
+        return '<OpenStackNeutronNetwork id=%s name=%s>' % (self.id, self.name)
+
+
+class OpenStackNeutronSubnet(object):
+    """
+    An instance of a neutro subnet
+    """
+
+    def __init__(self, id, name, enable_dhcp=False, dns_nameservers=[], allocation_pools=[],
+                 gateway_ip=None, cidr=None,):
+        self.id = id
+        self.name = name
+        self.enable_dhcp = enable_dhcp
+        self.dns_nameservers = dns_nameservers
+        self.allocation_pools = allocation_pools
+        self.gateway_ip = gateway_ip
+        self.cidr = cidr
+
+    def __repr__(self):
+        return '<OpenStackNeutronSubnet id=%s name=%s cidr=%s>' % (self.id, self.name, self.cidr)
+
+
 class OpenStackSecurityGroup(object):
     """
     A Security Group.
@@ -1136,6 +1171,8 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
 
     features = {"create_node": ["generates_password"]}
     _networks_url_prefix = '/os-networks'
+    _neutron_networks_url_prefix = "/v2.0/networks"
+    _neutron_subnets_url_prefix = "/v2.0/subnets"
 
     def __init__(self, *args, **kwargs):
         self._ex_force_api_version = str(kwargs.pop('ex_force_api_version',
@@ -1203,6 +1240,33 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         server_object['adminPass'] = create_response.get('adminPass', None)
 
         return self._to_node(server_object)
+
+    def _neutron_endpoint(func):
+        """
+        This is a hack. To change the endpoint to neutron and back to
+        compute/nova.
+        """
+
+        def neutron_connection(self):
+            self.connection.service_name = "neutron"
+            self.connection.service_type = "network"
+            self.connection.get_service_catalog()
+
+        def restore_connection(self):
+            self.connection.service_name = "nova"
+            self.connection.service_type = "compute"
+            self.connection.get_service_catalog()
+
+        from functools import wraps
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            neutron_connection(args[0])
+            re = func(*args, **kwargs)
+            restore_connection(args[0])
+            return re
+
+        return wrapper
 
     def _to_images(self, obj, ex_only_active):
         images = []
@@ -1513,6 +1577,25 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
                                 cidr=obj.get('cidr', None),
                                 driver=self)
 
+    def _to_neutron_networks(self, obj_networks, obj_subnets):
+        networks = obj_networks['networks']
+        subnets = obj_subnets['subnets']
+        return [self._to_neutron_network(network, subnets) for network in networks]
+
+    def _to_neutron_network(self, obj, subnets):
+        added_subnets = []
+        for sub in subnets:
+            if sub['id'] in obj['subnets']:
+                added_subnets.append(
+                OpenStackNeutronSubnet(
+                    id=sub['id'], name=sub['name'], enable_dhcp=sub['enable_dhcp'],
+                    allocation_pools=sub['allocation_pools'], gateway_ip=sub['gateway_ip'],
+                    cidr=sub['cidr'])
+                )
+
+        return OpenStackNeutronNetwork(id=obj['id'], name=obj['name'],
+                                       status=obj['status'], subnets=added_subnets)
+
     def ex_list_networks(self):
         """
         Get a list of Networks that are available.
@@ -1521,6 +1604,19 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         """
         response = self.connection.request(self._networks_url_prefix).object
         return self._to_networks(response)
+
+    @_neutron_endpoint
+    def ex_list_neutron_networks(self):
+        """
+        Get a list of Neutron Networks
+
+        :rtype: ``list`` of `OpenStackNeutronNetwork`
+        """
+
+        networks = self.connection.request(self._neutron_networks_url_prefix).object
+        subnets = self.connection.request(self._neutron_subnets_url_prefix).object
+
+        return self._to_neutron_networks(networks, subnets)
 
     def ex_create_network(self, name, cidr):
         """
@@ -1538,6 +1634,88 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         response = self.connection.request(self._networks_url_prefix,
                                            method='POST', data=data).object
         return self._to_network(response['network'])
+
+    @_neutron_endpoint
+    def ex_create_neutron_network(self, name, admin_state_up=True, shared=False):
+        """
+        Create a new neutron Network
+
+        :param name: Name of the network which should be used
+        :type name: ``str``
+
+        :param admin_state_up: The administrative state of the network
+        :type admin_state_up: ``bool``
+
+        :param shared: Admin-only. Indicates whether this network is shared across all tenants.
+        :type shared: ``bool``
+
+        :param tenant_id: The ID of the tenant that owns the network.
+        :type tenant_id: ``str``
+
+        :return: :class:`OpenStackNeutronNetwork`
+        """
+
+        #
+
+        data = {
+            'network': {
+                'name': name,
+                'admin_state_up': admin_state_up,
+                'shared': shared,
+            }
+        }
+
+        response = self.connection.request(self._neutron_networks_url_prefix,
+                                           method='POST', data=data).object
+
+        return self._to_neutron_network(response['network'], [])
+
+    @_neutron_endpoint
+    def ex_delete_neutron_network(self, network_id):
+        """
+        Delete neutron network
+        """
+        response = self.connection.request(self._neutron_networks_url_prefix +
+                                           "/%s" % network_id, method='DELETE').object
+
+        return response
+
+    @_neutron_endpoint
+    def ex_create_neutron_subnet(self, name, network_id, cidr, allocation_pools=[], gateway_ip=None,
+                                 ip_version="4", enable_dhcp=True):
+
+        data = {
+            'subnet': {
+                'name': name,
+                'network_id': network_id,
+                'ip_version': ip_version,
+                'cidr': cidr,
+                'gateway_ip': gateway_ip,
+                'allocation_pools': allocation_pools,
+                'enable_dhcp': enable_dhcp
+            }
+        }
+
+        response = self.connection.request(self._neutron_subnets_url_prefix,
+                                           method='POST', data=data).object
+
+        subnet = response['subnet']
+        return OpenStackNeutronSubnet(name=subnet['name'],id=subnet['id'], cidr=subnet['cidr'],
+                                      enable_dhcp=subnet['enable_dhcp'],
+                                      allocation_pools=subnet['allocation_pools'],
+                                      gateway_ip=subnet['gateway_ip'],
+                                      dns_nameservers=subnet['dns_nameservers'])
+
+    @_neutron_endpoint
+    def ex_delete_neutron_subnet(self, subnet_id):
+        """
+        Delete neutron subnet
+        """
+
+        response = self.connection.request(self._neutron_subnets_url_prefix +
+                                           "/%s" % subnet_id, method='DELETE').onject
+
+        return response
 
     def ex_delete_network(self, network):
         """
