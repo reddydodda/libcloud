@@ -441,6 +441,7 @@ class AzureNodeDriver(NodeDriver):
                     return []
             pool = multiprocessing.pool.ThreadPool(8)
             results = pool.map(_list_one, services)
+            pool.terminate()
             machines = []
             for result in results:
                 machines.extend(result)
