@@ -53,7 +53,7 @@ VIRTUAL_MEMORY_VALS = [512] + [1024 * i for i in range(1, 9)]
 # Default timeout (in seconds) for long running tasks
 DEFAULT_TASK_COMPLETION_TIMEOUT = 600
 
-DEFAULT_API_VERSION = '0.8'
+DEFAULT_API_VERSION = '5.1'
 
 """
 Valid vCloud API v1.5 input values.
@@ -1114,6 +1114,9 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
 
         :rtype: :class:`Node`
         """
+        return self._perform_power_operation(node, 'shutdown')
+
+    def ex_stop_node(self, node):
         return self._perform_power_operation(node, 'shutdown')
 
     def ex_suspend_node(self, node):
