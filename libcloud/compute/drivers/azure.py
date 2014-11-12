@@ -1297,8 +1297,13 @@ class AzureNodeDriver(NodeDriver):
         request.path = path
         request.path, request.query = self._update_request_uri_query(request)
         request.headers = self._update_management_header(request)
-        response = self._perform_request(request)
-
+        #Ugly patch. Azure many times returns an empty response (!) for no reason.
+        #Probably due to many simultaneous requests?
+        #In these cases try again as fallback
+        for i in range(3):
+            response = self._perform_request(request)
+            if response.body != '':
+                break
         if response_type is not None:
             return self._parse_response(response, response_type)
 
@@ -1336,14 +1341,20 @@ class AzureNodeDriver(NodeDriver):
         return None
 
     def _perform_request(self, request):
-
         try:
-            return self.connection.request(
-                action="https://%s%s" % (request.host, request.path),
-                data=request.body, headers=request.headers,
-                method=request.method)
-        except Exception, e:
-            print e.message
+            response = self.connection.request(
+                        action="https://%s%s" % (request.host, request.path),
+                        data=request.body, headers=request.headers,
+                        method=request.method)
+            if response.status == 307:
+                #handle 307 responses
+                response = self.connection.request(
+                            action=response.headers.get('location'),
+                            data=request.body, headers=request.headers,
+                            method=request.method)
+            return response
+        except Exception as e:
+            print e
 
     def _update_request_uri_query(self, request):
         '''pulls the query string out of the URI and moves it into
@@ -1420,7 +1431,10 @@ class AzureNodeDriver(NodeDriver):
         '''
         parse the xml and fill all the data into a class of return_type
         '''
-        doc = minidom.parseString(respbody)
+        try:
+            doc = minidom.parseString(respbody)
+        except:
+            return ''
         return_obj = return_type()
         for node in self._get_child_nodes(doc, return_type.__name__):
             self._fill_data_to_return_object(node, return_obj)
