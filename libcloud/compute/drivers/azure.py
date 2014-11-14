@@ -931,6 +931,12 @@ class AzureNodeDriver(NodeDriver):
             path += '?comp=media'
 
             data = self._perform_delete(path)
+            try:
+                #also delete cloud service, if this is the only deployment
+                self._perform_cloud_service_delete(self._get_hosted_service_path(ex_cloud_service_name))
+            except:
+                pass
+
 
             return True
 
@@ -1743,7 +1749,7 @@ class AzureNodeDriver(NodeDriver):
 
     def random_password(self):
         "provide a random valid password for Azure"
-        random_char = "!@#$%^*()_+"[random.randint(0,11)]
+        random_char = "!@#$%^*()_+"[random.randint(0,10)]
         random_int = random.randint(0,10)
         random_lower = ''
         for i in range(8):
