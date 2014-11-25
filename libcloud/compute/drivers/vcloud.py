@@ -574,6 +574,7 @@ class VCloudNodeDriver(NodeDriver):
             vdcs = self.vdcs
         if not isinstance(vdcs, (list, tuple)):
             vdcs = [vdcs]
+        nodes = []
         for vdc in vdcs:
             res = self.connection.request(get_url_path(vdc.id))
             elms = res.object.findall(fixxpath(
@@ -607,13 +608,13 @@ class VCloudNodeDriver(NodeDriver):
                 try:
                     return driver.ex_list_nodes_for_vapp(vapp_href)
                 except:
-                    return None
-
+                    return []
             pool = multiprocessing.pool.ThreadPool(8)
             results = pool.map(_list_one, vapp_hrefs)
             pool.terminate()
 
-            nodes = [result for result in results if result != None]
+            for result in results:
+                nodes.extend(result)
         return nodes
 
     def ex_list_nodes_for_vapp(self, vapp_href):
@@ -624,9 +625,13 @@ class VCloudNodeDriver(NodeDriver):
                 headers={'Content-Type':
                          'application/vnd.vmware.vcloud.vApp+xml'}
             )
-            return self._to_node(res.object)
+            #_to_node() returns vApp as Node, with VMs as extra
+            #we need Nodes to be actual VMs, so we pass the
+            #result of _to_node() to _to_nodes()
+            vapp_nodes = self._to_node(res.object)
+            return self._to_nodes(vapp_nodes)
         except:
-            return None
+            return []
 
     def _to_size(self, ram):
         ns = NodeSize(
@@ -2076,6 +2081,26 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                     extra={'vdc': vdc.name, 'vms': vms})
         return node
 
+    def _to_nodes(self, vapp):
+        """_to_node() returns vApp with VMs as extra.
+        this breaks the naming conversion used with other libcloud
+        drivers. We need VMs returnes in list_nodes"""
+        nodes = []
+        for vm in vapp.extra.get('vms', []):
+            node_id = vm.get('id').rstrip('/').split('/')[-1] #more proper id
+            node_extra = {'vdc': vapp.extra.get('vdc'),
+                          'os_type': vm.get('os_type'),
+                          'vapp': vapp.name
+            }
+            node = Node(id=node_id,
+                        name=vm.get('name'),
+                        state=vm.get('state'),
+                        public_ips=vm.get('public_ips'),
+                        private_ips=vm.get('private_ips'),
+                        driver=self.connection.driver,
+                        extra=node_extra)
+            nodes.append(node)
+        return nodes
     def _to_vdc(self, vdc_elm):
 
         def get_capacity_values(capacity_elm):
