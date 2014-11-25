@@ -20,15 +20,8 @@ import sys
 import re
 import base64
 import os
-from libcloud.utils.py3 import httplib
-from libcloud.utils.py3 import urlencode
-from libcloud.utils.py3 import urlparse
-from libcloud.utils.py3 import b
-from libcloud.utils.py3 import next
-
-urlparse = urlparse.urlparse
-
 import time
+import multiprocessing.pool
 
 try:
     from lxml import etree as ET
@@ -37,9 +30,17 @@ except ImportError:
 
 from xml.parsers.expat import ExpatError
 
+from libcloud.utils.py3 import httplib
+from libcloud.utils.py3 import urlencode
+from libcloud.utils.py3 import urlparse
+from libcloud.utils.py3 import b
+from libcloud.utils.py3 import next
+
+urlparse = urlparse.urlparse
+
 from libcloud.common.base import XmlResponse, ConnectionUserAndKey
 from libcloud.common.types import InvalidCredsError, LibcloudError
-from libcloud.compute.providers import Provider
+from libcloud.compute.providers import Provider, get_driver
 from libcloud.compute.types import NodeState
 from libcloud.compute.base import Node, NodeDriver, NodeLocation
 from libcloud.compute.base import NodeSize, NodeImage
@@ -573,7 +574,6 @@ class VCloudNodeDriver(NodeDriver):
             vdcs = self.vdcs
         if not isinstance(vdcs, (list, tuple)):
             vdcs = [vdcs]
-        nodes = []
         for vdc in vdcs:
             res = self.connection.request(get_url_path(vdc.id))
             elms = res.object.findall(fixxpath(
@@ -586,28 +586,51 @@ class VCloudNodeDriver(NodeDriver):
                 and i.get('name')
             ]
 
-            for vapp_name, vapp_href in vapps:
-                try:
-                    res = self.connection.request(
-                        get_url_path(vapp_href),
-                        headers={'Content-Type':
-                                 'application/vnd.vmware.vcloud.vApp+xml'}
-                    )
-                    nodes.append(self._to_node(res.object))
-                except Exception:
-                    # The vApp was probably removed since the previous vDC
-                    # query, ignore
-                    e = sys.exc_info()[1]
-                    if not (e.args[0].tag.endswith('Error') and
-                            e.args[0].get('minorErrorCode') ==
-                            'ACCESS_TO_RESOURCE_IS_FORBIDDEN'):
-                        raise
+            #first get a list of vapps
+            #then get VMs for each vapp
+            #use multiprocessing to query vapps on parallel
+            #for large number of VMs, if queried serially means that list_nodes
+            #could take up to minutes to return the whole list, since each request for VM info
+            #takes a few seconds
+            #Due to the fact that libcloud driver instance is not thread safe, we choose to
+            #to create a new driver instance inside each thread.
+            #http://ci.apache.org/projects/libcloud/docs/other/using-libcloud-in-multithreaded-and-async-environments.html
 
+            vapp_hrefs = [vapp_href for vapp_name, vapp_href in vapps]
+            def _list_one(vapp_href):
+                """since vdcs and token are both needed to make any request,
+                we can provide them on the new driver
+                """
+                driver = get_driver(self.type)(self.key, self.secret, host=self.connection.host)
+                driver._vdcs = self.vdcs
+                driver.connection.token = self.connection.token
+                try:
+                    return driver.ex_list_nodes_for_vapp(vapp_href)
+                except:
+                    return None
+
+            pool = multiprocessing.pool.ThreadPool(8)
+            results = pool.map(_list_one, vapp_hrefs)
+            pool.terminate()
+
+            nodes = [result for result in results if result != None]
         return nodes
+
+    def ex_list_nodes_for_vapp(self, vapp_href):
+        "return nodes for a vapp, provided it's href"
+        try:
+            res = self.connection.request(
+                get_url_path(vapp_href),
+                headers={'Content-Type':
+                         'application/vnd.vmware.vcloud.vApp+xml'}
+            )
+            return self._to_node(res.object)
+        except:
+            return None
 
     def _to_size(self, ram):
         ns = NodeSize(
-            id=None,
+            id=ram,
             name="%s Ram" % ram,
             ram=ram,
             disk=None,
