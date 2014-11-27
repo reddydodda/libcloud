@@ -51,6 +51,50 @@ of memory. This should be either 512 or a multiple of 1024 (1 GB)."
 """
 VIRTUAL_MEMORY_VALS = [512] + [1024 * i for i in range(1, 9)]
 
+VM_SIZES = [
+  {'id': '1 core, 512Mb Ram',
+   'memory': 512,
+   'cpu': 1,
+  },
+  {'id': '1 core, 1024Mb Ram',
+   'memory': 1024,
+   'cpu': 1,
+  },
+  {'id': '2 core, 1024Mb Ram',
+   'memory': 1024,
+   'cpu': 2,
+  },
+  {'id': '1 core, 2048Mb Ram',
+   'memory': 2048,
+   'cpu': 1,
+  },
+  {'id': '2 core, 2048Mb Ram',
+   'memory': 2048,
+   'cpu': 2,
+  },
+  {'id': '2 core, 4096Mb Ram',
+   'memory': 4096,
+   'cpu': 2,
+  },
+  {'id': '4 core, 4096Mb Ram',
+   'memory': 4096,
+   'cpu': 4,
+  },
+  {'id': '4 core, 8192Mb Ram',
+   'memory': 8192,
+   'cpu': 4
+  },
+  {'id': '8 core, 8192Mb Ram',
+   'memory': 8192,
+   'cpu': 8
+  },
+  {'id': '8 core, 10240Mb Ram',
+   'memory': 10240,
+   'cpu': 8
+  },
+]
+
+
 # Default timeout (in seconds) for long running tasks
 DEFAULT_TASK_COMPLETION_TIMEOUT = 600
 
@@ -570,6 +614,9 @@ class VCloudNodeDriver(NodeDriver):
 
         :rtype: ``list`` of :class:`Node`
         """
+        #TODO: consider asking "/api/query?type=vm" for this
+        #this will return VMs with hrefs to query for more info
+
         if not vdcs:
             vdcs = self.vdcs
         if not isinstance(vdcs, (list, tuple)):
@@ -633,11 +680,12 @@ class VCloudNodeDriver(NodeDriver):
         except:
             return []
 
-    def _to_size(self, ram):
+    def _to_size(self, size):
         ns = NodeSize(
-            id=ram,
-            name="%s Ram" % ram,
-            ram=ram,
+            id=size.get('id'),
+            name=size.get('id'),
+            ram=size.get('memory'),
+            extra={'cpu': size.get('cpu')},
             disk=None,
             bandwidth=None,
             price=None,
@@ -646,7 +694,7 @@ class VCloudNodeDriver(NodeDriver):
         return ns
 
     def list_sizes(self, location=None):
-        sizes = [self._to_size(i) for i in VIRTUAL_MEMORY_VALS]
+        sizes = [self._to_size(size) for size in VM_SIZES]
         return sizes
 
     def _get_catalogitems_hrefs(self, catalog):
@@ -678,6 +726,10 @@ class VCloudNodeDriver(NodeDriver):
         return res
 
     def list_images(self, location=None):
+        #FIXME: this is too slow. Should  ask in parallel
+        #also consider quering for vAppTemplates through '/api/query?type=vAppTemplate'
+        #include media images too?
+
         images = []
         for vdc in self.vdcs:
             res = self.connection.request(get_url_path(vdc.id)).object
@@ -700,6 +752,10 @@ class VCloudNodeDriver(NodeDriver):
                     for i in res_ents
                     if i.get('type') ==
                     'application/vnd.vmware.vcloud.vAppTemplate+xml'
+                    #FIXME: consider media images as well
+                    #if i.get('type') in ['application/vnd.vmware.vcloud.media+xml',
+                    # 'application/vnd.vmware.vcloud.vAppTemplate+xml']
+
                 ]
 
         def idfun(image):
@@ -1030,12 +1086,12 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
             # so catch this and move on.
             pass
 
-        res = self.connection.request(get_url_path(node.id), method='DELETE')
+        res = self.connection.request(get_url_path(node.extra.get('href')), method='DELETE')
         return res.status == httplib.ACCEPTED
 
     def reboot_node(self, node):
         res = self.connection.request('%s/power/action/reset'
-                                      % get_url_path(node.id),
+                                      % get_url_path(node.extra.get('href')),
                                       method='POST')
         if res.status in [httplib.ACCEPTED, httplib.NO_CONTENT]:
             self._wait_for_task_completion(res.object.get('href'))
@@ -1055,7 +1111,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
         data = {'powerOn': 'true',
                 'xmlns': 'http://www.vmware.com/vcloud/v1.5'}
         deploy_xml = ET.Element('DeployVAppParams', data)
-        path = get_url_path(node.id)
+        path = get_url_path(node.extra.get('href'))
         headers = {
             'Content-Type':
             'application/vnd.vmware.vcloud.deployVAppParams+xml'
@@ -1065,7 +1121,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                                       method='POST',
                                       headers=headers)
         self._wait_for_task_completion(res.object.get('href'))
-        res = self.connection.request(get_url_path(node.id))
+        res = self.connection.request(get_url_path(node.extra.get('href')))
         return self._to_node(res.object)
 
     def ex_undeploy_node(self, node):
@@ -1090,7 +1146,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
 
         try:
             res = self.connection.request(
-                '%s/action/undeploy' % get_url_path(node.id),
+                '%s/action/undeploy' % get_url_path(node.extra.get('href')),
                 data=ET.tostring(undeploy_xml),
                 method='POST',
                 headers=headers)
@@ -1099,13 +1155,13 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
         except Exception:
             undeploy_power_action_xml.text = 'powerOff'
             res = self.connection.request(
-                '%s/action/undeploy' % get_url_path(node.id),
+                '%s/action/undeploy' % get_url_path(node.extra.get('href')),
                 data=ET.tostring(undeploy_xml),
                 method='POST',
                 headers=headers)
             self._wait_for_task_completion(res.object.get('href'))
 
-        res = self.connection.request(get_url_path(node.id))
+        res = self.connection.request(get_url_path(nnode.extra.get('href')))
         return self._to_node(res.object)
 
     def ex_power_off_node(self, node):
@@ -1161,10 +1217,10 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
 
     def _perform_power_operation(self, node, operation):
         res = self.connection.request(
-            '%s/power/action/%s' % (get_url_path(node.id), operation),
+            '%s/power/action/%s' % (get_url_path(node.extra.get('href')), operation),
             method='POST')
         self._wait_for_task_completion(res.object.get('href'))
-        res = self.connection.request(get_url_path(node.id))
+        res = self.connection.request(get_url_path(node.extra.get('href')))
         return self._to_node(res.object)
 
     def ex_get_control_access(self, node):
@@ -1177,7 +1233,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
         :rtype: :class:`ControlAccess`
         """
         res = self.connection.request(
-            '%s/controlAccess' % get_url_path(node.id))
+            '%s/controlAccess' % get_url_path(node.extra.get('href')))
         everyone_access_level = None
         is_shared_elem = res.object.find(
             fixxpath(res.object, "IsSharedToEveryone"))
@@ -1251,7 +1307,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
             'Content-Type': 'application/vnd.vmware.vcloud.controlAccess+xml'
         }
         self.connection.request(
-            '%s/action/controlAccess' % get_url_path(node.id),
+            '%s/action/controlAccess' % get_url_path(node.extra.get('href')),
             data=ET.tostring(xml),
             headers=headers,
             method='POST')
@@ -1264,7 +1320,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
         :return: dictionary mapping metadata keys to metadata values
         :rtype: dictionary mapping ``str`` to ``str``
         """
-        res = self.connection.request('%s/metadata' % (get_url_path(node.id)))
+        res = self.connection.request('%s/metadata' % (get_url_path(node.extra.get('href'))))
         xpath = fixxpath(res.object, 'MetadataEntry')
         metadata_entries = res.object.findall(xpath)
         res_dict = {}
@@ -1302,7 +1358,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
 
         # send it back to the server
         res = self.connection.request(
-            '%s/metadata' % get_url_path(node.id),
+            '%s/metadata' % get_url_path(node.extra.get('href')),
             data=ET.tostring(metadata_elem),
             headers={
                 'Content-Type': 'application/vnd.vmware.vcloud.metadata+xml'
@@ -1366,7 +1422,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                 results.append(result)
         return results
 
-    def create_node(self, **kwargs):
+    def create_node(self, name, image, size, **kwargs):
         """
         Creates and returns node. If the source image is:
           - vApp template - a new vApp is instantiated from template
@@ -1436,11 +1492,9 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                                       value.
         :type       ex_clone_timeout: ``int``
         """
-        name = kwargs['name']
-        image = kwargs['image']
-        ex_vm_names = kwargs.get('ex_vm_names')
-        ex_vm_cpu = kwargs.get('ex_vm_cpu')
-        ex_vm_memory = kwargs.get('ex_vm_memory')
+        ex_vm_names = [name]
+        ex_vm_cpu = size.extra.get('cpu')
+        ex_vm_memory = size.ram
         ex_vm_script = kwargs.get('ex_vm_script')
         ex_vm_fence = kwargs.get('ex_vm_fence', None)
         ex_network = kwargs.get('ex_network', None)
@@ -2087,10 +2141,11 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
         drivers. We need VMs returnes in list_nodes"""
         nodes = []
         for vm in vapp.extra.get('vms', []):
-            node_id = vm.get('id').rstrip('/').split('/')[-1] #more proper id
+            node_id = vm.get('id').rstrip('/').split('/')[-1] #more friendly id
             node_extra = {'vdc': vapp.extra.get('vdc'),
                           'os_type': vm.get('os_type'),
-                          'vapp': vapp.name
+                          'vapp': vapp.name,
+                          'href': vm.get('id') #keep this for actions
             }
             node = Node(id=node_id,
                         name=vm.get('name'),
