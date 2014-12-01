@@ -763,14 +763,15 @@ class VCloudNodeDriver(NodeDriver):
     def list_images(self, location=None):
 
         images = []
-        media_images = self.connection.request('/api/query?type=media&pageSize=500').object
+        #media_images = self.connection.request('/api/query?type=media&pageSize=500').object
         app_images = self.connection.request('/api/query?type=vAppTemplate&pageSize=500').object
         images.extend(app_images)
-        images.extend(media_images)
+        #images.extend(media_images)
         images = [self._to_image(i) for i in images if i.get('name') and i.get('href')]
 
         def idfun(image):
             return image.id
+        images = sorted(images, key=lambda k: k.name)
 
         return self._uniquer(images, idfun)
 
