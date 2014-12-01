@@ -371,7 +371,6 @@ class VCloudResponse(XmlResponse):
 
     def parse_error(self):
         error_msg = 'Unknown error'
-
         try:
             body = self.parse_body()
             if type(body) == ET.Element:
@@ -708,8 +707,8 @@ class VCloudNodeDriver(NodeDriver):
                          'application/vnd.vmware.vcloud.vApp+xml'}
             )
             #_to_node() returns vApp as Node, with VMs as extra
-            #we need Nodes to be actual VMs, so we pass the
-            #result of _to_node() to _to_nodes()
+            # we need Nodes to be actual VMs, so we pass the
+            # result of _to_node() to _to_nodes()
             vapp_nodes = self._to_node(res.object)
             return self._to_nodes(vapp_nodes)
         except:
@@ -1102,14 +1101,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
         return res.status == httplib.ACCEPTED
 
     def reboot_node(self, node):
-        res = self.connection.request('%s/power/action/reboot'
-                                      % get_url_path(node.extra.get('href')),
-                                      method='POST')
-        if res.status in [httplib.ACCEPTED, httplib.NO_CONTENT]:
-            self._wait_for_task_completion(res.object.get('href'))
-            return True
-        else:
-            return False
+        return self._perform_power_operation(node, 'reboot')
 
     def ex_start_node(self, node):
         return self._perform_power_operation(node, 'powerOn')
@@ -1180,7 +1172,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                 headers=headers)
             self._wait_for_task_completion(res.object.get('href'))
 
-        res = self.connection.request(get_url_path(nnode.extra.get('href')))
+        res = self.connection.request(get_url_path(node.extra.get('href')))
         return self._to_node(res.object)
 
     def ex_power_off_node(self, node):
