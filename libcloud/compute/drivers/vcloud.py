@@ -22,6 +22,8 @@ import base64
 import os
 import time
 import multiprocessing.pool
+import random
+from xml.sax.saxutils import escape as sax_utils_escape
 
 try:
     from lxml import etree as ET
@@ -118,6 +120,23 @@ def fixxpath(root, xpath):
 
 def get_url_path(url):
     return urlparse(url.strip()).path
+
+# Taken from https://github.com/cedadev/libcloud/blob/trunk/libcloud/compute/drivers/vcloud.py
+
+# Convert execute script into format compatible for dispatch over the REST API
+cust_script_char_conv = lambda script_str: script_str.\
+replace(os.linesep, '&#13;').\
+replace('"', '&quot;').\
+replace('%', '&#37;').\
+replace("'", '&apos;')
+# A fudge to allow for the fact that ElementTree.tostring will convert ampersand
+# characters previously set as part of the escape sequences set by
+# cust_script_char_conv(). This lambda correct these prior to dispatch
+cust_xml_char_conv_et_fix = lambda xml_str: xml_str.\
+replace('&amp;#13;', '&#13;').\
+replace('&amp;quot;', '&quot;').\
+replace('&amp;#37;', '&#37;').\
+replace('&amp;apos;', '&apos;')
 
 
 class Vdc(object):
@@ -349,6 +368,22 @@ class VCloudResponse(XmlResponse):
     def success(self):
         return self.status in (httplib.OK, httplib.CREATED,
                                httplib.NO_CONTENT, httplib.ACCEPTED)
+
+    def parse_error(self):
+        error_msg = 'Unknown error'
+
+        try:
+            body = self.parse_body()
+            if type(body) == ET.Element:
+                code = body.get('majorErrorCode')
+                message = body.get('message')
+                error_msg = '%s: %s' % (code, message)
+        except:
+            pass
+
+        raise Exception(error_msg)
+
+
 
 
 class VCloudConnection(ConnectionUserAndKey):
@@ -726,37 +761,13 @@ class VCloudNodeDriver(NodeDriver):
         return res
 
     def list_images(self, location=None):
-        #FIXME: this is too slow. Should  ask in parallel
-        #also consider quering for vAppTemplates through '/api/query?type=vAppTemplate'
-        #include media images too?
 
         images = []
-        for vdc in self.vdcs:
-            res = self.connection.request(get_url_path(vdc.id)).object
-            res_ents = res.findall(fixxpath(
-                res, "ResourceEntities/ResourceEntity")
-            )
-            images += [
-                self._to_image(i)
-                for i in res_ents
-                if i.get('type') ==
-                'application/vnd.vmware.vcloud.vAppTemplate+xml'
-            ]
-
-        for catalog in self._get_catalog_hrefs():
-            for cat_item in self._get_catalogitems_hrefs(catalog):
-                res = self._get_catalogitem(cat_item)
-                res_ents = res.findall(fixxpath(res, 'Entity'))
-                images += [
-                    self._to_image(i)
-                    for i in res_ents
-                    if i.get('type') ==
-                    'application/vnd.vmware.vcloud.vAppTemplate+xml'
-                    #FIXME: consider media images as well
-                    #if i.get('type') in ['application/vnd.vmware.vcloud.media+xml',
-                    # 'application/vnd.vmware.vcloud.vAppTemplate+xml']
-
-                ]
+        media_images = self.connection.request('/api/query?type=media&pageSize=500').object
+        app_images = self.connection.request('/api/query?type=vAppTemplate&pageSize=500').object
+        images.extend(app_images)
+        images.extend(media_images)
+        images = [self._to_image(i) for i in images if i.get('name') and i.get('href')]
 
         def idfun(image):
             return image.id
@@ -1090,7 +1101,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
         return res.status == httplib.ACCEPTED
 
     def reboot_node(self, node):
-        res = self.connection.request('%s/power/action/reset'
+        res = self.connection.request('%s/power/action/reboot'
                                       % get_url_path(node.extra.get('href')),
                                       method='POST')
         if res.status in [httplib.ACCEPTED, httplib.NO_CONTENT]:
@@ -1098,6 +1109,13 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
             return True
         else:
             return False
+
+    def ex_start_node(self, node):
+        return self._perform_power_operation(node, 'powerOn')
+
+    def ex_stop_node(self, node):
+        return self._perform_power_operation(node, 'shutdown')
+
 
     def ex_deploy_node(self, node):
         """
@@ -1200,9 +1218,6 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
         """
         return self._perform_power_operation(node, 'shutdown')
 
-    def ex_stop_node(self, node):
-        return self._perform_power_operation(node, 'shutdown')
-
     def ex_suspend_node(self, node):
         """
         Suspends all VMs under specified node. This operation is allowed only
@@ -1219,9 +1234,12 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
         res = self.connection.request(
             '%s/power/action/%s' % (get_url_path(node.extra.get('href')), operation),
             method='POST')
-        self._wait_for_task_completion(res.object.get('href'))
-        res = self.connection.request(get_url_path(node.extra.get('href')))
-        return self._to_node(res.object)
+        if res.status in [httplib.ACCEPTED, httplib.NO_CONTENT]:
+            self._wait_for_task_completion(res.object.get('href'))
+            return True
+        else:
+            return False
+
 
     def ex_get_control_access(self, node):
         """
@@ -1504,6 +1522,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
         ex_vdc = kwargs.get('ex_vdc', None)
         ex_clone_timeout = kwargs.get('ex_clone_timeout',
                                       DEFAULT_TASK_COMPLETION_TIMEOUT)
+        password = kwargs.get("password", self.random_password())
 
         self._validate_vm_names(ex_vm_names)
         self._validate_vm_cpu(ex_vm_cpu)
@@ -1511,7 +1530,6 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
         self._validate_vm_fence(ex_vm_fence)
         self._validate_vm_ipmode(ex_vm_ipmode)
         ex_vm_script = self._validate_vm_script(ex_vm_script)
-
         # Some providers don't require a network link
         if ex_network:
             network_href = self._get_network_href(ex_network)
@@ -1534,7 +1552,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                                                           ex_vm_fence,
                                                           ex_clone_timeout)
 
-        self._change_vm_names(vapp_href, ex_vm_names)
+        self._change_vm_names(vapp_href, ex_vm_names, password)
         self._change_vm_cpu(vapp_href, ex_vm_cpu)
         self._change_vm_memory(vapp_href, ex_vm_memory)
         self._change_vm_script(vapp_href, ex_vm_script)
@@ -1560,7 +1578,9 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
 
         res = self.connection.request(get_url_path(vapp_href))
         node = self._to_node(res.object)
-        return node
+        #return node
+        return self._to_nodes(node)[0]
+
 
     def _instantiate_node(self, name, image, network_elem, vdc, vm_network,
                           vm_fence, instantiate_timeout):
@@ -1812,7 +1832,8 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                 '%s is not a valid IP address allocation mode value'
                 % vm_ipmode)
 
-    def _change_vm_names(self, vapp_or_vm_id, vm_names):
+    def _change_vm_names(self, vapp_or_vm_id, vm_names, password):
+
         if vm_names is None:
             return
 
@@ -1828,10 +1849,26 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
             # Update GuestCustomizationSection
             res.object.find(
                 fixxpath(res.object, 'ComputerName')).text = vm_names[i]
-            # Remove AdminPassword from customization section
-            admin_pass = res.object.find(fixxpath(res.object, 'AdminPassword'))
-            if admin_pass is not None:
-                res.object.remove(admin_pass)
+
+            try:
+                res.object.find(
+                    fixxpath(res.object, 'AdminPassword')).text = password
+            except:
+                # AdminPassword section does not exist, insert it just
+                # before ResetPasswordRequired
+                for number, e in enumerate(res.object):
+                    if e.tag == \
+                            '{http://www.vmware.com/vcloud/v1.5}ResetPasswordRequired':
+                        break
+                e = ET.Element(
+                    '{http://www.vmware.com/vcloud/v1.5}AdminPassword')
+                e.text = password
+                res.object.insert(number, e)
+
+            res.object.find(fixxpath(res.object, 'AdminPasswordEnabled')).text = 'true'
+            res.object.find(fixxpath(res.object, 'AdminPasswordAuto')).text = 'false'
+            res.object.find(fixxpath(res.object, 'ResetPasswordRequired')).text = 'false'
+
 
             headers = {
                 'Content-Type':
@@ -1967,7 +2004,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
 
         vms = self._get_vm_elements(vapp_or_vm_id)
         try:
-            script = open(vm_script).read()
+            script = cust_script_char_conv(open(vm_script).read())
         except:
             return
 
@@ -2009,7 +2046,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
             }
             res = self.connection.request(
                 '%s/guestCustomizationSection' % get_url_path(vm.get('href')),
-                data=ET.tostring(res.object),
+                data=cust_xml_char_conv_et_fix(ET.tostring(res.object)),
                 method='PUT',
                 headers=headers
             )
@@ -2093,7 +2130,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                     public_ips.append(external_ip.text)
                 elif ip is not None:
                     public_ips.append(ip.text)
-
+            #FIXME: also cpu/memory
             xpath = ('{http://schemas.dmtf.org/ovf/envelope/1}'
                      'OperatingSystemSection')
             os_type_elem = vm_elem.find(xpath)
@@ -2181,6 +2218,17 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                    cpu=cpu,
                    memory=memory,
                    storage=storage)
+
+
+    def random_password(self):
+        "provide a random password"
+        random_char = "!@#$%^*()_+"[random.randint(0,10)]
+        random_int = random.randint(0,10)
+        random_lower = ''
+        for i in range(8):
+            random_lower += "abcdefghijklmnopqrstuvwxyz"[random.randint(0,25)]
+        random_upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[random.randint(0,25)]
+        return random_lower + random_upper + str(random_int) + random_char
 
 
 class VCloud_5_1_NodeDriver(VCloud_1_5_NodeDriver):
