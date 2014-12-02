@@ -22,13 +22,9 @@ import base64
 import os
 import time
 import multiprocessing.pool
-import random
 from xml.sax.saxutils import escape as sax_utils_escape
 
-try:
-    from lxml import etree as ET
-except ImportError:
-    from xml.etree import ElementTree as ET
+from xml.etree import ElementTree as ET
 
 from xml.parsers.expat import ExpatError
 
@@ -373,10 +369,9 @@ class VCloudResponse(XmlResponse):
         error_msg = 'Unknown error'
         try:
             body = self.parse_body()
-            if type(body) == ET.Element:
-                code = body.get('majorErrorCode')
-                message = body.get('message')
-                error_msg = '%s: %s' % (code, message)
+            code = body.get('majorErrorCode')
+            message = body.get('message')
+            error_msg = '%s: %s' % (code, message)
         except:
             pass
 
@@ -730,6 +725,34 @@ class VCloudNodeDriver(NodeDriver):
     def list_sizes(self, location=None):
         sizes = [self._to_size(size) for size in VM_SIZES]
         return sizes
+
+    def ex_list_networks(self):
+        """
+        List available networks
+
+        """
+        network_elements = []
+        for vdc in self.vdcs:
+            res = self.connection.request(get_url_path(vdc.id)).object
+            network_elements.extend(
+                [network
+                 for network in res.findall(
+                     fixxpath(res, 'AvailableNetworks/Network')
+
+                 )]
+            )
+        networks = []
+        for network in network_elements:
+            # TODO: get network href and provide info such as ip ranges,
+            # allocated ip addresses and more
+            network = VCloudNetwork(id=network.get('name'),
+                                    name=network.get('name'),
+                                    driver=self,
+                                    extra={'href': network.get('href')},
+                                    cidr='')
+
+            networks.append(network)
+        return networks
 
     def _get_catalogitems_hrefs(self, catalog):
         """Given a catalog href returns contained catalog item hrefs"""
@@ -1515,7 +1538,6 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
         ex_vdc = kwargs.get('ex_vdc', None)
         ex_clone_timeout = kwargs.get('ex_clone_timeout',
                                       DEFAULT_TASK_COMPLETION_TIMEOUT)
-        password = kwargs.get("password", self.random_password())
 
         self._validate_vm_names(ex_vm_names)
         self._validate_vm_cpu(ex_vm_cpu)
@@ -1545,7 +1567,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                                                           ex_vm_fence,
                                                           ex_clone_timeout)
 
-        self._change_vm_names(vapp_href, ex_vm_names, password)
+        self._change_vm_names(vapp_href, ex_vm_names)
         self._change_vm_cpu(vapp_href, ex_vm_cpu)
         self._change_vm_memory(vapp_href, ex_vm_memory)
         self._change_vm_script(vapp_href, ex_vm_script)
@@ -1825,7 +1847,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                 '%s is not a valid IP address allocation mode value'
                 % vm_ipmode)
 
-    def _change_vm_names(self, vapp_or_vm_id, vm_names, password):
+    def _change_vm_names(self, vapp_or_vm_id, vm_names):
 
         if vm_names is None:
             return
@@ -1842,26 +1864,10 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
             # Update GuestCustomizationSection
             res.object.find(
                 fixxpath(res.object, 'ComputerName')).text = vm_names[i]
-
-            try:
-                res.object.find(
-                    fixxpath(res.object, 'AdminPassword')).text = password
-            except:
-                # AdminPassword section does not exist, insert it just
-                # before ResetPasswordRequired
-                for number, e in enumerate(res.object):
-                    if e.tag == \
-                            '{http://www.vmware.com/vcloud/v1.5}ResetPasswordRequired':
-                        break
-                e = ET.Element(
-                    '{http://www.vmware.com/vcloud/v1.5}AdminPassword')
-                e.text = password
-                res.object.insert(number, e)
-
-            res.object.find(fixxpath(res.object, 'AdminPasswordEnabled')).text = 'true'
-            res.object.find(fixxpath(res.object, 'AdminPasswordAuto')).text = 'false'
-            res.object.find(fixxpath(res.object, 'ResetPasswordRequired')).text = 'false'
-
+            # Remove AdminPassword from customization section
+            admin_pass = res.object.find(fixxpath(res.object, 'AdminPassword'))
+            if admin_pass is not None:
+                res.object.remove(admin_pass)
 
             headers = {
                 'Content-Type':
@@ -2213,17 +2219,6 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                    storage=storage)
 
 
-    def random_password(self):
-        "provide a random password"
-        random_char = "!@#$%^*()_+"[random.randint(0,10)]
-        random_int = random.randint(0,10)
-        random_lower = ''
-        for i in range(8):
-            random_lower += "abcdefghijklmnopqrstuvwxyz"[random.randint(0,25)]
-        random_upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[random.randint(0,25)]
-        return random_lower + random_upper + str(random_int) + random_char
-
-
 class VCloud_5_1_NodeDriver(VCloud_1_5_NodeDriver):
 
     @staticmethod
@@ -2235,3 +2230,20 @@ class VCloud_5_1_NodeDriver(VCloud_1_5_NodeDriver):
             # MB
             raise ValueError(
                 '%s is not a valid vApp VM memory value' % (vm_memory))
+
+class VCloudNetwork(object):
+    """
+    A Virtual Network.
+    """
+
+    def __init__(self, id, name, cidr, driver, extra=None):
+        self.id = str(id)
+        self.name = name
+        self.cidr = cidr
+        self.driver = driver
+        self.extra = extra or {}
+
+    def __repr__(self):
+        return '<VCloudNetwork id="%s" name="%s" cidr="%s">' % (self.id,
+                                                                    self.name,
+                                                                    self.cidr,)
