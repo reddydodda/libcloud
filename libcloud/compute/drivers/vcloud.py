@@ -1528,7 +1528,7 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
         """
         ex_vm_names = [name]
         ex_vm_cpu = size.extra.get('cpu')
-        ex_vm_memory = size.ram
+        ex_vm_memory = size.extra.get('ram')
         ex_vm_script = kwargs.get('ex_vm_script')
         ex_vm_fence = kwargs.get('ex_vm_fence', None)
         ex_network = kwargs.get('ex_network', None)
