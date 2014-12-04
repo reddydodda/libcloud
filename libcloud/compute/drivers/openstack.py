@@ -2147,14 +2147,14 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
                 # public and 'fixed' for private
                 explicit_ip_type = value.get('OS-EXT-IPS:type', None)
 
-                if explicit_ip_type == 'floating':
-                    is_public_ip = True
-                elif explicit_ip_type == 'fixed':
-                    is_public_ip = False
-                elif label in public_networks_labels:
-                    # Try label next
-                    is_public_ip = True
-                elif public_subnet:
+                #if explicit_ip_type == 'floating':
+                #    is_public_ip = True
+                #elif explicit_ip_type == 'fixed':
+                #    is_public_ip = False
+                #elif label in public_networks_labels:
+                #    # Try label next
+                #    is_public_ip = True
+                if public_subnet:
                     # Check for public subnet
                     is_public_ip = True
 
