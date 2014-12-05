@@ -2006,7 +2006,6 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
             script = cust_script_char_conv(open(vm_script).read())
         except:
             return
-
         # ElementTree escapes script characters automatically. Escape
         # requirements:
         # http://www.vmware.com/support/vcd/doc/rest-api-doc-1.5-html/types/
@@ -2030,13 +2029,38 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                 e = ET.Element(
                     '{http://www.vmware.com/vcloud/v1.5}CustomizationScript')
                 e.text = script
-                res.object.insert(i, e)
+                try:
+                    res.object.insert(i, e)
+                except TypeError:
+                    # *** TypeError: Argument 'element' has incorrect type (expected lxml.etree._Element, got Element)
+                    from lxml import etree as lxml_ET
+                    e = lxml_ET.Element(
+                        '{http://www.vmware.com/vcloud/v1.5}CustomizationScript')
+                    e.text = script
+                    res.object.insert(i, e)
 
             # Remove AdminPassword from customization section due to an API
             # quirk
             admin_pass = res.object.find(fixxpath(res.object, 'AdminPassword'))
             if admin_pass is not None:
                 res.object.remove(admin_pass)
+
+            # Taken from https://github.com/cedadev/libcloud
+            admin_password_enabled_elem = res.object.find(
+                                fixxpath(res.object, 'AdminPasswordEnabled'))
+            if admin_password_enabled_elem is not None:
+                admin_password_enabled_elem.text = 'false'
+
+            # Autologon must be set 0 if AutologonEnabled is set 'false'
+            admin_auto_logon_enabled_elem = res.object.find(
+                fixxpath(res.object, 'AdminAutoLogonEnabled'))
+
+            if (admin_auto_logon_enabled_elem is not None and
+            admin_auto_logon_enabled_elem.text.strip() == 'false'):
+                admin_auto_logon_count_elem = res.object.find(
+                    fixxpath(res.object, 'AdminAutoLogonCount'))
+                if admin_auto_logon_count_elem is not None:
+                    admin_auto_logon_count_elem.text = '0'
 
             # Update VM's GuestCustomizationSection
             headers = {
