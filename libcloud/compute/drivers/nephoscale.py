@@ -179,13 +179,16 @@ class NephoscaleNodeDriver(NodeDriver):
 
         return locations
 
-    def list_images(self):
+    def list_images(self, region=None):
         """
         List available images for deployment
 
         :rtype: ``list`` of :class:`NodeImage`
         """
-        result = self.connection.request('/image/server/').object
+        if region:
+            result = self.connection.request('/image/server/?region=%s' % region).object
+        else:
+            result = self.connection.request('/image/server/').object
         images = []
         for value in result.get('data', []):
             extra = {'architecture': value.get('architecture'),
