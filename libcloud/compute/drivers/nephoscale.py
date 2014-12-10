@@ -346,8 +346,9 @@ class NephoscaleNodeDriver(NodeDriver):
 
         try:
             result = self.connection.request(url, data=payload, method='POST').object
-        except Exception as e:
-            pass
+        except Exception:
+            e = sys.exc_info()[1]
+            raise Exception("Failed to associate ip: %s" % e)
         return result.get('response') in VALID_RESPONSE_CODES
 
     def rename_node(self, node, name, hostname=None):
