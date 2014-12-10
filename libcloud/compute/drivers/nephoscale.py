@@ -310,6 +310,46 @@ class NephoscaleNodeDriver(NodeDriver):
             ips.extend(value.get('ipaddress_list_unassigned', []))
         return ips
 
+    def ex_associate_ip(self, ip, server=None, assign=True):
+        """Assign and unassign an ip address
+
+        Server is optional, if specified the ip address is assigned there
+        Otherwise the ip address is just reserverd
+
+
+        Examples:
+            associate ip address with server c.ex_associate_ip('69.50.244.8', server=c.list_nodes()[2])
+            associate an ip address (mark it as assigned): c.ex_associate_ip('10.132.63.227')
+            unassign ip address (mark it as unassigned): c.ex_associate_ip('10.132.63.227', assign=False)
+
+
+        """
+        # first get the id of the network the ip address belongs to
+        network_id = None
+        networks = self.ex_list_networks()
+        for network in networks:
+            if ip in network.extra.get('ipaddress_list'):
+                network_id = network.id
+                break
+        if not network_id:
+            raise Exception("The ip address %s cannot be found on any of the available networks" % ip)
+        url = '/network/cidr/ipv4/%s/' % network_id
+
+        if assign:
+            payload = '_method=PUT&ipaddress=%s&reserved=true' % ip
+        else:
+            payload = '_method=PUT&ipaddress=%s&reserved=false' % ip
+
+        if server:
+            server_id = server.extra.get('id')
+            payload = payload + '&server=%s' % server_id
+
+        try:
+            result = self.connection.request(url, data=payload, method='POST').object
+        except Exception as e:
+            pass
+        return result.get('response') in VALID_RESPONSE_CODES
+
     def rename_node(self, node, name, hostname=None):
         """rename a cloud server, optionally specify hostname too"""
         data = {'name': name}
