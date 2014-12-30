@@ -86,7 +86,10 @@ class LibvirtNodeDriver(NodeDriver):
         self.secret = ssh_key
         self.key = user
         self.host = host
-        self.connection = libvirt.open(uri)
+        try:
+            self.connection = libvirt.open(uri)
+        except Exception as exc:
+            raise Exception("Error while connecting with uri %s" % uri)
 
     def list_nodes(self, show_hypervisor=True):
         # active domains
