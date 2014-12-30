@@ -141,7 +141,7 @@ class LibvirtNodeDriver(NodeDriver):
                 public_ip = self.host
 
             extra = {'tags': {'type': 'hypervisor'}}
-            node = Node(id=name, name=name, state=0,
+            node = Node(id=self.host, name=name, state=0,
                     public_ips=[public_ip], private_ips=[], driver=self,
                     extra=extra)
             nodes.append(node)
@@ -252,7 +252,7 @@ class LibvirtNodeDriver(NodeDriver):
         domain = self._get_domain_for_node(node=node)
         return domain.create() == 0
 
-    def ex_shutdown_node(self, node):
+    def ex_stop_node(self, node):
         """
         Shutdown a running node.
 
