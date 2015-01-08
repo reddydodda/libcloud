@@ -74,7 +74,7 @@ class NephoScaleNetwork(object):
     A Virtual Network.
     """
 
-    def __init__(self, id, name, subnets, is_default, zone, domain_type, 
+    def __init__(self, id, name, subnets, is_default, zone, domain_type,
                  driver, extra=None):
         self.id = str(id)
         self.name = name
@@ -272,7 +272,7 @@ class NephoscaleNodeDriver(NodeDriver):
                         s1['ipaddress_list_status'] = s2['ipaddress_list_status']
                         s1['name'] = s1['cidr_str']
                         network_subnets.append(s1)
-                        
+
             network = NephoScaleNetwork(id=value.get('id'),
                                         name=value.get('name'),
                                         subnets=network_subnets,
@@ -336,9 +336,13 @@ class NephoscaleNodeDriver(NodeDriver):
         # first get the id of the network the ip address belongs to
         network_id = None
         networks = self.ex_list_networks()
+        
         for network in networks:
-            if ip in network.extra.get('ipaddress_list'):
-                network_id = network.id
+            for subnet in network.subnets:
+                if ip['ipaddress'] in subnet.get('ipaddress_list'):
+                    network_id = network.id
+                    break
+            if network_id:
                 break
         if not network_id:
             raise Exception("The ip address %s cannot be found on any of the available networks" % ip)
