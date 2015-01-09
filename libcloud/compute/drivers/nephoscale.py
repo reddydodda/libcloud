@@ -281,7 +281,11 @@ class NephoscaleNodeDriver(NodeDriver):
                                         domain_type=value.get('domain_type'),
                                         driver=self,
                                         )
-            ret.append(network)
+
+            # Nephoscale's response might contain duplicate
+            # network information
+            if network.id not in [net.id for net in ret]:
+                ret.append(network)
         return ret
 
     def ex_list_domains(self):
@@ -333,29 +337,26 @@ class NephoscaleNodeDriver(NodeDriver):
 
 
         """
-        # first get the id of the network the ip address belongs to
-        network_id = None
+        # first get the id of the subnet the ip address belongs to
+        subnet_id = None
         networks = self.ex_list_networks()
-        
+
         for network in networks:
             for subnet in network.subnets:
-                if ip['ipaddress'] in subnet.get('ipaddress_list'):
-                    network_id = network.id
+                if ip in subnet.get('ipaddress_list'):
+                    subnet_id = subnet.get('id')
                     break
-            if network_id:
+            if subnet_id:
                 break
-        if not network_id:
-            raise Exception("The ip address %s cannot be found on any of the available networks" % ip)
-        url = '/network/cidr/ipv4/%s/' % network_id
 
-        if assign:
-            payload = '_method=PUT&ipaddress=%s&reserved=true' % ip
-        else:
-            payload = '_method=PUT&ipaddress=%s&reserved=false' % ip
+        if not subnet_id:
+            raise Exception("The ip address %s cannot be found on any of the available subnets" % ip)
+        url = '/network/cidr/ipv4/%s/' % subnet_id
+
+        payload = '_method=PUT&ipaddress=%s&reserved=%s' % (ip, str(assign).lower())
 
         if server:
-            server_id = server.extra.get('id')
-            payload = payload + '&server=%s' % server_id
+            payload += '&server=%s' % server
 
         try:
             result = self.connection.request(url, data=payload, method='POST').object
