@@ -595,7 +595,7 @@ class GCENodeDriver(NodeDriver):
         self.project = project
         self.scopes = scopes
         self.credential_file = credential_file or \
-            '~/.gce_libcloud_auth' + '.' + self.project
+            '~/.gce_libcloud_auth.%s.%s' % (user_id, self.project)
 
         super(GCENodeDriver, self).__init__(user_id, key, **kwargs)
 
@@ -1253,7 +1253,7 @@ class GCENodeDriver(NodeDriver):
     def create_node(self, name, size, image, location=None,
                     ex_network='default', ex_tags=None, ex_metadata=None,
                     ex_boot_disk=None, use_existing_disk=True,
-                    external_ip='ephemeral', ex_disk_type='pd-standard',
+                    external_ip='ephemeral', ex_disk_type='pd-ssd',
                     ex_disk_auto_delete=True, ex_service_accounts=None):
         """
         Create a new node and return a node object for the node.
@@ -1363,6 +1363,7 @@ class GCENodeDriver(NodeDriver):
                                                    ex_disk_type,
                                                    ex_disk_auto_delete,
                                                    ex_service_accounts)
+
         self.connection.async_request(request, method='POST', data=node_data)
 
         return self.ex_get_node(name, location.name)
@@ -2278,7 +2279,7 @@ class GCENodeDriver(NodeDriver):
         self.connection.async_request(request, method='DELETE')
         return True
 
-    def destroy_node(self, node, destroy_boot_disk=False):
+    def destroy_node(self, node, destroy_boot_disk=True):
         """
         Destroy a node.
 
@@ -3656,7 +3657,7 @@ class GCENodeDriver(NodeDriver):
         return GCEZone(id=zone['id'], name=zone['name'], status=zone['status'],
                        maintenance_windows=zone.get('maintenanceWindows'),
                        deprecated=deprecated, driver=self, extra=extra)
-                       
+
     def _get_size_price(self, size_id):
         """
         Return pricing information for the provided size id.
