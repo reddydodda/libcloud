@@ -89,6 +89,7 @@ class Provider(object):
     VPSNET = 'vpsnet'
     LINODE = 'linode'
     VCLOUD = 'vcloud'
+    INDONESIAN_VCLOUD = 'indonesian_vcloud'
     RIMUHOSTING = 'rimuhosting'
     VOXEL = 'voxel'
     SOFTLAYER = 'softlayer'

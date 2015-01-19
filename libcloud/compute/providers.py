@@ -119,6 +119,8 @@ DRIVERS = {
     ('libcloud.compute.drivers.ninefold', 'NinefoldNodeDriver'),
     Provider.VCLOUD:
     ('libcloud.compute.drivers.vcloud', 'VCloudNodeDriver'),
+    Provider.INDONESIAN_VCLOUD:
+    ('libcloud.compute.drivers.indonesian_vcloud', 'IndonesianVCloudNodeDriver'),
     Provider.TERREMARK:
     ('libcloud.compute.drivers.vcloud', 'TerremarkDriver'),
     Provider.CLOUDSTACK:

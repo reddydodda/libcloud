@@ -16,6 +16,7 @@ from __future__ import with_statement
 
 import re
 import os
+import socket
 import time
 import platform
 import subprocess
@@ -38,7 +39,8 @@ try:
     import libvirt
     have_libvirt = True
 except ImportError:
-    have_libvirt = False
+    raise RuntimeError('Libvirt driver requires \'libvirt\' Python ' +
+                               'package')
 
 
 class LibvirtNodeDriver(NodeDriver):
@@ -63,23 +65,172 @@ class LibvirtNodeDriver(NodeDriver):
         7: NodeState.UNKNOWN,  # domain is suspended by guest power management
     }
 
-    def __init__(self, uri):
+    def __init__(self, host, user='root', ssh_key=None):
+        """Support the three ways to connect: local system, qemu+tcp, qemu+ssh
+        Host can be an ip address or hostname
+        ssh key should be a filename with the private key
         """
-        :param  uri: Hypervisor URI (e.g. vbox:///session, qemu:///system,
-                     etc.).
-        :type   uri: ``str``
-        """
-        if not have_libvirt:
-            raise RuntimeError('Libvirt driver requires \'libvirt\' Python ' +
-                               'package')
+
+        if host in ['localhost', '127.0.0.1']:
+            # local connection
+            uri = 'qemu:///system'
+        else:
+            if ssh_key:
+                # ssh connection
+                uri = 'qemu+ssh://%s@%s/system?keyfile=%s&no_tty=1' % (user, host, ssh_key)
+            else:
+                #tcp connection
+                uri = 'qemu+tcp://%s:5000/system' % host
 
         self._uri = uri
-        self.connection = libvirt.open(uri)
+        self.secret = ssh_key
+        self.key = user
+        self.host = host
+        try:
+            self.connection = libvirt.open(uri)
+        except Exception as exc:
+            raise Exception("Error while connecting with uri %s" % uri)
 
-    def list_nodes(self):
-        domains = self.connection.listAllDomains()
-        nodes = self._to_nodes(domains=domains)
+    def list_nodes(self, show_hypervisor=True):
+        # active domains
+        domain_ids = self.connection.listDomainsID()
+        domains = [self.connection.lookupByID(id) for id in domain_ids]
+        # non active domains
+        inactive_domains = map(self.connection.lookupByName, self.connection.listDefinedDomains())
+        domains.extend(inactive_domains)
+
+        # get the arp table of the hypervisor. Try to connect with provided
+        # ssh key and paramiko
+
+        # libvirt does not know the ip addresses of guest vms. One way to
+        # get this info is by getting the arp table and providing it to the
+        # libvirt connection. Then we can check what ip address each MAC
+        # address has
+        self.arp_table = {}
+        if self.secret:
+            try:
+                import paramiko
+                ssh=paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+                ssh.connect(self.host, username=self.key, key_filename=self.secret,
+                            timeout=None, allow_agent=False, look_for_keys=False)
+                stdin,stdout,stderr = ssh.exec_command("arp -an")
+                output = stdout.read()
+                ssh.close()
+                self.arp_table = self._parse_arp_table(output)
+            except:
+                pass
+        else:
+            cmd = ['arp', '-an']
+            child = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
+            stdout, _ = child.communicate()
+            self.arp_table = self._parse_arp_table(arp_output=stdout)
+
+
+
+        nodes = [self._to_node(domain) for domain in domains]
+
+        if show_hypervisor:
+            # append hypervisor as well
+            name = self.connection.getHostname()
+            try:
+                public_ip = socket.gethostbyname(self.host)
+            except:
+                public_ip = self.host
+
+            extra = {'tags': {'type': 'hypervisor'}}
+            node = Node(id=self.host, name=name, state=0,
+                    public_ips=[public_ip], private_ips=[], driver=self,
+                    extra=extra)
+            nodes.append(node)
+
         return nodes
+
+    def _to_node(self, domain):
+        state, max_mem, memory, vcpu_count, used_cpu_time = domain.info()
+        state = self.NODE_STATE_MAP.get(state, NodeState.UNKNOWN)
+
+        public_ips, private_ips = [], []
+
+        ip_addresses = self._get_ip_addresses_for_domain(domain)
+
+        for ip_address in ip_addresses:
+            if is_public_subnet(ip_address):
+                public_ips.append(ip_address)
+            else:
+                private_ips.append(ip_address)
+        try:
+            # this will work only if real name is given to a guest VM's name.
+            public_ip = socket.gethostbyname(domain.name())
+        except:
+            public_ip = ''
+        if public_ip and public_ip not in ip_addresses:
+            # avoid duplicate insertion in public ips
+            public_ips.append(public_ip)
+
+
+        extra = {'uuid': domain.UUIDString(), 'os_type': domain.OSType(),
+                 'types': self.connection.getType(),
+                 'hypervisor_name': self.connection.getHostname(),
+                 'used_memory': memory / 1024, 'vcpu_count': vcpu_count,
+                 'used_cpu_time': used_cpu_time}
+
+        node = Node(id=domain.UUIDString(), name=domain.name(), state=state,
+                    public_ips=public_ips, private_ips=private_ips,
+                    driver=self, extra=extra)
+        node._uuid = domain.UUIDString()  # we want to use a custom UUID
+        return node
+
+    def _get_ip_addresses_for_domain(self, domain):
+        """
+        Retrieve IP addresses for the provided domain.
+
+        Note: This functionality is currently only supported on Linux and
+        only works if this code is run on the same machine as the VMs run
+        on.
+
+        :return: IP addresses for the provided domain.
+        :rtype: ``list``
+        """
+        result = []
+        if platform.system() != 'Linux':
+            # Only Linux is supported atm
+            return result
+
+        mac_addresses = self._get_mac_addresses_for_domain(domain=domain)
+
+        for mac_address in mac_addresses:
+            if mac_address in self.arp_table:
+                ip_addresses = self.arp_table[mac_address]
+                result.extend(ip_addresses)
+
+        return result
+
+    def _get_mac_addresses_for_domain(self, domain):
+        """
+        Parses network interface MAC addresses from the provided domain.
+        """
+        xml = domain.XMLDesc()
+        etree = ET.XML(xml)
+        elems = etree.findall("devices/interface/mac")
+
+        result = []
+        for elem in elems:
+            mac_address = elem.get('address')
+            result.append(mac_address)
+
+        return result
+
+    def list_sizes(self):
+        return []
+
+    def list_locations(self):
+        return []
+
+    def list_images(self):
+        return []
 
     def reboot_node(self, node):
         domain = self._get_domain_for_node(node=node)
@@ -101,7 +252,7 @@ class LibvirtNodeDriver(NodeDriver):
         domain = self._get_domain_for_node(node=node)
         return domain.create() == 0
 
-    def ex_shutdown_node(self, node):
+    def ex_stop_node(self, node):
         """
         Shutdown a running node.
 
@@ -210,82 +361,6 @@ class LibvirtNodeDriver(NodeDriver):
             sysinfo[attribute] = entries
 
         return sysinfo
-
-    def _to_nodes(self, domains):
-        nodes = [self._to_node(domain=domain) for domain in domains]
-        return nodes
-
-    def _to_node(self, domain):
-        state, max_mem, memory, vcpu_count, used_cpu_time = domain.info()
-        state = self.NODE_STATE_MAP.get(state, NodeState.UNKNOWN)
-
-        public_ips, private_ips = [], []
-
-        ip_addresses = self._get_ip_addresses_for_domain(domain)
-
-        for ip_address in ip_addresses:
-            if is_public_subnet(ip_address):
-                public_ips.append(ip_address)
-            else:
-                private_ips.append(ip_address)
-
-        extra = {'uuid': domain.UUIDString(), 'os_type': domain.OSType(),
-                 'types': self.connection.getType(),
-                 'used_memory': memory / 1024, 'vcpu_count': vcpu_count,
-                 'used_cpu_time': used_cpu_time}
-
-        node = Node(id=domain.ID(), name=domain.name(), state=state,
-                    public_ips=public_ips, private_ips=private_ips,
-                    driver=self, extra=extra)
-        node._uuid = domain.UUIDString()  # we want to use a custom UUID
-        return node
-
-    def _get_ip_addresses_for_domain(self, domain):
-        """
-        Retrieve IP addresses for the provided domain.
-
-        Note: This functionality is currently only supported on Linux and
-        only works if this code is run on the same machine as the VMs run
-        on.
-
-        :return: IP addresses for the provided domain.
-        :rtype: ``list``
-        """
-        result = []
-
-        if platform.system() != 'Linux':
-            # Only Linux is supported atm
-            return result
-
-        mac_addresses = self._get_mac_addresses_for_domain(domain=domain)
-
-        cmd = ['arp', '-an']
-        child = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
-        stdout, _ = child.communicate()
-        arp_table = self._parse_arp_table(arp_output=stdout)
-
-        for mac_address in mac_addresses:
-            if mac_address in arp_table:
-                ip_addresses = arp_table[mac_address]
-                result.extend(ip_addresses)
-
-        return result
-
-    def _get_mac_addresses_for_domain(self, domain):
-        """
-        Parses network interface MAC addresses from the provided domain.
-        """
-        xml = domain.XMLDesc()
-        etree = ET.XML(xml)
-        elems = etree.findall("devices/interface[@type='network']/mac")
-
-        result = []
-        for elem in elems:
-            mac_address = elem.get('address')
-            result.append(mac_address)
-
-        return result
 
     def _get_domain_for_node(self, node):
         """
