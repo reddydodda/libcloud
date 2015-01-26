@@ -77,7 +77,7 @@ class LibvirtNodeDriver(NodeDriver):
         else:
             if ssh_key:
                 # ssh connection
-                uri = 'qemu+ssh://%s@%s/system?keyfile=%s&no_tty=1' % (user, host, ssh_key)
+                uri = 'qemu+ssh://%s@%s/system?keyfile=%s&no_tty=1&no_verify=1' % (user, host, ssh_key)
             else:
                 #tcp connection
                 uri = 'qemu+tcp://%s:5000/system' % host
