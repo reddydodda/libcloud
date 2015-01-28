@@ -74,17 +74,19 @@ class NephoScaleNetwork(object):
     A Virtual Network.
     """
 
-    def __init__(self, id, name, cidr, driver, extra=None):
+    def __init__(self, id, name, subnets, is_default, zone, domain_type,
+                 driver, extra=None):
         self.id = str(id)
         self.name = name
-        self.cidr = cidr
+        self.subnets = subnets
+        self.is_default = is_default
+        self.zone = zone
+        self.domain_type = domain_type
         self.driver = driver
         self.extra = extra or {}
 
     def __repr__(self):
-        return '<NephoScaleNetwork id="%s" name="%s" cidr="%s">' % (self.id,
-                                                                    self.name,
-                                                                    self.cidr,)
+        return '<NephoScaleNetwork id="%s" name="%s">' % (self.id, self.name,)
 
 
 class NephoScaleDomain(object):
@@ -255,25 +257,36 @@ class NephoscaleNodeDriver(NodeDriver):
         List available networks
 
         """
-        result = self.connection.request('/network/cidr/ipv4/').object
-        networks = []
-        for value in result.get('data', []):
-            extra = {'ip_version': value.get('ip_version'),
-                     'ipaddress_list': value.get('ipaddress_list'),
-                     'ipaddress_list_assigned':
-                     value.get('ipaddress_list_assigned'),
-                     'ipaddress_list_unassigned':
-                     value.get('ipaddress_list_unassigned'),
-                     'zone': value.get('zone')
-                     }
-            cidr = value.get('cidr_str')
+        networks = self.connection.request('/network/domain/').object
+
+        subnets = self.connection.request('/network/cidr/ipv4/').object
+        ret = []
+        for value in networks.get('data', []):
+            network_subnets = []
+            # Skip duplicate results
+            if value.get('id') in [n.get('id') for n in network_subnets]:
+                continue
+            for s1 in value.get('cidr', []):
+                for s2 in subnets.get('data', []):
+                    if s1.get('id') == s2.get('id'):
+                        s1['ipaddress_list_status'] = s2['ipaddress_list_status']
+                        s1['name'] = s1['cidr_str']
+                        network_subnets.append(s1)
+
             network = NephoScaleNetwork(id=value.get('id'),
-                                        name=cidr,
+                                        name=value.get('name'),
+                                        subnets=network_subnets,
+                                        is_default=value.get('is_default', False),
+                                        zone=value.get('zone'),
+                                        domain_type=value.get('domain_type'),
                                         driver=self,
-                                        extra=extra,
-                                        cidr=cidr)
-            networks.append(network)
-        return networks
+                                        )
+
+            # Nephoscale's response might contain duplicate
+            # network information
+            if network.id not in [net.id for net in ret]:
+                ret.append(network)
+        return ret
 
     def ex_list_domains(self):
         """
@@ -309,6 +322,48 @@ class NephoscaleNodeDriver(NodeDriver):
         for value in result.get('data', []):
             ips.extend(value.get('ipaddress_list_unassigned', []))
         return ips
+
+    def ex_associate_ip(self, ip, server=None, assign=True):
+        """Assign and unassign an ip address
+
+        Server is optional, if specified the ip address is assigned there
+        Otherwise the ip address is just reserverd
+
+
+        Examples:
+            associate ip address with server c.ex_associate_ip('69.50.244.8', server=c.list_nodes()[2])
+            associate an ip address (mark it as assigned): c.ex_associate_ip('10.132.63.227')
+            unassign ip address (mark it as unassigned): c.ex_associate_ip('10.132.63.227', assign=False)
+
+
+        """
+        # first get the id of the subnet the ip address belongs to
+        subnet_id = None
+        networks = self.ex_list_networks()
+
+        for network in networks:
+            for subnet in network.subnets:
+                if ip in subnet.get('ipaddress_list'):
+                    subnet_id = subnet.get('id')
+                    break
+            if subnet_id:
+                break
+
+        if not subnet_id:
+            raise Exception("The ip address %s cannot be found on any of the available subnets" % ip)
+        url = '/network/cidr/ipv4/%s/' % subnet_id
+
+        payload = '_method=PUT&ipaddress=%s&reserved=%s' % (ip, str(assign).lower())
+
+        if server:
+            payload += '&server=%s' % server
+
+        try:
+            result = self.connection.request(url, data=payload, method='POST').object
+        except Exception:
+            e = sys.exc_info()[1]
+            raise Exception("Failed to associate ip: %s" % e)
+        return result.get('response') in VALID_RESPONSE_CODES
 
     def rename_node(self, node, name, hostname=None):
         """rename a cloud server, optionally specify hostname too"""
