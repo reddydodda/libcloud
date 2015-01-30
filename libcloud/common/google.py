@@ -197,12 +197,20 @@ class GoogleResponse(JsonResponse):
         else:
             err = body['error']
 
-        if 'code' in err:
-            code = err.get('code')
-            message = err.get('message')
-        else:
-            code = err.get('reason', None)
-            message = body.get('error_description', err)
+        if type(err) in [str, unicode]:
+            if err == 'invalid_grant':
+                raise GoogleAuthError('Error with authenticating with GCE, please check your credentials')
+        try:
+            # this breaks in some cases so wrap around a try/except
+            if 'code' in err:
+                code = err.get('code')
+                message = err.get('message')
+            else:
+                code = err.get('reason', None)
+                message = body.get('error_description', err)
+        except:
+            code = ''
+            message = 'invalid request'
 
         return (code, message)
 
