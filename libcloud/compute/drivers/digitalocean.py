@@ -475,10 +475,11 @@ class DigitalOceanNodeDriver(NodeDriver):
                          driver=self)
 
     def _to_location(self, data):
-        location_id = data['slug']
-        name = data['name']
+        location_id = data.get('slug')
+        name = data.get('name')
+        extra = data.get('features', [])
         return NodeLocation(id=location_id, name=name, country=None,
-                            driver=self)
+                            extra=extra, driver=self)
 
     def _to_size(self, data):
         size_id = data.get('slug')
