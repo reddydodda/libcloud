@@ -65,7 +65,7 @@ class LibvirtNodeDriver(NodeDriver):
         7: NodeState.UNKNOWN,  # domain is suspended by guest power management
     }
 
-    def __init__(self, host, user='root', ssh_key=None):
+    def __init__(self, host, user='root', ssh_key=None, ssh_port=22):
         """Support the three ways to connect: local system, qemu+tcp, qemu+ssh
         Host can be an ip address or hostname
         ssh key should be a filename with the private key
@@ -77,7 +77,7 @@ class LibvirtNodeDriver(NodeDriver):
         else:
             if ssh_key:
                 # ssh connection
-                uri = 'qemu+ssh://%s@%s/system?keyfile=%s&no_tty=1&no_verify=1' % (user, host, ssh_key)
+                uri = 'qemu+ssh://%s@%s:%s/system?keyfile=%s&no_tty=1&no_verify=1' % (user, host, ssh_port, ssh_key)
             else:
                 #tcp connection
                 uri = 'qemu+tcp://%s:5000/system' % host
