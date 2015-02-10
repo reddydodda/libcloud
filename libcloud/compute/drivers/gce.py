@@ -2169,7 +2169,6 @@ n
             raise ValueError("Missing root device or image. Must specify an "
                              "'image', existing 'ex_boot_disk', or use the "
                              "'ex_disks_gce_struct'.")
-
         location = location or self.zone
         if not hasattr(location, 'name'):
             location = self.ex_get_zone(location)
@@ -2366,7 +2365,7 @@ n
         if image and not hasattr(image, 'name'):
             image = self.ex_get_image(image)
         if not hasattr(ex_disk_type, 'name'):
-            ex_disk_type = self.ex_get_disktype(ex_disk_type)
+            ex_disk_type = self.ex_get_disktype(ex_disk_type, zone=location)
 
         node_attrs = {'size': size,
                       'image': image,
