@@ -282,7 +282,7 @@ class DockerNodeDriver(NodeDriver):
         return logs
 
     def create_node(self, name, image, command=None, hostname=None, user='',
-                    detach=False, stdin_open=False, tty=False,
+                    detach=False, stdin_open=True, tty=True,
                     mem_limit=0, ports=None, environment=None, dns=None,
                     volumes=None, volumes_from=None,
                     network_disabled=False, entrypoint=None,
@@ -310,9 +310,9 @@ class DockerNodeDriver(NodeDriver):
             'OpenStdin': stdin_open,
             'StdinOnce': False,
             'Memory': mem_limit,
-            'AttachStdin': False,
-            'AttachStdout': False,
-            'AttachStderr': False,
+            'AttachStdin': True,
+            'AttachStdout': True,
+            'AttachStderr': True,
             'Env': environment,
             'Cmd': command,
             'Dns': dns,
