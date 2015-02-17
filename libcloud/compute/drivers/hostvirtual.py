@@ -79,6 +79,8 @@ class HostVirtualNodeDriver(NodeDriver):
             extra['size'] = data['plan_id']
         if 'os_id' in data:
             extra['image'] = data['os_id']
+        if 'fqdn' in data:
+            extra['fqdn'] = data['fqdn']
         if 'location_id' in data:
             extra['location'] = data['location_id']
         if 'ip' in data:
@@ -133,7 +135,10 @@ class HostVirtualNodeDriver(NodeDriver):
         return images
 
     def list_nodes(self):
-        result = self.connection.request(API_ROOT + '/cloud/servers/').object
+        try:
+             result = self.connection.request(API_ROOT + '/cloud/servers/').object
+        except HostVirtualException:
+            return []
         nodes = []
         for value in result:
             node = self._to_node(value)
@@ -161,11 +166,8 @@ class HostVirtualNodeDriver(NodeDriver):
 
         raise HostVirtualException(412, 'Timedout on getting node details')
 
-    def create_node(self, **kwargs):
+    def create_node(self, name, image, size, **kwargs):
         dc = None
-
-        size = kwargs['size']
-        image = kwargs['image']
 
         auth = self._get_and_check_auth(kwargs.get('auth'))
 
@@ -179,12 +181,13 @@ class HostVirtualNodeDriver(NodeDriver):
         result = self.connection.request(API_ROOT + '/cloud/buy/',
                                          data=json.dumps(params),
                                          method='POST').object
+        fqdn = kwargs.get('fqdn', name+'.mist.io')
 
         # create a stub node
         stub_node = self._to_node({
             'mbpkgid': result['id'],
             'status': 'PENDING',
-            'fqdn': kwargs['name'],
+            'fqdn': fqdn,
             'plan_id': size.id,
             'os_id': image.id,
             'location_id': dc
@@ -298,9 +301,8 @@ class HostVirtualNodeDriver(NodeDriver):
             image = node.extra['image']
 
         params = {
-            'mbpkgid': node.id,
             'image': image,
-            'fqdn': node.name,
+            'fqdn': node.extra['fqdn'],
             'location': node.extra['location'],
         }
 
@@ -318,7 +320,7 @@ class HostVirtualNodeDriver(NodeDriver):
         if not ssh_key and not password:
             raise HostVirtualException(500, "Need SSH key or Root password")
 
-        result = self.connection.request(API_ROOT + '/cloud/server/build',
+        result = self.connection.request(API_ROOT + '/cloud/server/build/%s' % int(node.id),
                                          data=json.dumps(params),
                                          method='POST').object
         return bool(result)
