@@ -3322,6 +3322,12 @@ class BaseEC2NodeDriver(NodeDriver):
 
         return self._get_boolean(res)
 
+    def ex_rename_node(self, node, name):
+        """
+        Rename a Node
+        """
+        return self.ex_create_tags(node, {'Name': name})
+
     def ex_get_metadata_for_node(self, node):
         """
         Return the metadata associated with the node.
