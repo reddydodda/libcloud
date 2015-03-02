@@ -394,7 +394,7 @@ class DigitalOceanNodeDriver(NodeDriver):
         :return: Available SSH keys.
         :rtype: ``list`` of :class:`SSHKey`
         """
-        data = self.connection.request('/account/keys').object['ssh_keys']
+        data = self.connection.request('/account/keys?per_page=1000').object['ssh_keys']
         return list(map(self._to_ssh_key, data))
 
     def ex_create_ssh_key(self, name, ssh_key_pub):
