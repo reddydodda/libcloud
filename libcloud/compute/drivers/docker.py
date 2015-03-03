@@ -257,6 +257,14 @@ class DockerNodeDriver(NodeDriver):
                                          method='POST')
         return result.status in VALID_RESPONSE_CODES
 
+    def ex_rename_node(self, node, name):
+        """
+        rename a container
+        """
+        result = self.connection.request('/containers/%s/rename?name=%s' % (node.id, name),
+                                         method='POST')
+        return result.status in VALID_RESPONSE_CODES
+
     def get_logs(self, node, stream=False):
         """
         Get container logs

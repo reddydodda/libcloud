@@ -408,6 +408,17 @@ class LinodeNodeDriver(NodeDriver):
         self.connection.request(API_ROOT, params=params)
         return True
 
+    def ex_rename_node(self, node, name):
+        """Renames a node"""
+
+        params = {
+            "api_action": "linode.update",
+            "LinodeID": node.id,
+            "Label": name
+        }
+        data = self.connection.request(API_ROOT, params=params)
+        return True
+
     def list_sizes(self, location=None):
         """
         List available Linode plans
