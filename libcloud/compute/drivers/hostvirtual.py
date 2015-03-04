@@ -18,6 +18,7 @@ Home page http://www.vr.org/
 """
 
 import time
+import re
 
 try:
     import simplejson as json
@@ -93,7 +94,7 @@ class HostVirtualNodeDriver(NodeDriver):
                          ram=size['ram'],
                          disk=size['disk'],
                          bandwidth=size['transfer'],
-                         price=size['price'],
+                         price="$%s/mo" % size['price'],
                          driver=self.connection.driver)
             sizes.append(n)
         return sizes
