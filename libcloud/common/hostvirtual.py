@@ -35,7 +35,7 @@ class HostVirtualException(LibcloudError):
         return self.__repr__()
 
     def __repr__(self):
-        return '<HostVirtualException in %d: %s>' % (self.code, self.message)
+        return self.message
 
 
 class HostVirtualConnection(ConnectionKey):
