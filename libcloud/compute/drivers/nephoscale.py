@@ -133,6 +133,10 @@ class NephoscaleConnection(ConnectionUserAndKey):
 
     allow_insecure = False
 
+    # increase timeout for NephoScale response
+    timeout = 180
+
+
     def add_default_headers(self, headers):
         """
         Add parameters that are necessary for every request
