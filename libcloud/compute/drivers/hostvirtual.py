@@ -86,16 +86,19 @@ class HostVirtualNodeDriver(NodeDriver):
             params = {'location': location.id}
         result = self.connection.request(
             API_ROOT + '/cloud/sizes/',
-            data=json.dumps(params)).object
+            params=params).object
         sizes = []
         for size in result:
+            extra = {'available': size.get('available')
+            }
             n = NodeSize(id=size['plan_id'],
                          name=size['plan'],
                          ram=size['ram'],
                          disk=size['disk'],
                          bandwidth=size['transfer'],
                          price="$%s/mo" % size['price'],
-                         driver=self.connection.driver)
+                         driver=self.connection.driver,
+                         extra=extra)
             sizes.append(n)
         return sizes
 
