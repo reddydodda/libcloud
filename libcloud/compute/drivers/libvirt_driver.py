@@ -21,6 +21,7 @@ import time
 import platform
 import subprocess
 import mimetypes
+import signal
 
 from os.path import join as pjoin
 from collections import defaultdict
@@ -41,7 +42,8 @@ try:
 except ImportError:
     raise RuntimeError('Libvirt driver requires \'libvirt\' Python ' +
                                'package')
-
+# increase default timeout for libvirt connection
+libvirt_connection_timeout = 2*60
 
 class LibvirtNodeDriver(NodeDriver):
     """
@@ -65,6 +67,11 @@ class LibvirtNodeDriver(NodeDriver):
         7: NodeState.UNKNOWN,  # domain is suspended by guest power management
     }
 
+    def timeout_handler(self, sig_code, frame):
+        if 14 == sig_code: 
+            raise Exception('Timeout!')
+
+
     def __init__(self, host, user='root', ssh_key=None, ssh_port=22):
         """Support the three ways to connect: local system, qemu+tcp, qemu+ssh
         Host can be an ip address or hostname
@@ -87,8 +94,12 @@ class LibvirtNodeDriver(NodeDriver):
         self.key = user
         self.host = host
         try:
+            signal.signal(signal.SIGALRM, self.timeout_handler)
+            signal.alarm(libvirt_connection_timeout)
             self.connection = libvirt.open(uri)
+            signal.alarm(0)      # Disable the alarm
         except Exception as exc:
+            signal.alarm(0)      # Disable the alarm
             raise Exception("Error while connecting with uri %s" % uri)
 
     def list_nodes(self, show_hypervisor=True):
