@@ -445,6 +445,9 @@ class VCloudNodeDriver(NodeDriver):
     connectionCls = VCloudConnection
     org = None
     _vdcs = None
+    # this is needed to keep information about port bindings and NAT
+    # for VMs
+    _networks = None
 
     NODE_STATE_MAP = {'0': NodeState.PENDING,
                       '1': NodeState.PENDING,
@@ -677,9 +680,11 @@ class VCloudNodeDriver(NodeDriver):
             def _list_one(vapp_href):
                 """since vdcs and token are both needed to make any request,
                 we can provide them on the new driver
+                the same applies for _networks
                 """
                 driver = get_driver(self.type)(self.key, self.secret, host=self.connection.host)
                 driver._vdcs = self.vdcs
+                driver._networks = self._networks
                 driver.connection.token = self.connection.token
                 try:
                     return driver.ex_list_nodes_for_vapp(vapp_href)
@@ -743,15 +748,36 @@ class VCloudNodeDriver(NodeDriver):
             )
         networks = []
         for network in network_elements:
-            # TODO: get network href and provide info such as ip ranges,
-            # allocated ip addresses and more
+            network_object = self.connection.request(network.get('href')).object
+
+            alloc_ips = network_object.findall(fixxpath(network_object, 'Configuration/IpScope/AllocatedIpAddresses'))
+            ips = []
+            for ip in alloc_ips:
+                ips = [ip.text for ip in ip.findall(fixxpath(network, "IpAddress"))]
+
+            nat_rules = network_object.findall(fixxpath(network_object, 'Configuration/Features/NatService/NatRule/PortForwardingRule'))
+            rules = {}
+            for nat_rule in nat_rules:
+                external_ip = nat_rule.find(fixxpath(nat_rule,'ExternalIpAddress')).text
+                external_port = nat_rule.find(fixxpath(nat_rule,'ExternalPort')).text
+                internal_ip = nat_rule.find(fixxpath(nat_rule,'InternalIpAddress')).text
+                internal_port = nat_rule.find(fixxpath(nat_rule,'InternalPort')).text
+                protocol = nat_rule.find(fixxpath(nat_rule,'Protocol')).text
+                rules["%s:%s" % (internal_ip, internal_port)] =  "%s:%s" % (external_ip, external_port)
+
+            extra = {'href': network.get('href'),
+                     'alloc_ips': ips,
+                     'nat_rules': rules
+            }
+
             network = VCloudNetwork(id=network.get('name'),
                                     name=network.get('name'),
                                     driver=self,
-                                    extra={'href': network.get('href')},
+                                    extra=extra,
                                     cidr='')
 
             networks.append(network)
+        self._networks = networks
         return networks
 
     def _get_catalogitems_hrefs(self, catalog):
