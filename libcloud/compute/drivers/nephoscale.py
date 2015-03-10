@@ -133,6 +133,10 @@ class NephoscaleConnection(ConnectionUserAndKey):
 
     allow_insecure = False
 
+    # increase timeout for NephoScale response
+    timeout = 180
+
+
     def add_default_headers(self, headers):
         """
         Add parameters that are necessary for every request
@@ -365,7 +369,7 @@ class NephoscaleNodeDriver(NodeDriver):
             raise Exception("Failed to associate ip: %s" % e)
         return result.get('response') in VALID_RESPONSE_CODES
 
-    def rename_node(self, node, name, hostname=None):
+    def ex_rename_node(self, node, name, hostname=None):
         """rename a cloud server, optionally specify hostname too"""
         data = {'name': name}
         if hostname:

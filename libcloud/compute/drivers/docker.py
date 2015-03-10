@@ -257,6 +257,14 @@ class DockerNodeDriver(NodeDriver):
                                          method='POST')
         return result.status in VALID_RESPONSE_CODES
 
+    def ex_rename_node(self, node, name):
+        """
+        rename a container
+        """
+        result = self.connection.request('/containers/%s/rename?name=%s' % (node.id, name),
+                                         method='POST')
+        return result.status in VALID_RESPONSE_CODES
+
     def get_logs(self, node, stream=False):
         """
         Get container logs
@@ -287,7 +295,7 @@ class DockerNodeDriver(NodeDriver):
                     volumes=None, volumes_from=None,
                     network_disabled=False, entrypoint=None,
                     cpu_shares=None, working_dir='', domainname=None,
-                    memswap_limit=0):
+                    memswap_limit=0, port_bindings={}):
         """
         Create a container
 
@@ -324,6 +332,8 @@ class DockerNodeDriver(NodeDriver):
             'CpuShares': cpu_shares,
             'WorkingDir': working_dir,
             'MemorySwap': memswap_limit,
+            'PublishAllPorts': True,
+            'PortBindings': port_bindings,
         }
 
         data = json.dumps(payload)
@@ -347,7 +357,8 @@ class DockerNodeDriver(NodeDriver):
 
         payload = {
             'Binds': [],
-            'PublishAllPorts': True
+            'PublishAllPorts': True,
+            'PortBindings': port_bindings,
         }
 
         data = json.dumps(payload)
