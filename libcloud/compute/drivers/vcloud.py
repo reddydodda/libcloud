@@ -43,6 +43,8 @@ from libcloud.compute.types import NodeState
 from libcloud.compute.base import Node, NodeDriver, NodeLocation
 from libcloud.compute.base import NodeSize, NodeImage
 
+from libcloud.utils.networking import is_private_subnet
+
 """
 From vcloud api "The VirtualQuantity element defines the number of MB
 of memory. This should be either 512 or a multiple of 1024 (1 GB)."
@@ -633,6 +635,9 @@ class VCloudNodeDriver(NodeDriver):
         return res.status in [httplib.ACCEPTED, httplib.NO_CONTENT]
 
     def list_nodes(self):
+        if not self._networks:
+            # via _networks we get nat rules and public ips of nodes
+            self.ex_list_networks()
         return self.ex_list_nodes()
 
     def ex_list_nodes(self, vdcs=None):
@@ -666,15 +671,15 @@ class VCloudNodeDriver(NodeDriver):
                 and i.get('name')
             ]
 
-            #first get a list of vapps
-            #then get VMs for each vapp
-            #use multiprocessing to query vapps on parallel
-            #for large number of VMs, if queried serially means that list_nodes
-            #could take up to minutes to return the whole list, since each request for VM info
-            #takes a few seconds
-            #Due to the fact that libcloud driver instance is not thread safe, we choose to
-            #to create a new driver instance inside each thread.
-            #http://ci.apache.org/projects/libcloud/docs/other/using-libcloud-in-multithreaded-and-async-environments.html
+            # first get a list of vapps
+            # then get VMs for each vapp
+            # use multiprocessing to query vapps on parallel
+            # for large number of VMs, if queried serially means that list_nodes
+            # could take up to minutes to return the whole list, since each request for VM info
+            # takes a few seconds
+            # Due to the fact that libcloud driver instance is not thread safe, we choose to
+            # to create a new driver instance inside each thread.
+            # http://ci.apache.org/projects/libcloud/docs/other/using-libcloud-in-multithreaded-and-async-environments.html
 
             vapp_hrefs = [vapp_href for vapp_name, vapp_href in vapps]
             def _list_one(vapp_href):
@@ -743,30 +748,48 @@ class VCloudNodeDriver(NodeDriver):
                 [network
                  for network in res.findall(
                      fixxpath(res, 'AvailableNetworks/Network')
-
                  )]
             )
         networks = []
         for network in network_elements:
             network_object = self.connection.request(network.get('href')).object
 
-            alloc_ips = network_object.findall(fixxpath(network_object, 'Configuration/IpScope/AllocatedIpAddresses'))
-            ips = []
-            for ip in alloc_ips:
-                ips = [ip.text for ip in ip.findall(fixxpath(network, "IpAddress"))]
-
+            #alloc_ips = network_object.findall(fixxpath(network_object, 'Configuration/IpScope/AllocatedIpAddresses'))
+            #ips = []
+            #for ip in alloc_ips:
+            #    ips = [ip.text for ip in ip.findall(fixxpath(network, "IpAddress"))]
+            alloc_ips = {}
             nat_rules = network_object.findall(fixxpath(network_object, 'Configuration/Features/NatService/NatRule/PortForwardingRule'))
             rules = {}
             for nat_rule in nat_rules:
-                external_ip = nat_rule.find(fixxpath(nat_rule,'ExternalIpAddress')).text
-                external_port = nat_rule.find(fixxpath(nat_rule,'ExternalPort')).text
-                internal_ip = nat_rule.find(fixxpath(nat_rule,'InternalIpAddress')).text
-                internal_port = nat_rule.find(fixxpath(nat_rule,'InternalPort')).text
-                protocol = nat_rule.find(fixxpath(nat_rule,'Protocol')).text
-                rules["%s:%s" % (internal_ip, internal_port)] =  "%s:%s" % (external_ip, external_port)
+                external_ip = nat_rule.find(fixxpath(nat_rule,'ExternalIpAddress'))
+                if external_ip is not None:
+                    external_ip = external_ip.text
+                external_port = nat_rule.find(fixxpath(nat_rule,'ExternalPort'))
+                if external_port is not None:
+                    external_port = external_port.text
+                internal_ip = nat_rule.find(fixxpath(nat_rule,'InternalIpAddress'))
+                if internal_ip is not None:
+                    internal_ip = internal_ip.text
+                internal_port = nat_rule.find(fixxpath(nat_rule,'InternalPort'))
+                if internal_port is not None:
+                    internal_port = internal_port.text
+                protocol = nat_rule.find(fixxpath(nat_rule,'Protocol'))
+                if protocol is not None:
+                    protocol = protocol.text
+
+                nat_rule_dict = {
+                    'IP': external_ip,
+                    'PublicPort': external_port,
+                    'PrivatePort': internal_port,
+                    'Type': protocol,
+                }
+                if rules.get(internal_ip):
+                    rules[internal_ip].append(nat_rule_dict)
+                else:
+                    rules[internal_ip] = [nat_rule_dict]
 
             extra = {'href': network.get('href'),
-                     'alloc_ips': ips,
                      'nat_rules': rules
             }
 
@@ -2172,13 +2195,14 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
             for connection in vm_elem.findall(xpath):
                 ip = connection.find(fixxpath(connection, "IpAddress"))
                 if ip is not None:
-                    private_ips.append(ip.text)
+                    if is_private_subnet(ip.text):
+                        private_ips.append(ip.text)
+                    else:
+                        public_ips.append(ip.text)
                 external_ip = connection.find(
                     fixxpath(connection, "ExternalIpAddress"))
                 if external_ip is not None:
                     public_ips.append(external_ip.text)
-                elif ip is not None:
-                    public_ips.append(ip.text)
             #FIXME: also cpu/memory
             xpath = ('{http://schemas.dmtf.org/ovf/envelope/1}'
                      'OperatingSystemSection')
@@ -2233,11 +2257,28 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                           'vapp': vapp.name,
                           'href': vm.get('id') #keep this for actions
             }
+            public_ips = vm.get('public_ips')
+            private_ips = vm.get('private_ips')
+            # if _networks exist, search for the VM private ips
+            # for nat rules
+            for network in self._networks:
+                for ip in private_ips:
+                    if network.extra.get('nat_rules').get(ip):
+                        node_extra['Nat_Rules'] = network.extra.get('nat_rules')
+                        nat_ips = network.extra.get('nat_rules').get(ip)
+                        for nat_ip in nat_ips:
+                            ip = nat_ip.get('IP')
+                            if is_private_subnet(ip):
+                                if ip not in private_ips:
+                                    private_ips.append(ip)
+                            else:
+                                if ip not in public_ips:
+                                    public_ips.append(ip)
             node = Node(id=node_id,
                         name=vm.get('name'),
                         state=vm.get('state'),
-                        public_ips=vm.get('public_ips'),
-                        private_ips=vm.get('private_ips'),
+                        public_ips=public_ips,
+                        private_ips=private_ips,
                         driver=self.connection.driver,
                         extra=node_extra)
             nodes.append(node)
