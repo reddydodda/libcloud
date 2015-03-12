@@ -22,6 +22,7 @@ import base64
 import os
 import time
 import multiprocessing.pool
+import json
 from xml.sax.saxutils import escape as sax_utils_escape
 
 from xml.etree import ElementTree as ET
@@ -2264,8 +2265,8 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
             for network in self._networks:
                 for ip in private_ips:
                     if network.extra.get('nat_rules').get(ip):
-                        node_extra['Nat_Rules'] = network.extra.get('nat_rules')
                         nat_ips = network.extra.get('nat_rules').get(ip)
+                        node_extra['Nat_Rules'] = json.dumps(nat_ips)
                         for nat_ip in nat_ips:
                             ip = nat_ip.get('IP')
                             if is_private_subnet(ip):
