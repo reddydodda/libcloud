@@ -1072,12 +1072,18 @@ class AzureNodeDriver(NodeDriver):
             public_ips = []
         remote_desktop_port = []
         ssh_port = []
+        powershell_port = []
         for port in data.instance_endpoints:
             if port.name == 'Remote Desktop':
                 remote_desktop_port = port.public_port
-
+            if port.name == 'PowerShell':
+                powershell_port = port.public_port
             if port.name == "SSH":
                 ssh_port = port.public_port
+        if remote_desktop_port or powershell_port:
+            os_type = 'Windows'
+        else:
+            os_type = 'Linux'
         return Node(
             id=data.role_name,
             name=data.role_name,
@@ -1088,7 +1094,9 @@ class AzureNodeDriver(NodeDriver):
             driver=AzureNodeDriver,
             extra={
                 'remote_desktop_port': remote_desktop_port,
+                'powershell_port': powershell_port,
                 'ssh_port': ssh_port,
+                'os_type': os_type,
                 'power_state': data.power_state,
                 'instance_size': data.instance_size})
 
