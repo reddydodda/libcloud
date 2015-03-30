@@ -55,7 +55,7 @@ __all__ = [
 ]
 
 DEFAULT_API_VERSION = '5.5'
-DEFAULT_CONNECTION_TIMEOUT = 5  # default connection timeout in seconds
+DEFAULT_CONNECTION_TIMEOUT = 5*60  # default connection timeout in seconds
 
 
 class VSphereConnection(ConnectionUserAndKey):
@@ -93,11 +93,9 @@ class VSphereConnection(ConnectionUserAndKey):
             e = sys.exc_info()[1]
             message = e.message
             fault = getattr(e, 'fault', None)
-
-            if fault == 'InvalidLoginFault':
-                raise InvalidCredsError(message)
-
-            raise LibcloudError(value=message, driver=self.driver)
+            if fault == 'InvalidLoginFault' or message == 'The read operation timed out':
+                raise InvalidCredsError('Check your username and password are valid')
+            raise Exception('Check that the vSphere host is accessible')
 
         atexit.register(self.disconnect)
 
