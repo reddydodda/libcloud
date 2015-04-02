@@ -2213,6 +2213,9 @@ class VCloud_1_5_NodeDriver(VCloudNodeDriver):
                     '{http://www.vmware.com/schema/ovf}osType')
             else:
                 os_type = None
+            if os_type:
+                if 'win' in os_type:
+                    os_type = 'windows'
             vm = {
                 'id': vm_elem.get('href'),
                 'name': vm_elem.get('name'),
