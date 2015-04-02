@@ -1081,9 +1081,9 @@ class AzureNodeDriver(NodeDriver):
             if port.name == "SSH":
                 ssh_port = port.public_port
         if remote_desktop_port or powershell_port:
-            os_type = 'Windows'
+            os_type = 'windows'
         else:
-            os_type = 'Linux'
+            os_type = 'linux'
         return Node(
             id=data.role_name,
             name=data.role_name,
