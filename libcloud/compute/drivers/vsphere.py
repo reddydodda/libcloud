@@ -206,6 +206,9 @@ class VSphereNodeDriver(NodeDriver):
 
         return nodes
 
+    def list_sizes(self):
+        return []
+
     @wrap_non_libcloud_exceptions
     @wrap_non_libcloud_exceptions
     def ex_clone_node(self, node, name, power_on=True, template=False):
