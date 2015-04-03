@@ -522,8 +522,6 @@ class VSphereNodeDriver(NodeDriver):
             #'disks': properties.get('disks', []),
             'net': net,
             'os_type': os_type,
-
-            'overall_status': vm.properties.overallStatus,
             'operating_system': operating_system,
 
             'cpus': vm.properties.config.hardware.numCPU,
