@@ -491,7 +491,7 @@ class VSphereNodeDriver(NodeDriver):
             except:
                 operating_system = 'unknown'
 
-        if 'Microsoft' in operating_system:
+        if 'Microsoft' in str(operating_system):
             os_type = 'windows'
         else:
             os_type = 'linux' 
