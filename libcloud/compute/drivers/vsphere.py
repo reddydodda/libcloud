@@ -479,12 +479,19 @@ class VSphereNodeDriver(NodeDriver):
         ip_address = properties.get('ip_address', None)
         net = properties.get('net', [])
         resource_pool_id = str(vm.properties.resourcePool._obj)
-
         try:
             operating_system = vm.properties.summary.guest.guestFullName,
-        except Exception:
-            operating_system = 'unknown'
+        except:
+            try:
+                # vSphere 5.5
+                operating_system = vm.properties.config.guestFullName
+            except:
+                operating_system = 'unknown'
 
+        if 'Microsoft' in operating_system:
+            os_type = 'windows'
+        else:
+            os_type = 'linux' 
         extra = {
             'uuid': uuid,
             'instance_uuid': instance_uuid,
@@ -492,9 +499,10 @@ class VSphereNodeDriver(NodeDriver):
             'resource_pool_id': resource_pool_id,
             'hostname': properties.get('hostname', None),
             'guest_id': properties['guest_id'],
-            'devices': properties.get('devices', {}),
-            'disks': properties.get('disks', []),
+            #'devices': properties.get('devices', {}),
+            #'disks': properties.get('disks', []),
             'net': net,
+            'os_type': os_type,
 
             'overall_status': vm.properties.overallStatus,
             'operating_system': operating_system,
