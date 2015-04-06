@@ -470,6 +470,7 @@ class VSphereNodeDriver(NodeDriver):
             try:
                 result = driver.connection.client.get_vm_by_path(vm_path)
                 node = self._to_node(vm=result)
+                driver.connection.disconnect()
                 return node
             except:
                 return None
