@@ -24,6 +24,7 @@ more information, please refer to the official documentation.
 import os
 import sys
 import atexit
+import multiprocessing.pool
 
 try:
     import pysphere
@@ -47,6 +48,8 @@ from libcloud.compute.base import NodeLocation
 from libcloud.compute.base import NodeImage
 from libcloud.compute.base import Node
 from libcloud.compute.types import NodeState, Provider
+from libcloud.compute.providers import get_driver
+
 from libcloud.utils.networking import is_public_subnet
 
 __all__ = [
@@ -55,7 +58,7 @@ __all__ = [
 ]
 
 DEFAULT_API_VERSION = '5.5'
-DEFAULT_CONNECTION_TIMEOUT = 5  # default connection timeout in seconds
+DEFAULT_CONNECTION_TIMEOUT = 5*60  # default connection timeout in seconds
 
 
 class VSphereConnection(ConnectionUserAndKey):
@@ -93,11 +96,9 @@ class VSphereConnection(ConnectionUserAndKey):
             e = sys.exc_info()[1]
             message = e.message
             fault = getattr(e, 'fault', None)
-
-            if fault == 'InvalidLoginFault':
-                raise InvalidCredsError(message)
-
-            raise LibcloudError(value=message, driver=self.driver)
+            if fault == 'InvalidLoginFault' or message == 'The read operation timed out':
+                raise InvalidCredsError('Check your username and password are valid')
+            raise Exception('Check that the vSphere host is accessible')
 
         atexit.register(self.disconnect)
 
@@ -207,6 +208,9 @@ class VSphereNodeDriver(NodeDriver):
         nodes = self._to_nodes(vm_paths=vm_paths)
 
         return nodes
+
+    def list_sizes(self):
+        return []
 
     @wrap_non_libcloud_exceptions
     @wrap_non_libcloud_exceptions
@@ -455,12 +459,25 @@ class VSphereNodeDriver(NodeDriver):
             return None
 
     def _to_nodes(self, vm_paths):
-        nodes = []
-        for vm_path in vm_paths:
-            vm = self.connection.client.get_vm_by_path(vm_path)
-            node = self._to_node(vm=vm)
-            nodes.append(node)
+        # use multiprocessing to query vm_paths on parallel
+        # since libcloud driver instance is not thread safe, the easiest solution is
+        # to create a new driver instance inside each thread.
+        # http://ci.apache.org/projects/libcloud/docs/other/using-libcloud-in-multithreaded-and-async-environments.html
 
+        def _list_one(vm_path):
+            driver = get_driver(self.type)(host=self.connection.host_or_url, username=self.key,
+                                password=self.secret)
+            try:
+                result = driver.connection.client.get_vm_by_path(vm_path)
+                node = self._to_node(vm=result)
+                return node
+            except:
+                return None
+        pool = multiprocessing.pool.ThreadPool(8)
+        results = pool.map(_list_one, vm_paths)
+        pool.terminate()
+        nodes = []
+        nodes = [result for result in results if result]
         return nodes
 
     def _to_node(self, vm):
@@ -481,12 +498,19 @@ class VSphereNodeDriver(NodeDriver):
         ip_address = properties.get('ip_address', None)
         net = properties.get('net', [])
         resource_pool_id = str(vm.properties.resourcePool._obj)
-
         try:
             operating_system = vm.properties.summary.guest.guestFullName,
-        except Exception:
-            operating_system = 'unknown'
+        except:
+            try:
+                # vSphere 5.5
+                operating_system = vm.properties.config.guestFullName
+            except:
+                operating_system = 'unknown'
 
+        if 'Microsoft' in str(operating_system):
+            os_type = 'windows'
+        else:
+            os_type = 'linux'
         extra = {
             'uuid': uuid,
             'instance_uuid': instance_uuid,
@@ -494,11 +518,10 @@ class VSphereNodeDriver(NodeDriver):
             'resource_pool_id': resource_pool_id,
             'hostname': properties.get('hostname', None),
             'guest_id': properties['guest_id'],
-            'devices': properties.get('devices', {}),
-            'disks': properties.get('disks', []),
+            #'devices': properties.get('devices', {}),
+            #'disks': properties.get('disks', []),
             'net': net,
-
-            'overall_status': vm.properties.overallStatus,
+            'os_type': os_type,
             'operating_system': operating_system,
 
             'cpus': vm.properties.config.hardware.numCPU,
@@ -522,14 +545,10 @@ class VSphereNodeDriver(NodeDriver):
                     # TODO: Better support for IPv6
                     is_public = False
 
-                if is_public:
+                if is_public and ip_address not in public_ips:
                     public_ips.append(ip_address)
-                else:
+                elif is_public is False and ip_address not in private_ips:
                     private_ips.append(ip_address)
-
-        # Remove duplicate IPs
-        public_ips = list(set(public_ips))
-        private_ips = list(set(private_ips))
 
         node = Node(id=id, name=name, state=state, public_ips=public_ips,
                     private_ips=private_ips, driver=self, extra=extra)
