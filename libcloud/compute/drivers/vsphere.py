@@ -220,5 +220,5 @@ class VSphereNodeDriver(NodeDriver):
         """
         vm = self.connection.content.searchIndex.FindByUuid(None, node.id, True, True)
         if not vm:
-            raise SystemExit("Unable to locate VirtualMachine.")
+            raise Exception("Unable to locate VirtualMachine.")
         return vm
