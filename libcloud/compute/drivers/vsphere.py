@@ -122,7 +122,6 @@ class VSphereNodeDriver(NodeDriver):
             return
 
         summary = virtual_machine.summary
-
         name = summary.config.name
         path = summary.config.vmPathName
         memory = summary.config.memorySizeMB
@@ -149,7 +148,7 @@ class VSphereNodeDriver(NodeDriver):
             "path": path,
             "operating_system": operating_system,
             "os_type": os_type,
-            "memory": memory,
+            "memory_MB": memory,
             "cpus": cpus,
             "overallStatus": overallStatus
         }
@@ -172,21 +171,54 @@ class VSphereNodeDriver(NodeDriver):
         return node
 
     def reboot_node(self, node):
-        """FIXME: implement
         """
-        pass
+        """
+        vm = self.find_by_uuid(node)
+        try:
+            vm.RebootGuest()
+        except:
+            pass
+        return True
 
     def destroy_node(self, node):
-        """FIXME: implement
         """
-        pass
+        """
+        vm = self.find_by_uuid(node)
+        try:
+            vm.PowerOff()
+        except:
+            pass
+        try:
+            vm.Destroy()
+        except:
+            pass
+        return True
 
     def ex_stop_node(self, node):
-        """FIXME: implement
         """
-        pass
+        """
+        vm = self.find_by_uuid(node)
+        try:
+            vm.PowerOff()
+        except:
+            pass
+        return True
 
     def ex_start_node(self, node):
-        """FIXME: implement
         """
-        pass
+        """
+        vm = self.find_by_uuid(node)
+        try:
+            vm.PowerOn()
+        except:
+            pass
+        return True
+
+    def find_by_uuid(self, node):
+        """Searches VMs for a given uuid
+        returns pyVmomi.VmomiSupport.vim.VirtualMachine
+        """
+        vm = self.connection.content.searchIndex.FindByUuid(None, node.id, True, True)
+        if not vm:
+            raise SystemExit("Unable to locate VirtualMachine.")
+        return vm
