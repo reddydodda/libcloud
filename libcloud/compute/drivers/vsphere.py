@@ -140,7 +140,7 @@ class VSphereNodeDriver(NodeDriver):
         if summary.guest is not None:
             ip_address = summary.guest.ipAddress
 
-        overallStatus = summary.overallStatus
+        overallStatus = str(summary.overallStatus)
         public_ips = []
         private_ips = []
 
