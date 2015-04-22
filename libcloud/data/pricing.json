@@ -430,6 +430,9 @@
             "m3.xlarge": {"mswinSQL": "$1.28/hour", "mswin": "$0.532/hour", "mswinSQLWeb": "$0.748/hour", "rhel": "$0.34/hour", "linux": "$0.28/hour", "sles": "$0.38/hour"}
         },
 
+        "ec2_eu_central": {
+        },
+
         "nephoscale" : {
             "219": "$.008/hr",
             "221": "$.015/hr",
