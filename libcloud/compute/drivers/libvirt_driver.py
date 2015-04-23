@@ -68,7 +68,7 @@ class LibvirtNodeDriver(NodeDriver):
     }
 
     def timeout_handler(self, sig_code, frame):
-        if 14 == sig_code: 
+        if 14 == sig_code:
             raise Exception('Timeout!')
 
 
@@ -419,3 +419,13 @@ class LibvirtNodeDriver(NodeDriver):
             arp_table[mac_address].append(ip_address)
 
         return arp_table
+
+    def disconnect(self):
+        # closes connection to the hypevisor
+        try:
+            self.connection.close()
+        except:
+            pass
+
+    def __del__(self):
+        self.disconnect()
