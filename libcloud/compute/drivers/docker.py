@@ -76,6 +76,7 @@ class DockerResponse(JsonResponse):
 class DockerConnection(ConnectionUserAndKey):
 
     responseCls = DockerResponse
+    timeout = 60
 
     def add_default_headers(self, headers):
         """
