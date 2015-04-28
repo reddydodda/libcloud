@@ -99,8 +99,16 @@ class LibvirtNodeDriver(NodeDriver):
             self.connection = libvirt.open(uri)
             signal.alarm(0)      # Disable the alarm
         except Exception as exc:
+            if 'Could not resolve' in exc.message:
+                raise Exception("Make sure hostname is accessible")
+            if 'Connection refused' in exc.message:
+                raise Exception("Make sure hostname is accessible and libvirt is running")
+            if 'Permission denied' in exc.message:
+                raise Exception("Make sure ssh key and username are valid")
+            if 'End of file while reading data' in exc.message:
+                raise Exception("Make sure libvirt is running and user %s is authorised to connect" % user)
             signal.alarm(0)      # Disable the alarm
-            raise Exception("Error while connecting with uri %s" % uri)
+            raise Exception("Connection error")
 
     def list_nodes(self, show_hypervisor=True):
         # active domains
