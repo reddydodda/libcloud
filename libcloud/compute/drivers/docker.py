@@ -76,6 +76,7 @@ class DockerResponse(JsonResponse):
 class DockerConnection(ConnectionUserAndKey):
 
     responseCls = DockerResponse
+    timeout = 60
 
     def add_default_headers(self, headers):
         """
@@ -170,8 +171,12 @@ class DockerNodeDriver(NodeDriver):
         List running and stopped containers
         show_all=False will show only running containers
         """
-        result = self.connection.request("/containers/ps?all=%s" %
+        try:
+            result = self.connection.request("/containers/ps?all=%s" %
                                          str(show_all)).object
+        except Exception as exc:
+            if hasattr(exc,'errno') and exc.errno == 111:
+                raise Exception('Make sure docker host is accessible and the API port is correct')
 
         nodes = [self._to_node(value) for value in result]
         return nodes
