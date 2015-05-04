@@ -5660,14 +5660,12 @@ class EC2NodeDriver(BaseEC2NodeDriver):
 
         if region not in VALID_EC2_REGIONS:
             raise ValueError('Invalid region: %s' % (region))
-
         details = REGION_DETAILS[region]
         self.region_name = region
         self.api_name = details['api_name']
         self.country = details['country']
-        self.signature_version = details.pop('signature_version',
+        self.signature_version = details.get('signature_version',
                                              DEFAULT_SIGNATURE_VERSION)
-
         host = host or details['endpoint']
 
         super(EC2NodeDriver, self).__init__(key=key, secret=secret,
