@@ -139,6 +139,7 @@ class Provider(object):
     EC2_US_EAST = 'ec2_us_east'
     EC2_EU = 'ec2_eu_west'  # deprecated name
     EC2_EU_WEST = 'ec2_eu_west'
+    EC2_EU_CENTRAL = 'ec2_eu_central'
     EC2_US_WEST = 'ec2_us_west'
     EC2_AP_SOUTHEAST = 'ec2_ap_southeast'
     EC2_AP_NORTHEAST = 'ec2_ap_northeast'
@@ -223,6 +224,21 @@ class NodeState(object):
     @classmethod
     def fromstring(cls, value):
         return getattr(cls, value.upper(), None)
+
+
+class StorageVolumeState(object):
+    """
+    Standard states of a StorageVolume
+    """
+    AVAILABLE = 0
+    ERROR = 1
+    INUSE = 2
+    CREATING = 3
+    DELETING = 4
+    DELETED = 5
+    BACKUP = 6
+    ATTACHING = 7
+    UNKNOWN = 8
 
 
 class Architecture(object):
