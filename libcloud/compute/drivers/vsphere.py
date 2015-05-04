@@ -14,559 +14,211 @@
 # limitations under the License.
 
 """
-VMware vSphere driver supporting vSphere v5.5.
+VMware vSphere driver. Uses pyvmomi - https://github.com/vmware/pyvmomi
+Code inspired by https://github.com/vmware/pyvmomi-community-samples
 
-Note: This driver requires pysphere package
-(https://pypi.python.org/pypi/pysphere) which can be installed using pip. For
-more information, please refer to the official documentation.
+Author: Markos Gogoulos -  mgogoulos@mist.io
 """
 
-import os
-import sys
-import atexit
-import multiprocessing.pool
-
 try:
-    import pysphere
-    pysphere
+    from pyVim import connect
+    from pyVmomi import vmodl
 except ImportError:
-    raise ImportError('Missing "pysphere" dependency. You can install it '
-                      'using pip - pip install pysphere')
+    raise ImportError('Missing "pyvmomi" dependency. You can install it '
+                      'using pip - pip install pyvmomi')
 
-from pysphere import VIServer
-from pysphere.vi_task import VITask
-from pysphere.vi_mor import VIMor, MORTypes
-from pysphere.resources import VimService_services as VI
-from pysphere.vi_virtual_machine import VIVirtualMachine
+import atexit
 
-from libcloud.utils.decorators import wrap_non_libcloud_exceptions
-from libcloud.common.base import ConnectionUserAndKey
-from libcloud.common.types import LibcloudError
 from libcloud.common.types import InvalidCredsError
 from libcloud.compute.base import NodeDriver
 from libcloud.compute.base import NodeLocation
 from libcloud.compute.base import NodeImage
 from libcloud.compute.base import Node
 from libcloud.compute.types import NodeState, Provider
-from libcloud.compute.providers import get_driver
-
 from libcloud.utils.networking import is_public_subnet
 
-__all__ = [
-    'VSphereNodeDriver',
-    'VSphere_5_5_NodeDriver'
-]
-
-DEFAULT_API_VERSION = '5.5'
-DEFAULT_CONNECTION_TIMEOUT = 5*60  # default connection timeout in seconds
-
-
-class VSphereConnection(ConnectionUserAndKey):
-    def __init__(self, user_id, key, secure=True,
-                 host=None, port=None, url=None, timeout=None):
-        if host and url:
-            raise ValueError('host and url arguments are mutally exclusive')
-
-        if host:
-            host_or_url = host
-        elif url:
-            host_or_url = url
-        else:
-            raise ValueError('Either "host" or "url" argument must be '
-                             'provided')
-
-        self.host_or_url = host_or_url
-        self.client = None
-        super(VSphereConnection, self).__init__(user_id=user_id,
-                                                key=key, secure=secure,
-                                                host=host, port=port,
-                                                url=url, timeout=timeout)
-
-    def connect(self):
-        self.client = VIServer()
-
-        trace_file = os.environ.get('LIBCLOUD_DEBUG', None)
-
-        try:
-            self.client.connect(host=self.host_or_url, user=self.user_id,
-                                password=self.key,
-                                sock_timeout=DEFAULT_CONNECTION_TIMEOUT,
-                                trace_file=trace_file)
-        except Exception:
-            e = sys.exc_info()[1]
-            message = e.message
-            fault = getattr(e, 'fault', None)
-            if fault == 'InvalidLoginFault' or message == 'The read operation timed out':
-                raise InvalidCredsError('Check your username and password are valid')
-            raise Exception('Check that the vSphere host is accessible')
-
-        atexit.register(self.disconnect)
-
-    def disconnect(self):
-        if not self.client:
-            return
-
-        try:
-            self.client.disconnect()
-        except Exception:
-            # Ignore all the disconnect errors
-            pass
-
-    def run_client_method(self, method_name, **method_kwargs):
-        method = getattr(self.client, method_name, None)
-        return method(**method_kwargs)
 
 
 class VSphereNodeDriver(NodeDriver):
     name = 'VMware vSphere'
     website = 'http://www.vmware.com/products/vsphere/'
     type = Provider.VSPHERE
-    connectionCls = VSphereConnection
 
     NODE_STATE_MAP = {
-        'POWERED ON': NodeState.RUNNING,
-        'POWERED OFF': NodeState.STOPPED,
-        'SUSPENDED': NodeState.SUSPENDED,
-        'POWERING ON': NodeState.PENDING,
-        'POWERING OFF': NodeState.PENDING,
-        'SUSPENDING': NodeState.PENDING,
-        'RESETTING': NodeState.PENDING,
-        'BLOCKED ON MSG': NodeState.ERROR,
-        'REVERTING TO SNAPSHOT': NodeState.PENDING
+        'poweredOn': NodeState.RUNNING,
+        'poweredOff': NodeState.STOPPED,
+        'suspended': NodeState.SUSPENDED,
     }
 
-    def __new__(cls, username, password, secure=True, host=None, port=None,
-                url=None, api_version=DEFAULT_API_VERSION, **kwargs):
-        if cls is VSphereNodeDriver:
-            if api_version == '5.5':
-                cls = VSphere_5_5_NodeDriver
-            else:
-                raise NotImplementedError('Unsupported API version: %s' %
-                                          (api_version))
-        return super(VSphereNodeDriver, cls).__new__(cls)
+    def __init__(self, host, username, password):
+        """Initialize a connection by providing a hostname,
+        username and password
+        """
 
-    def __init__(self, username, password, secure=True,
-                 host=None, port=None, url=None, timeout=None):
-        self.url = url
-        super(VSphereNodeDriver, self).__init__(key=username, secret=password,
-                                                secure=secure, host=host,
-                                                port=port, url=url)
+        try:
+            self.connection = connect.SmartConnect(host=host, user=username,
+                                                   pwd=password)
+            atexit.register(connect.Disconnect, self.connection)
 
-    @wrap_non_libcloud_exceptions
+        except Exception as exc:
+            if 'incorrect user name' in getattr(exc, 'msg', ''):
+                raise InvalidCredsError('Check your username and password are valid')
+            message = str(exc.message)
+            if 'Connection refused' in message or 'is not a VIM server' in message:
+                raise Exception('Check that the host provided is a vSphere installation')
+            if 'Name or service not known' in message:
+                raise Exception('Check that the vSphere host is accessible')
+
     def list_locations(self):
         """
-        List available locations.
-
-        In vSphere case, a location represents a datacenter.
+        Lists locations
         """
-        datacenters = self.connection.client.get_datacenters()
-
-        locations = []
-        for id, name in datacenters.items():
-            location = NodeLocation(id=id, name=name, country=None,
-                                    driver=self)
-            locations.append(location)
-
-        return locations
-
-    @wrap_non_libcloud_exceptions
-    def list_images(self):
-        """
-        List available images (templates).
-        """
-        server = self.connection.client
-
-        names = ['name', 'config.uuid', 'config.template']
-        properties = server._retrieve_properties_traversal(
-            property_names=names,
-            from_node=None,
-            obj_type=MORTypes.VirtualMachine)
-
-        images = []
-        for prop in properties:
-            id = None
-            name = None
-            is_template = False
-
-            for item in prop.PropSet:
-                if item.Name == 'config.uuid':
-                    id = item.Val
-                if item.Name == 'name':
-                    name = item.Val
-                elif item.Name == 'config.template':
-                    is_template = item.Val
-
-            if is_template:
-                image = NodeImage(id=id, name=name, driver=self)
-                images.append(image)
-
-            return images
-
-    @wrap_non_libcloud_exceptions
-    def list_nodes(self):
-        vm_paths = self.connection.client.get_registered_vms()
-        nodes = self._to_nodes(vm_paths=vm_paths)
-
-        return nodes
-
-    def list_sizes(self):
         return []
 
-    @wrap_non_libcloud_exceptions
-    @wrap_non_libcloud_exceptions
-    def ex_clone_node(self, node, name, power_on=True, template=False):
+    def list_sizes(self):
         """
-        Clone the provided node.
-
-        :param node: Node to clone.
-        :type node: :class:`libcloud.compute.base.Node`
-
-        :param name: Name of the new node.
-        :type name: ``str``
-
-        :param power_on: Power the new node on after being created.
-        :type power_on: ``bool``
-
-        :param template: Specifies whether or not the new virtual machine
-                         should be marked as a template.
-        :type template: ``bool``
-
-        :return: New node.
-        :rtype: :class:`libcloud.compute.base.Node`
+        Lists sizes
         """
-        vm = self._get_vm_for_node(node=node)
-        new_vm = vm.clone(name=name, power_on=power_on, template=template)
-        new_node = self._to_node(vm=new_vm)
+        return []
 
-        return new_node
-
-    @wrap_non_libcloud_exceptions
-    def ex_migrate_node(self, node, resource_pool=None, host=None,
-                        priority='default'):
+    def list_images(self):
         """
-        Migrate provided node to a new host or resource pool.
-
-        :param node: Node to clone.
-        :type node: :class:`libcloud.compute.base.Node`
-
-        :param resource_pool: ID of the target resource pool to migrate the
-                              node into.
-        :type resource_pool: ``str``
-
-        :param host: Target host to migrate the host to.
-        :type host: ``str``
-
-        :param priority: Migration task priority. Possible values: default,
-                         high, low.
-        :type priority: ``str``
-
-        :return: True on success.
-        :rtype: ``bool``
+        Lists images
         """
-        vm = self._get_vm_for_node(node=node)
-        vm.migrate(priority=priority, resource_pool=resource_pool, host=host)
+        return []
 
-        return True
-
-    @wrap_non_libcloud_exceptions
-    def reboot_node(self, node):
-        vm = self._get_vm_for_node(node=node)
-        vm.reset()
-
-        return True
-
-    @wrap_non_libcloud_exceptions
-    def destroy_node(self, node, ex_remove_files=True):
+    def list_nodes(self):
         """
-        :param ex_remove_files: Remove all the files from the datastore.
-        :type ex_remove_files: ``bool``
+        Lists nodes
         """
-        ex_remove_files = False
-        vm = self._get_vm_for_node(node=node)
-
-        server = self.connection.client
-
-        # Based on code from
-        # https://pypi.python.org/pypi/pyxenter
-        if ex_remove_files:
-            request = VI.Destroy_TaskRequestMsg()
-
-            _this = request.new__this(vm._mor)
-            _this.set_attribute_type(vm._mor.get_attribute_type())
-            request.set_element__this(_this)
-            ret = server._proxy.Destroy_Task(request)._returnval
-            task = VITask(ret, server)
-
-            # Wait for the task to finish
-            status = task.wait_for_state([task.STATE_SUCCESS,
-                                          task.STATE_ERROR])
-
-            if status == task.STATE_ERROR:
-                raise LibcloudError('Error destroying node: %s' %
-                                    (task.get_error_message()))
-        else:
-            request = VI.UnregisterVMRequestMsg()
-
-            _this = request.new__this(vm._mor)
-            _this.set_attribute_type(vm._mor.get_attribute_type())
-            request.set_element__this(_this)
-            ret = server._proxy.UnregisterVM(request)
-            task = VITask(ret, server)
-
-        return True
-
-    @wrap_non_libcloud_exceptions
-    def ex_stop_node(self, node):
-        vm = self._get_vm_for_node(node=node)
-        vm.power_off()
-
-        return True
-
-    @wrap_non_libcloud_exceptions
-    def ex_start_node(self, node):
-        vm = self._get_vm_for_node(node=node)
-        vm.power_on()
-
-        return True
-
-    @wrap_non_libcloud_exceptions
-    def ex_suspend_node(self, node):
-        vm = self._get_vm_for_node(node=node)
-        vm.suspend()
-
-        return True
-
-    @wrap_non_libcloud_exceptions
-    def ex_get_resource_pools(self):
-        """
-        Return all the available resource pools.
-
-        :rtype: ``dict``
-        """
-        result = self.connection.client.get_resource_pools()
-        return result
-
-    @wrap_non_libcloud_exceptions
-    def ex_get_resource_pool_name(self, node):
-        """
-        Retrieve resource pool name for the provided node.
-
-        :rtype: ``str``
-        """
-        vm = self._get_vm_for_node(node=node)
-        return vm.get_resource_pool_name()
-
-    @wrap_non_libcloud_exceptions
-    def ex_get_hosts(self):
-        """
-        Retrurn all the available hosts.
-
-        :rtype: ``dict``
-        """
-        result = self.connection.client.get_hosts()
-        return result
-
-    @wrap_non_libcloud_exceptions
-    def ex_get_datastores(self):
-        """
-        Return all the available datastores.
-
-        :rtype: ``dict``
-        """
-        result = self.connection.client.get_datastores()
-        return result
-
-    @wrap_non_libcloud_exceptions
-    def ex_get_node_by_path(self, path):
-        """
-        Retrieve Node object for a VM with a provided path.
-
-        :type path: ``str``
-        :rtype: :class:`libcloud.compute.base.Node`
-        """
-        vm = self.connection.client.get_vm_by_path(path)
-        node = self._to_node(vm=vm)
-        return node
-
-    def ex_get_node_by_uuid(self, uuid):
-        """
-        Retrieve Node object for a VM with a provided uuid.
-
-        :type uuid: ``str``
-        """
-        vm = self._get_vm_for_uuid(uuid=uuid)
-        node = self._to_node(vm=vm)
-        return node
-
-    @wrap_non_libcloud_exceptions
-    def ex_get_server_type(self):
-        """
-        Return VMware installation type.
-
-        :rtype: ``str``
-        """
-        return self.connection.client.get_server_type()
-
-    @wrap_non_libcloud_exceptions
-    def ex_get_api_version(self):
-        """
-        Return API version of the vmware provider.
-
-        :rtype: ``str``
-        """
-        return self.connection.client.get_api_version()
-
-    def _get_vm_for_uuid(self, uuid, datacenter=None):
-        """
-        Retrieve VM for the provided UUID.
-
-        :type uuid: ``str``
-        """
-        server = self.connection.client
-
-        dc_list = []
-        if datacenter and VIMor.is_mor(datacenter):
-            dc_list.append(datacenter)
-        else:
-            dc = server.get_datacenters()
-            if datacenter:
-                dc_list = [k for k, v in dc.iteritems() if v == datacenter]
-            else:
-                dc_list = list(dc.iterkeys())
-
-        for mor_dc in dc_list:
-            request = VI.FindByUuidRequestMsg()
-            search_index = server._do_service_content.SearchIndex
-            mor_search_index = request.new__this(search_index)
-            mor_search_index.set_attribute_type(MORTypes.SearchIndex)
-            request.set_element__this(mor_search_index)
-
-            mor_datacenter = request.new_datacenter(mor_dc)
-            mor_datacenter.set_attribute_type(MORTypes.Datacenter)
-            request.set_element_datacenter(mor_datacenter)
-
-            request.set_element_vmSearch(True)
-            request.set_element_uuid(uuid)
-
-            try:
-                vm = server._proxy.FindByUuid(request)._returnval
-            except VI.ZSI.FaultException:
-                pass
-            else:
-                if vm:
-                    return VIVirtualMachine(server, vm)
-
-            return None
-
-    def _to_nodes(self, vm_paths):
-        # use multiprocessing to query vm_paths on parallel
-        # since libcloud driver instance is not thread safe, the easiest solution is
-        # to create a new driver instance inside each thread.
-        # http://ci.apache.org/projects/libcloud/docs/other/using-libcloud-in-multithreaded-and-async-environments.html
-
-        def _list_one(vm_path):
-            driver = get_driver(self.type)(host=self.connection.host_or_url, username=self.key,
-                                password=self.secret)
-            try:
-                result = driver.connection.client.get_vm_by_path(vm_path)
-                node = self._to_node(vm=result)
-                driver.connection.disconnect()
-                return node
-            except:
-                return None
-        pool = multiprocessing.pool.ThreadPool(8)
-        results = pool.map(_list_one, vm_paths)
-        pool.terminate()
         nodes = []
-        nodes = [result for result in results if result]
+        content = self.connection.RetrieveContent()
+        children = content.rootFolder.childEntity
+        for child in children:
+            if hasattr(child, 'vmFolder'):
+                datacenter = child
+            else:
+            # some other non-datacenter type object
+                continue
+            vm_folder = datacenter.vmFolder
+            vm_list = vm_folder.childEntity
+
+            for virtual_machine in vm_list:
+                node = self._to_node(virtual_machine, 10)
+                if node:
+                    nodes.append(node)
         return nodes
 
-    def _to_node(self, vm):
-        assert(isinstance(vm, VIVirtualMachine))
+    def _to_node(self, virtual_machine, depth=1):
+        maxdepth = 10
+        # if this is a group it will have children. if it does, recurse into them
+        # and then return
+        if hasattr(virtual_machine, 'childEntity'):
+            if depth > maxdepth:
+                return
+            vmList = virtual_machine.childEntity
+            for c in vmList:
+                self._to_node(c, depth + 1)
+            return
 
-        properties = vm.get_properties()
-        status = vm.get_status()
+        summary = virtual_machine.summary
+        name = summary.config.name
+        path = summary.config.vmPathName
+        memory = summary.config.memorySizeMB
+        cpus = summary.config.numCpu
+        operating_system = summary.config.guestFullName
+        # mist.io needs this metadata
+        os_type = 'unix'
+        if 'Microsoft' in str(operating_system):
+            os_type = 'windows'
+        uuid = summary.config.instanceUuid
+        annotation = summary.config.annotation
+        state = summary.runtime.powerState
+        status = self.NODE_STATE_MAP.get(state, NodeState.UNKNOWN)
+        boot_time = summary.runtime.bootTime
 
-        uuid = vm.properties.config.uuid
-        instance_uuid = vm.properties.config.instanceUuid
+        if summary.guest is not None:
+            ip_address = summary.guest.ipAddress
 
-        id = uuid
-        name = properties['name']
+        overallStatus = str(summary.overallStatus)
         public_ips = []
         private_ips = []
 
-        state = self.NODE_STATE_MAP.get(status, NodeState.UNKNOWN)
-        ip_address = properties.get('ip_address', None)
-        net = properties.get('net', [])
-        resource_pool_id = str(vm.properties.resourcePool._obj)
-        try:
-            operating_system = vm.properties.summary.guest.guestFullName,
-        except:
-            try:
-                # vSphere 5.5
-                operating_system = vm.properties.config.guestFullName
-            except:
-                operating_system = 'unknown'
-
-        if 'Microsoft' in str(operating_system):
-            os_type = 'windows'
-        else:
-            os_type = 'linux'
         extra = {
-            'uuid': uuid,
-            'instance_uuid': instance_uuid,
-            'path': properties['path'],
-            'resource_pool_id': resource_pool_id,
-            'hostname': properties.get('hostname', None),
-            'guest_id': properties['guest_id'],
-            #'devices': properties.get('devices', {}),
-            #'disks': properties.get('disks', []),
-            'net': net,
-            'os_type': os_type,
-            'operating_system': operating_system,
-
-            'cpus': vm.properties.config.hardware.numCPU,
-            'memory_mb': vm.properties.config.hardware.memoryMB
+            "path": path,
+            "operating_system": operating_system,
+            "os_type": os_type,
+            "memory_MB": memory,
+            "cpus": cpus,
+            "overallStatus": overallStatus
         }
 
-        # Add primary IP
+        if boot_time:
+            extra['boot_time'] = boot_time.isoformat()
+        if annotation:
+            extra['annotation'] = annotation
+
         if ip_address:
             if is_public_subnet(ip_address):
                 public_ips.append(ip_address)
             else:
                 private_ips.append(ip_address)
 
-        # Add other IP addresses
-        for nic in net:
-            ip_addresses = nic['ip_addresses']
-            for ip_address in ip_addresses:
-                try:
-                    is_public = is_public_subnet(ip_address)
-                except Exception:
-                    # TODO: Better support for IPv6
-                    is_public = False
-
-                if is_public and ip_address not in public_ips:
-                    public_ips.append(ip_address)
-                elif is_public is False and ip_address not in private_ips:
-                    private_ips.append(ip_address)
-
-        node = Node(id=id, name=name, state=state, public_ips=public_ips,
-                    private_ips=private_ips, driver=self, extra=extra)
+        node = Node(id=uuid, name=name, state=status,
+                    public_ips=public_ips, private_ips=private_ips,
+                    driver=self, extra=extra)
+        node._uuid = uuid
         return node
 
-    def _get_vm_for_node(self, node):
-        uuid = node.id
-        vm = self._get_vm_for_uuid(uuid=uuid)
+    def reboot_node(self, node):
+        """
+        """
+        vm = self.find_by_uuid(node)
+        try:
+            vm.RebootGuest()
+        except:
+            pass
+        return True
+
+    def destroy_node(self, node):
+        """
+        """
+        vm = self.find_by_uuid(node)
+        try:
+            vm.PowerOff()
+        except:
+            pass
+        try:
+            vm.Destroy()
+        except:
+            pass
+        return True
+
+    def ex_stop_node(self, node):
+        """
+        """
+        vm = self.find_by_uuid(node)
+        try:
+            vm.PowerOff()
+        except:
+            pass
+        return True
+
+    def ex_start_node(self, node):
+        """
+        """
+        vm = self.find_by_uuid(node)
+        try:
+            vm.PowerOn()
+        except:
+            pass
+        return True
+
+    def find_by_uuid(self, node):
+        """Searches VMs for a given uuid
+        returns pyVmomi.VmomiSupport.vim.VirtualMachine
+        """
+        vm = self.connection.content.searchIndex.FindByUuid(None, node.id, True, True)
+        if not vm:
+            raise Exception("Unable to locate VirtualMachine.")
         return vm
-
-    def _ex_connection_class_kwargs(self):
-        kwargs = {
-            'url': self.url
-        }
-
-        return kwargs
-
-
-class VSphere_5_5_NodeDriver(VSphereNodeDriver):
-    name = 'VMware vSphere v5.5'
