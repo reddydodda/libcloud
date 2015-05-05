@@ -29,6 +29,9 @@ from libcloud.compute.base import NodeDriver
 from libcloud.compute.base import Node, NodeImage, NodeSize, NodeLocation
 from libcloud.utils.networking import is_private_subnet
 
+VALID_RESPONSE_CODES = [httplib.OK, httplib.ACCEPTED, httplib.CREATED,
+                        httplib.NO_CONTENT]
+
 
 class DigitalOceanResponse(JsonResponse):
     def parse_error(self):
@@ -46,6 +49,9 @@ class DigitalOceanResponse(JsonResponse):
             else:
                 error = body
             return error
+
+    def success(self):
+        return self.status in VALID_RESPONSE_CODES
 
 
 class SSHKey(object):
@@ -379,7 +385,7 @@ class DigitalOceanNodeDriver(NodeDriver):
     def destroy_node(self, node):
         res = self.connection.request('/droplets/%s' % node.id,
                                       method='DELETE')
-        return res.status in [httplib.OK, httplib.CREATED, httplib.ACCEPTED]
+        return res.status in VALID_RESPONSE_CODES
 
     def ex_rename_node(self, node, name):
         params = {"type": "rename", "name": name}
@@ -422,7 +428,7 @@ class DigitalOceanNodeDriver(NodeDriver):
         """
         res = self.connection.request('/account/keys/%s' % key_id,
                                       method='DELETE')
-        return res.status == httplib.OK
+        return res.status in VALID_RESPONSE_CODES
 
     def ex_resize_node(self, node, size):
         """Resizes a Droplet from one plan to another
