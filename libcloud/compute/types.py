@@ -74,6 +74,7 @@ class Provider(object):
     :cvar NEPHOSCALE: NephoScale driver
     :cvar EXOSCALE: Exoscale driver.
     :cvar IKOULA: Ikoula driver.
+    :cvar VULTR: vultr driver.
     :cvar AZURE: Azure driver.
     :cvar DOCKER: Docker driver.
     :cvar OUTSCALE_SAS: Outscale SAS driver.
@@ -130,6 +131,7 @@ class Provider(object):
     OUTSCALE_INC = 'outscale_inc'
     VSPHERE = 'vsphere'
     PROFIT_BRICKS = 'profitbricks'
+    VULTR = 'vultr'
 
     # OpenStack based providers
     HPCLOUD = 'hpcloud'
