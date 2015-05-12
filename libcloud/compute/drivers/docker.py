@@ -177,6 +177,7 @@ class DockerNodeDriver(NodeDriver):
         except Exception as exc:
             if hasattr(exc,'errno') and exc.errno == 111:
                 raise Exception('Make sure docker host is accessible and the API port is correct')
+            raise
 
         nodes = [self._to_node(value) for value in result]
         return nodes
