@@ -629,7 +629,7 @@ class AzureNodeDriver(NodeDriver):
 
         return volumes
 
-    def create_node(self, name, size, image, location, ex_cloud_service_name=None, **kwargs):
+    def create_node(self, name, size, image, location, ex_cloud_service_name=None, endpoint_ports=[], **kwargs):
         """Create Azure Virtual Machine
 
            Reference: http://bit.ly/1fIsCb7
@@ -672,6 +672,11 @@ class AzureNodeDriver(NodeDriver):
 
            :keyword     ex_admin_user_id: Optional. Defaults to 'azureuser'.
            :type        ex_admin_user_id:  ``str``
+
+        example endpoint_ports: [{name:'http', 'protocol': 'tcp', 'local_port': 80, 'port': 80},
+            {name:'smtp', 'protocol': 'tcp', 'local_port': 25, 'port': 25}] where local_port is the
+            private port and port is the public port of the endpoint.
+
 
         """
         location = location.id
@@ -771,6 +776,19 @@ class AzureNodeDriver(NodeDriver):
 
         network_config.input_endpoints.input_endpoints.append(endpoint)
 
+        for endpoint_port in endpoint_ports:
+            try:
+                endpoint_port = ConfigurationSetInputEndpoint(
+                                name=endpoint_port.get('name'),
+                                protocol=endpoint_port.get('protocol'),
+                                port=endpoint_port.get('port'),
+                                local_port=endpoint_port.get('local_port'),
+                                load_balanced_endpoint_set_name=None,
+                                enable_direct_server_return=False
+                            )
+                network_config.input_endpoints.input_endpoints.append(endpoint_port)
+            except:
+                pass
         _storage_location = self._get_cloud_service_location(
             service_name=ex_cloud_service_name)
 
@@ -1084,6 +1102,11 @@ class AzureNodeDriver(NodeDriver):
             os_type = 'windows'
         else:
             os_type = 'linux'
+
+        endpoints = {}
+        for endpoint in data.instance_endpoints:
+            endpoints[endpoint.name] = '%s:%s %s' % (endpoint.local_port, endpoint.public_port, endpoint.protocol)
+
         return Node(
             id=data.role_name,
             name=data.role_name,
@@ -1098,7 +1121,8 @@ class AzureNodeDriver(NodeDriver):
                 'ssh_port': ssh_port,
                 'os_type': os_type,
                 'power_state': data.power_state,
-                'instance_size': data.instance_size})
+                'instance_size': data.instance_size,
+                'endpoints': endpoints})
 
     def _to_location(self, data):
         """
