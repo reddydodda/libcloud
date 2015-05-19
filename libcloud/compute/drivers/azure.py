@@ -776,9 +776,10 @@ class AzureNodeDriver(NodeDriver):
 
         network_config.input_endpoints.input_endpoints.append(endpoint)
 
+
         for endpoint_port in endpoint_ports:
             try:
-                endpoint_port = ConfigurationSetInputEndpoint(
+                input_endpoint = ConfigurationSetInputEndpoint(
                                 name=endpoint_port.get('name'),
                                 protocol=endpoint_port.get('protocol'),
                                 port=endpoint_port.get('port'),
@@ -786,7 +787,10 @@ class AzureNodeDriver(NodeDriver):
                                 load_balanced_endpoint_set_name=None,
                                 enable_direct_server_return=False
                             )
-                network_config.input_endpoints.input_endpoints.append(endpoint_port)
+                # make sure the endpoint is not duplicate
+                if input_endpoint.name != endpoint.name and input_endpoint.port != endpoint.port and \
+                    input_endpoint.local_port != endpoint.local_port:
+                        network_config.input_endpoints.input_endpoints.append(input_endpoint)
             except:
                 pass
         _storage_location = self._get_cloud_service_location(
