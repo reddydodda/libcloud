@@ -28,6 +28,17 @@ from libcloud.compute.base import NodeDriver
 from libcloud.compute.base import Node, NodeImage, NodeSize, NodeLocation
 
 
+class SSHKey(object):
+    def __init__(self, id, name, ssh_key):
+        self.id = id
+        self.name = name
+        self.ssh_key = ssh_key
+
+    def __repr__(self):
+        return (('<SSHKey: id=%s, name=%s, ssh_key=%s>') %
+                (self.id, self.name, self.ssh_key))
+
+
 class VultrResponse(JsonResponse):
     def parse_error(self):
         if self.status == httplib.OK:
@@ -86,17 +97,27 @@ class VultrNodeDriver(NodeDriver):
         return self._list_resources('/v1/server/list', self._to_node)
 
     def list_locations(self):
-        return self._list_resources('/v1/regions/list', self._to_location)
+        locations = self._list_resources('/v1/regions/list', self._to_location)
+        return sorted(locations, key=lambda k: k.name)
 
     def list_sizes(self):
-        return self._list_resources('/v1/plans/list', self._to_size)
+        sizes = self._list_resources('/v1/plans/list', self._to_size)
+        return sorted(sizes, key=lambda k: float(k.price.replace('/month', '')))
 
     def list_images(self):
-        return self._list_resources('/v1/os/list', self._to_image)
+        images = self._list_resources('/v1/os/list', self._to_image)
+        return sorted(images, key=lambda k: k.name)
 
-    def create_node(self, name, size, image, location):
+    def create_node(self, name, size, image, location, ssh_key=[]):
+
+        # SSHKEYID string (optional) List of SSH keys to apply to this server
+        # on install (only valid for Linux/FreeBSD).  See v1/sshkey/list.
+        # Seperate keys with commas
+
         params = {'DCID': location.id, 'VPSPLANID': size.id,
                   'OSID': image.id, 'label': name}
+        if ssh_key:
+            params['SSHKEYID'] = ','.join(ssh_key)
 
         result = self.connection.post('/v1/server/create', params)
         if result.status != httplib.OK:
@@ -119,6 +140,24 @@ class VultrNodeDriver(NodeDriver):
 
         return created_node
 
+    def ex_stop_node(self, node):
+        params = {'SUBID': node.id}
+        res = self.connection.post('/v1/server/halt', params)
+
+        return res.status == httplib.OK
+
+    def ex_start_node(self, node):
+        params = {'SUBID': node.id}
+        res = self.connection.post('/v1/server/start', params)
+
+        return res.status == httplib.OK
+
+    def reboot_node(self, node):
+        params = {'SUBID': node.id}
+        res = self.connection.post('/v1/server/reboot', params)
+
+        return res.status == httplib.OK
+
     def reboot_node(self, node):
         params = {'SUBID': node.id}
         res = self.connection.post('/v1/server/reboot', params)
@@ -130,6 +169,31 @@ class VultrNodeDriver(NodeDriver):
         res = self.connection.post('/v1/server/destroy', params)
 
         return res.status == httplib.OK
+
+    def ex_list_ssh_keys(self):
+        """
+        List all the available SSH keys.
+
+        :return: Available SSH keys.
+        :rtype: ``list`` of :class:`SSHKey`
+        """
+        data = self.connection.request(' /v1/sshkey/list').object
+        return list(map(self._to_ssh_key, data.values()))
+
+    def ex_create_ssh_key(self, name, ssh_key):
+        """
+        Create a new SSH key.
+
+        :param      name: Key name (required)
+        :type       name: ``str``
+
+        :param      name: Valid public key string (required)
+        :type       name: ``str``
+        """
+        params = {'name': name, 'ssh_key': ssh_key}
+        data = self.connection.post('/v1/sshkey/create', params).object
+        return SSHKey(id=data.get('SSHKEYID'), name=name,
+                      ssh_key=ssh_key)
 
     def _list_resources(self, url, tranform_func):
         data = self.connection.get(url).object
@@ -150,7 +214,11 @@ class VultrNodeDriver(NodeDriver):
         else:
             public_ips = []
 
-        extra_keys = []
+        extra_keys = ['os', 'kvm_url', 'date_created',
+                      'pending_charges', 'cost_per_month', 'location',
+                      'vcpu_count', 'disk', 'allowed_bandwidth_gb', 'ram',
+                      'default_password']
+
         extra = {}
         for key in extra_keys:
             if key in data:
@@ -171,7 +239,7 @@ class VultrNodeDriver(NodeDriver):
         ram = int(data['ram'])
         disk = int(data['disk'])
         bandwidth = float(data['bandwidth'])
-        price = float(data['price_per_month'])
+        price = "%s/month" % data['price_per_month']
 
         return NodeSize(id=data['VPSPLANID'], name=data['name'],
                         ram=ram, disk=disk,
@@ -182,3 +250,7 @@ class VultrNodeDriver(NodeDriver):
         extra = {'arch': data['arch'], 'family': data['family']}
         return NodeImage(id=data['OSID'], name=data['name'], extra=extra,
                          driver=self)
+
+    def _to_ssh_key(self, data):
+        return SSHKey(id=data.get('SSHKEYID'), name=data.get('name'),
+                      ssh_key=data.get('ssh_key', None))
