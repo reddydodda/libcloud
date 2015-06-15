@@ -208,8 +208,7 @@ class VultrNodeDriver(NodeDriver):
                 state = NodeState.STOPPED
         else:
             state = NodeState.UNKNOWN
-
-        if 'main_ip' in data and data['main_ip'] is not None:
+        if 'main_ip' in data and data['main_ip'] not in [0, '', None]:
             public_ips = [data['main_ip']]
         else:
             public_ips = []
