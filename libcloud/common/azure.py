@@ -15,6 +15,7 @@
 
 import copy
 import os
+import re
 import time
 import base64
 import hmac
@@ -67,8 +68,12 @@ class AzureResponse(XmlResponse):
                 message = body.findtext(fixxpath(xpath='Message'))
                 message = message.split('\n')[0]
                 error_msg = '%s: %s' % (code, message)
+            else:
+                error_txt = re.search(r"(<Message>)(.*?)(</Message>)", self.body)
+                if error_txt:
+                    error_msg = error_txt.group(2)
 
-        except MalformedResponseError:
+        except:
             pass
 
         if msg:
