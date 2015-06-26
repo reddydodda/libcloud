@@ -16,12 +16,14 @@ from __future__ import with_statement
 
 import re
 import os
+import shlex
 import socket
 import time
 import platform
 import subprocess
 import mimetypes
 import signal
+import paramiko
 
 from os.path import join as pjoin
 from collections import defaultdict
@@ -31,7 +33,7 @@ try:
 except ImportError:
     from xml.etree import ElementTree as ET
 
-from libcloud.compute.base import NodeDriver, Node
+from libcloud.compute.base import NodeDriver, Node, NodeImage
 from libcloud.compute.base import NodeState
 from libcloud.compute.types import Provider
 from libcloud.utils.networking import is_public_subnet
@@ -126,28 +128,8 @@ class LibvirtNodeDriver(NodeDriver):
         # libvirt connection. Then we can check what ip address each MAC
         # address has
         self.arp_table = {}
-        if self.secret:
-            try:
-                import paramiko
-                ssh=paramiko.SSHClient()
-                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-                ssh.connect(self.host, username=self.key, key_filename=self.secret,
-                            timeout=None, allow_agent=False, look_for_keys=False)
-                stdin,stdout,stderr = ssh.exec_command("arp -an")
-                output = stdout.read()
-                ssh.close()
-                self.arp_table = self._parse_arp_table(output)
-            except:
-                pass
-        else:
-            cmd = ['arp', '-an']
-            child = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE)
-            stdout, _ = child.communicate()
-            self.arp_table = self._parse_arp_table(arp_output=stdout)
-
-
+        cmd = "arp -an"
+        self.arp_table = self._parse_arp_table(self.run_command(cmd))
 
         nodes = [self._to_node(domain) for domain in domains]
 
@@ -193,7 +175,7 @@ class LibvirtNodeDriver(NodeDriver):
         extra = {'uuid': domain.UUIDString(), 'os_type': domain.OSType(),
                  'types': self.connection.getType(),
                  'hypervisor_name': self.connection.getHostname(),
-                 'used_memory': memory / 1024, 'vcpu_count': vcpu_count,
+                 'Memory': '%s MB' % str(memory / 1024), 'Processors': vcpu_count,
                  'used_cpu_time': used_cpu_time}
 
         node = Node(id=domain.UUIDString(), name=domain.name(), state=state,
@@ -201,6 +183,55 @@ class LibvirtNodeDriver(NodeDriver):
                     driver=self, extra=extra)
         node._uuid = domain.UUIDString()  # we want to use a custom UUID
         return node
+
+
+    def _get_vnc_port_for_domain(self, node):
+        """
+        Returns the vnc port for a domain
+        """
+        cmd = "virsh vncdisplay %s" % node.name
+        output = self.run_command(cmd)
+
+        try:
+            port = output.split(":")[1].replace('\n', '')
+            vnc_port = int(port) + 5900
+        except:
+            vnc_port = None
+
+        return vnc_port
+
+    def ex_set_ssh_fw(self, node):
+        """
+        """
+        remote_port = self._get_vnc_port_for_domain(node)
+        local_port = self.ex_bind_local_port()
+        if remote_port and local_port:
+            cmd = "nohup ssh -L %s:localhost:%s %s@%s -i %s -N &" % \
+                (local_port, remote_port, self.key, self.host, self.secret)
+        else:
+            return None
+
+        cmd = shlex.split(cmd)
+        child = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+        return local_port
+
+    # SOS: ssh fw need to be closed as longs as vnc session closes
+
+    def ex_bind_local_port(self):
+        """
+        Find a local port to bind and return
+        """
+        for port in range(50000, 65535):
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.bind(("", port))
+                s.listen(1)
+                s.close()
+                return port
+            except:
+                pass
+        return None
 
     def _get_ip_addresses_for_domain(self, domain):
         """
@@ -248,8 +279,21 @@ class LibvirtNodeDriver(NodeDriver):
     def list_locations(self):
         return []
 
-    def list_images(self):
-        return []
+    def list_images(self, location='/var'):
+        """
+        Returns iso images as NodeImages
+        Searches inside /var, unless other location is specified
+        """
+        images = []
+        cmd = "find %s -name '*.iso'" % location
+        output = self.run_command(cmd)
+
+        if output:
+            for image in output.strip().split('\n'):
+                nodeimage = NodeImage(id=image, name=image, driver=self, extra={})
+                images.append(nodeimage)
+
+        return images
 
     def reboot_node(self, node):
         domain = self._get_domain_for_node(node=node)
@@ -355,6 +399,13 @@ class LibvirtNodeDriver(NodeDriver):
 
         return file_path
 
+    def ex_get_capabilities(self):
+        """
+        Return hypervisor capabilities
+        """
+        capabilities = self.connection.getCapabilities()
+        return capabilities
+
     def ex_get_hypervisor_hostname(self):
         """
         Return a system hostname on which the hypervisor is running.
@@ -381,6 +432,125 @@ class LibvirtNodeDriver(NodeDriver):
 
         return sysinfo
 
+    def create_node(self, name, disk_path=None, disk_size=4, ram=1024,
+                    cpus=1, os_type='linux', image='' ):
+        """
+        Creates a VM
+
+        If image is missing, we assume we are creating the VM by importing
+        existing image (disk_path has to be specified)
+
+        image is optional and  needs to be a path,
+        eg /var/lib/libvirt/images/CentOS-7-x86_64-Minimal-1503-01.iso
+
+        If disk_path is specified, needs to be a path, eg /var/lib/libvirt/images/name.img
+        If it exists, we assume it is already there to be used. Otherwise we will try to create
+        it with qemu-img - disk_size being the size of it
+        disk_size should be an int specifying the Gigabytes of disk space.
+
+        Cases that are covered by this:
+        1) Boot from iso -needs name, iso image, ram, cpu, disk space, size
+        2) Import existing image - needs disk_path, ram, cpu
+
+        """
+        # name validator, name should be unique
+        name = self.ex_name_validator(name)
+
+        # check which case we are on. If both image and disk_path are empty, then fail with error.
+
+        if not disk_path and not image:
+            raise Exception("You have to specify at least an image iso, to boot from, or an existing disk_path to import")
+
+        disk_size = str(disk_size) + 'G'
+        ram = ram * 1000
+
+        # TODO: get available ram, cpu and disk and inform if not available
+
+        if image:
+            if not disk_path:
+                # make a default disk_path of  /var/lib/libvirt/images/vm_name.img
+                disk_path = '/var/lib/libvirt/images/%s.img' % name
+
+            self.ex_create_disk(disk_path, disk_size)
+        else:
+            # if disk_path is specified but the path does not exist fail with error
+            if not self.ex_validate_disk(disk_path):
+                raise Exception("You have specified no image iso and a disk path to import that does not exist")
+
+        capabilities = self.ex_get_capabilities()
+        if "<domain type='kvm'>" in capabilities:
+            # kvm hypervisor supported by the system
+            emu = 'kvm'
+        else:
+            # only qemu emulator available
+            emu = 'qemu'
+
+        # define the VM
+        if image:
+            image_conf = IMAGE_TEMPLATE % image
+        else:
+            image_conf = ''
+
+        bridges = self.ex_list_bridges()
+        if bridges:
+            net_type = 'bridge'
+            net_name = bridges[0]
+        else:
+            net_type = 'network'
+            net_name = 'default'
+
+
+        conf = XML_CONF_TEMPLATE % (emu, name, ram, cpus, disk_path, image_conf, net_type, net_type, net_name)
+
+        self.connection.defineXML(conf)
+
+        # start the VM
+
+        domain = self.connection.lookupByName(name)
+        try:
+            domain.create()
+        except:
+            raise
+
+        return True
+
+    def ex_name_validator(self, name):
+        """
+        Makes sure name is not in use, and checks
+        it is comprised only by alphanumeric chars and -_."
+        """
+        if not re.search(r'^[0-9a-zA-Z-_.]+[0-9a-zA-Z]$', name):
+            raise Exception("Alphanumeric, dots, dashes and underscores are only allowed in VM name")
+
+        nodes = self.list_nodes(show_hypervisor=False)
+
+        if name in [node.name for node in nodes]:
+            raise Exception("VM with name %s already exists" % name)
+
+        return name
+
+    def ex_validate_disk(self, disk_path):
+        """
+        Check if disk_path exists
+        """
+
+        if os.path.exists(disk_path):
+            return True
+        else:
+            return False
+
+    def ex_create_disk(self, disk_path, disk_size):
+        """
+        Create disk using qemu-img
+        """
+        cmd = "qemu-img create -f qcow2 %s %s" % (disk_path, disk_size)
+
+        output = self.run_command(cmd)
+        if output:
+            return True
+        else:
+            return False
+
     def _get_domain_for_node(self, node):
         """
         Return libvirt domain object for the provided node.
@@ -403,6 +573,17 @@ class LibvirtNodeDriver(NodeDriver):
             result[name] = value
 
         return result
+
+    def ex_list_bridges(self):
+        bridges = []
+        try:
+            # not supported by all hypervisors
+            for net in self.connection.listInterfaces():
+                if net != 'lo':
+                    bridges.append(net)
+        except:
+            pass
+        return bridges
 
     def _parse_arp_table(self, arp_output):
         """
@@ -437,3 +618,77 @@ class LibvirtNodeDriver(NodeDriver):
 
     def __del__(self):
         self.disconnect()
+
+    def run_command(self, cmd):
+        """
+        Run a command on a local or remote hypervisor
+        If the hypervisor is remote, run the command with paramiko
+        """
+        output = ''
+        if self.secret:
+            try:
+                ssh=paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+                ssh.connect(self.host, username=self.key, key_filename=self.secret,
+                            timeout=None, allow_agent=False, look_for_keys=False)
+                stdin,stdout,stderr = ssh.exec_command(cmd)
+
+                output = stdout.read()
+                ssh.close()
+            except:
+                pass
+        else:
+            try:
+                cmd = shlex.split(cmd)
+                child = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                         stderr=subprocess.PIPE)
+                output, _ = child.communicate()
+            except:
+                pass
+        return output
+
+
+XML_CONF_TEMPLATE = '''
+<domain type='%s'>
+  <name>%s</name>
+  <memory>%s</memory>
+  <vcpu>%s</vcpu>
+  <os>
+   <type arch='x86_64'>hvm</type>
+    <boot dev='hd'/>
+    <boot dev='cdrom'/>
+  </os>
+ <features>
+    <acpi/>
+  </features>
+  <clock offset='utc'/>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+  <devices>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2'/>
+      <source file='%s'/>
+      <target dev='hda' bus='ide'/>
+    </disk>%s
+    <interface type='%s'>
+      <source %s='%s'/>
+    </interface>
+    <input type='mouse' bus='ps2'/>
+    <graphics type='vnc' port='-1' autoport='yes' listen='127.0.0.1'/>
+    <video>
+      <model type='cirrus' vram='9216' heads='1'/>
+    </video>
+  </devices>
+</domain>
+'''
+
+IMAGE_TEMPLATE = '''
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='%s'/>
+     <target dev='hdb' bus='ide'/>
+     <readonly/>
+    </disk>
+'''
