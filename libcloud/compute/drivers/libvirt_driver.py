@@ -465,7 +465,6 @@ class LibvirtNodeDriver(NodeDriver):
         ram = ram * 1000
 
         # TODO: get available ram, cpu and disk and inform if not available
-
         if image:
             if not disk_path:
                 # make a default disk_path of  /var/lib/libvirt/images/vm_name.img
@@ -534,7 +533,10 @@ class LibvirtNodeDriver(NodeDriver):
         Check if disk_path exists
         """
 
-        if os.path.exists(disk_path):
+        cmd = 'ls %s' % disk_path
+        output = self.run_command(cmd)
+
+        if output:
             return True
         else:
             return False
