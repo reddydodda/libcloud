@@ -490,7 +490,9 @@ class LibvirtNodeDriver(NodeDriver):
         else:
             image_conf = ''
 
-        bridges = self.ex_list_bridges()
+        # bridges = self.ex_list_bridges()
+        # FIXME: needs testing
+        bridges = []
         if bridges:
             net_type = 'bridge'
             net_name = bridges[0]
@@ -580,9 +582,8 @@ class LibvirtNodeDriver(NodeDriver):
         bridges = []
         try:
             # not supported by all hypervisors
-            for net in self.connection.listInterfaces():
-                if net != 'lo':
-                    bridges.append(net)
+            for net in self.connection.listAllNetworks():
+                    bridges.append(net.bridgeName())
         except:
             pass
         return bridges
