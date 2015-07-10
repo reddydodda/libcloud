@@ -33,7 +33,7 @@ try:
 except ImportError:
     from xml.etree import ElementTree as ET
 
-from libcloud.compute.base import NodeDriver, Node, NodeImage
+from libcloud.compute.base import NodeDriver, Node, NodeImage, NodeSize
 from libcloud.compute.base import NodeState
 from libcloud.compute.types import Provider
 from libcloud.utils.networking import is_public_subnet
@@ -275,7 +275,28 @@ class LibvirtNodeDriver(NodeDriver):
         return result
 
     def list_sizes(self):
-        return []
+        """
+        Returns sizes
+        A min and a max size are returned
+        """
+        sizes = []
+        min_size = NodeSize(id=0, name='small', ram=1000, 
+                            disk=1, bandwidth=None, price=None,
+                            driver=self, extra={'cpu': 1})
+        sizes.append(min_size)
+        
+        try:
+            # not supported by all hypervisors
+            info = self.connection.getInfo()
+            ram = info[1]
+            cores = info[2]
+            max_size = NodeSize(id=1, name='large', ram=ram, disk=1, bandwidth=None, 
+                       price=None, driver=self, extra={'cpu': cores})
+            sizes.append(max_size)
+        except:
+            pass
+
+        return sizes
 
     def list_locations(self):
         return []
