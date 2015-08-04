@@ -114,6 +114,7 @@ class LibvirtNodeDriver(NodeDriver):
             raise Exception("Connection error")
 
     def list_nodes(self, show_hypervisor=True):
+
         # active domains
         domain_ids = self.connection.listDomainsID()
         domains = [self.connection.lookupByID(id) for id in domain_ids]
@@ -277,24 +278,23 @@ class LibvirtNodeDriver(NodeDriver):
     def list_sizes(self):
         """
         Returns sizes
-        A min and a max size are returned
+        A max size with system capabilities is returned (if available),
+        otherwise a standard size
         """
         sizes = []
-        min_size = NodeSize(id=0, name='small', ram=1000, 
-                            disk=1, bandwidth=None, price=None,
-                            driver=self, extra={'cpu': 1})
-        sizes.append(min_size)
-        
         try:
             # not supported by all hypervisors
             info = self.connection.getInfo()
             ram = info[1]
             cores = info[2]
-            max_size = NodeSize(id=1, name='large', ram=ram, disk=1, bandwidth=None, 
+            max_size = NodeSize(id=1, name='max', ram=ram, disk=1, bandwidth=None,
                        price=None, driver=self, extra={'cpu': cores})
             sizes.append(max_size)
         except:
-            pass
+            standard_size = NodeSize(id=0, name='standard_size', ram=512,
+                                disk=1, bandwidth=None, price=None,
+                                driver=self, extra={'cpu': 1})
+            sizes.append(min_size)
 
         return sizes
 
@@ -535,7 +535,29 @@ class LibvirtNodeDriver(NodeDriver):
         except:
             raise
 
+        nodes = self.list_nodes(show_hypervisor=False)
+        for node in nodes:
+            if node.name == name:
+                return node
+
         return True
+
+
+    def ex_clone_vm(self, node, new_name=None):
+        """
+        Clones a VM
+        """
+        # TODO
+        # if VM is running, raise exception and exit
+        # step1: get existing node conf through loookupbyname and fetch disk info
+        # step2: remove uuid and mac from new node conf
+        # step3: set name in new node conf
+        # step4: cp disk img to new one
+        # step4: define new xml
+        # step5: start new node
+
+        return None
+
 
     def ex_name_validator(self, name):
         """
