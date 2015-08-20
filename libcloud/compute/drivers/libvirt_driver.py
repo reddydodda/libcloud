@@ -77,13 +77,21 @@ class LibvirtNodeDriver(NodeDriver):
         Host can be an ip address or hostname
         ssh key should be a filename with the private key
         """
-
         if host in ['localhost', '127.0.0.1']:
             # local connection
             uri = 'qemu:///system'
         else:
             if ssh_key:
                 # ssh connection
+                # initially attempt to connect to host/port and raise exception on failure
+                try:
+                    socket.setdefaulttimeout(10)
+                    so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    so.connect((host, ssh_port))
+                    so.close()
+                except:
+                    raise Exception("Make sure host is accessible and ssh port %s is open" % ssh_port)
+
                 uri = 'qemu+ssh://%s@%s:%s/system?keyfile=%s&no_tty=1&no_verify=1' % (user, host, ssh_port, ssh_key)
             else:
                 #tcp connection
@@ -93,6 +101,7 @@ class LibvirtNodeDriver(NodeDriver):
         self.secret = ssh_key
         self.key = user
         self.host = host
+
         try:
             signal.signal(signal.SIGALRM, self.timeout_handler)
             signal.alarm(libvirt_connection_timeout)
