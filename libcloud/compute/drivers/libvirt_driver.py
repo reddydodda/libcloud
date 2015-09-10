@@ -477,7 +477,6 @@ class LibvirtNodeDriver(NodeDriver):
         """
         # name validator, name should be unique
         name = self.ex_name_validator(name)
-
         # check which case we are on. If both image and disk_path are empty, then fail with error.
 
         if not create_from_existing and not image:
@@ -485,7 +484,6 @@ class LibvirtNodeDriver(NodeDriver):
 
         disk_size = str(disk_size) + 'G'
         ram = ram * 1000
-
         # TODO: get available ram, cpu and disk and inform if not available
         if create_from_existing:
             # create_from_existing case
@@ -512,11 +510,11 @@ class LibvirtNodeDriver(NodeDriver):
                 else:
                     break
 
-        if image:
-            self.ex_create_disk(disk_path, disk_size)
-        elif create_from_existing:
+        if create_from_existing:
             cmd = "cp %s %s" % (create_from_existing, disk_path)
             output = self.run_command(cmd)
+        else:
+            self.ex_create_disk(disk_path, disk_size)
 
         capabilities = self.ex_get_capabilities()
         if "<domain type='kvm'>" in capabilities:
