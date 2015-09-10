@@ -454,25 +454,25 @@ class LibvirtNodeDriver(NodeDriver):
 
         return sysinfo
 
-    def create_node(self, name, disk_path=None, disk_size=4, ram=1024,
-                    cpus=1, os_type='linux', image='' ):
+    def create_node(self, name, disk_size=4, ram=512,
+                    cpu=1, image=None, disk_path=None, create_from_existing=None, os_type='linux'):
         """
         Creates a VM
 
         If image is missing, we assume we are creating the VM by importing
-        existing image (disk_path has to be specified)
+        existing image (create_from_existing has to be specified)
 
-        image is optional and  needs to be a path,
+        If image is specified, should be a path. Eg
         eg /var/lib/libvirt/images/CentOS-7-x86_64-Minimal-1503-01.iso
 
         If disk_path is specified, needs to be a path, eg /var/lib/libvirt/images/name.img
-        If it exists, we assume it is already there to be used. Otherwise we will try to create
-        it with qemu-img - disk_size being the size of it
-        disk_size should be an int specifying the Gigabytes of disk space.
+
+        If it exists, raise an error and exit, otherwise we will try to create
+        with qemu-img - disk_size being the size of it (in gigabytes)
 
         Cases that are covered by this:
         1) Boot from iso -needs name, iso image, ram, cpu, disk space, size
-        2) Import existing image - needs disk_path, ram, cpu
+        2) Import existing image - needs create_from_existing, ram, cpu
 
         """
         # name validator, name should be unique
@@ -480,23 +480,43 @@ class LibvirtNodeDriver(NodeDriver):
 
         # check which case we are on. If both image and disk_path are empty, then fail with error.
 
-        if not disk_path and not image:
+        if not create_from_existing and not image:
             raise Exception("You have to specify at least an image iso, to boot from, or an existing disk_path to import")
 
         disk_size = str(disk_size) + 'G'
         ram = ram * 1000
 
         # TODO: get available ram, cpu and disk and inform if not available
-        if image:
-            if not disk_path:
-                # make a default disk_path of  /var/lib/libvirt/images/vm_name.img
-                disk_path = '/var/lib/libvirt/images/%s.img' % name
+        if create_from_existing:
+            # create_from_existing case
+            # if create_from_existing is specified but the path does not exist fail with error
+            if not self.ex_validate_disk(create_from_existing):
+                raise Exception("You have specified to create from an existing disk path that does not exist")
 
-            self.ex_create_disk(disk_path, disk_size)
+
+        if not disk_path:
+            # make a default disk_path of  /var/lib/libvirt/images/vm_name.img
+            # the disk_path need not exist, so we can create it
+            disk_path = '/var/lib/libvirt/images/%s.img' % name
+            for i in range(1, 20):
+                if self.ex_validate_disk(disk_path):
+                    disk_path = '/var/lib/libvirt/images/%s.img' % name + str(i)
+                else:
+                    break
         else:
-            # if disk_path is specified but the path does not exist fail with error
             if not self.ex_validate_disk(disk_path):
-                raise Exception("You have specified no image iso and a disk path to import that does not exist")
+                disk_path = '/var/lib/libvirt/images/%s.img' % name
+            for i in range(1, 20):
+                if self.ex_validate_disk(disk_path):
+                    disk_path = '%s/%s.img' % (disk_path, name+str(i))
+                else:
+                    break
+
+        if image:
+            self.ex_create_disk(disk_path, disk_size)
+        elif create_from_existing:
+            cmd = "cp %s %s" % (create_from_existing, disk_path)
+            output = self.run_command(cmd)
 
         capabilities = self.ex_get_capabilities()
         if "<domain type='kvm'>" in capabilities:
@@ -523,7 +543,7 @@ class LibvirtNodeDriver(NodeDriver):
             net_name = 'default'
 
 
-        conf = XML_CONF_TEMPLATE % (emu, name, ram, cpus, disk_path, image_conf, net_type, net_type, net_name)
+        conf = XML_CONF_TEMPLATE % (emu, name, ram, cpu, disk_path, image_conf, net_type, net_type, net_name)
 
         self.connection.defineXML(conf)
 
