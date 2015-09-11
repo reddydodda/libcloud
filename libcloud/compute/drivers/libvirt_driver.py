@@ -86,9 +86,26 @@ class LibvirtNodeDriver(NodeDriver):
         else:
             if ssh_key:
                 # ssh connection
+                # initially attempt to connect to host/port and raise exception on failure
+                try:
+                    socket.setdefaulttimeout(15)
+                    so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    so.connect((host, ssh_port))
+                    so.close()
+                except:
+                    raise Exception("Make sure host is accessible and ssh port %s is open" % ssh_port)
+
                 uri = 'qemu+ssh://%s@%s:%s/system?keyfile=%s&no_tty=1&no_verify=1' % (user, host, ssh_port, ssh_key)
             else:
                 #tcp connection
+                try:
+                    socket.setdefaulttimeout(15)
+                    so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    so.connect((host, 5000))
+                    so.close()
+                except:
+                    raise Exception("If you don't specify an ssh key, mist.io tries to connect to port 5000 through qemu+tcp")
+
                 uri = 'qemu+tcp://%s:5000/system' % host
 
         self._uri = uri
