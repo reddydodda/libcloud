@@ -504,6 +504,8 @@ class LibvirtNodeDriver(NodeDriver):
         else:
             if not self.ex_validate_disk(disk_path):
                 disk_path = '/var/lib/libvirt/images/%s.img' % name
+            else:
+                disk_path = pjoin(disk_path, name) + '.img'
             for i in range(1, 20):
                 if self.ex_validate_disk(disk_path):
                     disk_path = '%s/%s.img' % (disk_path, name+str(i))
