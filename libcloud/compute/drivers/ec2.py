@@ -4774,7 +4774,13 @@ class BaseEC2NodeDriver(NodeDriver):
         # Add additional properties to our extra dictionary
         extra['block_device_mapping'] = self._to_device_mappings(element)
         extra['groups'] = self._get_security_groups(element)
-        extra['network_interfaces'] = self._to_interfaces(element)
+        try:
+            # return list of ids for network interfaces
+            network_interfaces = self._to_interfaces(element)
+            network_interfaces = [network_interface.id for network_interface in network_interfaces]
+        except:
+            network_interfaces = []
+        extra['network_interfaces'] = network_interfaces
         extra['product_codes'] = product_codes
         extra['tags'] = tags
 
