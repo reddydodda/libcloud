@@ -4775,9 +4775,10 @@ class BaseEC2NodeDriver(NodeDriver):
         extra['block_device_mapping'] = self._to_device_mappings(element)
         extra['groups'] = self._get_security_groups(element)
         try:
-            # return list of ids for network interfaces
+            # return list of ids for network interfaces as str
             network_interfaces = self._to_interfaces(element)
             network_interfaces = [network_interface.id for network_interface in network_interfaces]
+            network_interfaces = ','.join(network_interfaces)
         except:
             network_interfaces = []
         extra['network_interfaces'] = network_interfaces
