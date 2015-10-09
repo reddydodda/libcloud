@@ -148,9 +148,10 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
                             'allocation_pools'], gateway_ip=sub['gateway_ip'],
                         cidr=sub['cidr'])
                 )
-
-        return HPCloudNetwork(id=obj['id'], name=obj['name'],
-                              status=obj['status'], subnets=added_subnets)
+        return HPCloudNetwork(id=obj.pop('id'), name=obj.pop('name'),
+                              status=obj.pop('status'), subnets=added_subnets,
+                              router_external=obj.pop("router:external"),
+                              extra=obj)
 
     def ex_create_network(self, name, admin_state_up=True, shared=False):
         """
@@ -262,11 +263,13 @@ class HPCloudNetwork(object):
     An instance of a neutron network
     """
 
-    def __init__(self, id, name, status=None, subnets=[], ):
+    def __init__(self, id, name, status=None, subnets=[], extra={}, router_external=False):
         self.id = id
         self.name = name
         self.status = status
         self.subnets = subnets
+        self.extra = extra
+        self.router_external = router_external
 
     def __repr__(self):
         return '<HPCloudNetwork id=%s name=%s>' % (self.id, self.name)
