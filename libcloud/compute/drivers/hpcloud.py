@@ -111,6 +111,33 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
 
         return kwargs
 
+    def _neutron_endpoint(func):
+        """
+        This is a hack. To change the endpoint to neutron and back to
+        compute/nova.
+        """
+        def neutron_connection(self):
+            self.connection._ex_force_service_region = self.region
+            self.connection._ex_force_service_type = "network"
+            self.connection._ex_force_service_name = None
+
+        def restore_connection(self):
+            self.connection._ex_force_service_region = ""
+            self.connection._ex_force_service_type = ""
+            self.connection._ex_force_service_name = ""
+
+        from functools import wraps
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            neutron_connection(args[0])
+            re = func(*args, **kwargs)
+            restore_connection(args[0])
+            return re
+
+        return wrapper
+
+    @_neutron_endpoint
     def ex_list_networks(self):
         """
         Get a list of Networks that are available.
@@ -118,17 +145,10 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
         :rtype: ``list`` of :class:`OpenStackNetwork`
         """
 
-        self.connection._ex_force_service_region = self.region
-        self.connection._ex_force_service_type = "network"
-        self.connection._ex_force_service_name = None
-
         networks = self.connection.request(
             self._neutron_networks_url_prefix).object
         subnets = self.connection.request(
             self._neutron_subnets_url_prefix).object
-        self.connection._ex_force_service_region = ""
-        self.connection._ex_force_service_type = ""
-        self.connection._ex_force_service_name = ""
         return self._to_neutron_networks(networks, subnets)
 
     def _to_neutron_networks(self, obj_networks, obj_subnets):
@@ -153,6 +173,7 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
                               router_external=obj.pop("router:external"),
                               extra=obj)
 
+    @_neutron_endpoint
     def ex_create_network(self, name, admin_state_up=True, shared=False):
         """
         Create a new neutron Network
@@ -172,10 +193,6 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
         :return: :class:`OpenStackNeutronNetwork`
         """
 
-        self.connection._ex_force_service_region = self.region
-        self.connection._ex_force_service_type = "network"
-        self.connection._ex_force_service_name = None
-
         data = {
             'network': {
                 'name': name,
@@ -187,34 +204,21 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
         response = self.connection.request(self._neutron_networks_url_prefix,
                                            method='POST', data=data).object
 
-        self.connection._ex_force_service_region = ""
-        self.connection._ex_force_service_type = ""
-        self.connection._ex_force_service_name = ""
-
         return self._to_neutron_network(response['network'], [])
 
+    @_neutron_endpoint
     def ex_delete_network(self, network_id):
         """
         Delete neutron network
         """
-        self.connection._ex_force_service_region = self.region
-        self.connection._ex_force_service_type = "network"
-        self.connection._ex_force_service_name = None
         response = self.connection.request(self._neutron_networks_url_prefix +
                                            "/%s" % network_id, method='DELETE').object
 
-        self.connection._ex_force_service_region = ""
-        self.connection._ex_force_service_type = ""
-        self.connection._ex_force_service_name = ""
-
         return response
 
+    @_neutron_endpoint
     def ex_create_subnet(self, name, network_id, cidr, allocation_pools=[], gateway_ip=None,
                          ip_version="4", enable_dhcp=True):
-
-        self.connection._ex_force_service_region = self.region
-        self.connection._ex_force_service_type = "network"
-        self.connection._ex_force_service_name = None
 
         data = {
             'subnet': {
@@ -231,10 +235,6 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
         response = self.connection.request(self._neutron_subnets_url_prefix,
                                            method='POST', data=data).object
 
-        self.connection._ex_force_service_region = ""
-        self.connection._ex_force_service_type = ""
-        self.connection._ex_force_service_name = ""
-
         subnet = response['subnet']
         return HPCloudSubnet(name=subnet['name'], id=subnet['id'], cidr=subnet['cidr'],
                              enable_dhcp=subnet['enable_dhcp'],
@@ -242,20 +242,76 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
                              gateway_ip=subnet['gateway_ip'],
                              dns_nameservers=subnet['dns_nameservers'])
 
+    @_neutron_endpoint
     def ex_delete_subnet(self, subnet_id):
         """
         Delete neutron subnet
         """
-        self.connection._ex_force_service_region = self.region
-        self.connection._ex_force_service_type = "network"
-        self.connection._ex_force_service_name = None
         response = self.connection.request(self._neutron_subnets_url_prefix +
                                            "/%s" % subnet_id, method='DELETE').object
-        self.connection._ex_force_service_region = ""
-        self.connection._ex_force_service_type = ""
-        self.connection._ex_force_service_name = ""
-
         return response
+
+    @_neutron_endpoint
+    def ex_list_routers(self):
+        """
+        List routers
+        """
+        resp = self.connection.request('/v2.0/routers', method='GET').object
+
+        return self._to_routers(resp)
+
+    def _to_routers(self, obj_routers):
+        routers = obj_routers['routers']
+        return [self._to_router(router) for router in routers]
+
+    def _to_router(self, obj):
+        return HPCloudRouter(id=obj['id'], name=obj['name'], status=obj['status'],
+                             external_gateway=obj['external_gateway_info'])
+
+    @_neutron_endpoint
+    def ex_create_router(self, name, external_gateway=False, ext_net_id=""):
+        """
+        Add external gateway to router
+        """
+        data = {
+            'router': {
+                'name': name,
+            }
+        }
+        if external_gateway:
+            external_gateway_info = {
+                'network_id': ext_net_id,
+            }
+            data['router']['external_gateway_info'] = external_gateway_info
+
+        resp = self.connection.request('/v2.0/routers', method='POST', data=data).object
+        return self._to_router(resp)
+
+    @_neutron_endpoint
+    def ex_set_gateway_router(self, router_id, ext_net_id):
+        """
+        Set external gateway for existing router
+        """
+        data = {
+            'router': {
+                'external_gateway_info':
+                    {
+                        'network_id': ext_net_id
+                    }
+            }
+        }
+        resp = self.connection.request('/v2.0/routers/%s' % router_id, method='PUT', data=data).object
+        return resp
+
+    @_neutron_endpoint
+    def ex_list_ports(self):
+        """
+        List ports
+        """
+        resp = self.connection.request('/v2.0/ports', method='GET').object
+
+        return resp
+
 
 
 class HPCloudNetwork(object):
@@ -277,7 +333,7 @@ class HPCloudNetwork(object):
 
 class HPCloudSubnet(object):
     """
-    An instance of a neutro subnet
+    An instance of a neutron subnet
     """
 
     def __init__(self, id, name, enable_dhcp=False, dns_nameservers=[], allocation_pools=[],
@@ -292,3 +348,18 @@ class HPCloudSubnet(object):
 
     def __repr__(self):
         return '<HPCloudSubnet id=%s name=%s cidr=%s>' % (self.id, self.name, self.cidr)
+
+
+class HPCloudRouter(object):
+    """
+    An instance of a port
+    """
+
+    def __init__(self, id, name, status="ACTIVE", external_gateway={},):
+        self.id = id
+        self.name = name
+        self.status = status
+        self.external_gateway = external_gateway
+
+    def __repr__(self):
+        return '<HPCloudRouter id=%s name=%s external_gateway=%s>' % (self.id, self.name, bool(self.external_gateway))
