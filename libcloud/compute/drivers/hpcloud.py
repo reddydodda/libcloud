@@ -131,8 +131,10 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
         @wraps(func)
         def wrapper(*args, **kwargs):
             neutron_connection(args[0])
-            re = func(*args, **kwargs)
-            restore_connection(args[0])
+            try:
+                re = func(*args, **kwargs)
+            finally:
+                restore_connection(args[0])
             return re
 
         return wrapper
