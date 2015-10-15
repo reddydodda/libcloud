@@ -285,7 +285,7 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
             data['router']['external_gateway_info'] = external_gateway_info
 
         resp = self.connection.request('/v2.0/routers', method='POST', data=data).object
-        return self._to_router(resp)
+        return resp
 
     @_neutron_endpoint
     def ex_set_gateway_router(self, router_id, ext_net_id):
@@ -301,6 +301,17 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
             }
         }
         resp = self.connection.request('/v2.0/routers/%s' % router_id, method='PUT', data=data).object
+        return resp
+
+    @_neutron_endpoint
+    def ex_add_router_interface(self, router_id, subnet_id):
+        """
+        Attach router through an interface to a subnet
+        """
+        data = {
+            'subnet_id': subnet_id
+        }
+        resp = self.connection.request('/v2.0/routers/%s/add_router_interface' % router_id, method='PUT', data=data).object
         return resp
 
     @_neutron_endpoint
