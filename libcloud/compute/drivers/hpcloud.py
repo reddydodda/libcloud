@@ -20,7 +20,13 @@ OpenStack driver.
 from libcloud.compute.types import Provider, LibcloudError
 from libcloud.compute.drivers.openstack import OpenStack_1_1_Connection
 from libcloud.compute.drivers.openstack import OpenStack_1_1_NodeDriver
+from libcloud.compute.drivers.openstack import OpenStack_1_1_Response
+from libcloud.common.openstack_identity import get_class_for_auth_version
+from libcloud.common.openstack_identity import OpenStackServiceCatalog
+from libcloud.utils.py3 import httplib
 
+from libcloud.common.base import ConnectionUserAndKey
+import json
 
 __all__ = [
     'HPCloudNodeDriver'
@@ -75,6 +81,7 @@ class HPCloudConnection(OpenStack_1_1_Connection):
                 'Auth version "%s" not supported' % (self._auth_version))
 
         public_url = ep.url
+        self.tenant_id=ep.tenant_id
 
         if not public_url:
             raise LibcloudError('Could not find specified endpoint')
@@ -139,6 +146,110 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
 
         return wrapper
 
+
+    @_neutron_endpoint
+    def ex_list_quotas(self):
+
+        return self.connection.request("/v2.0/quotas/"+self.connection.tenant_id).object
+
+
+    @_neutron_endpoint
+    def ex_list_floating_ips(self):
+        """
+        List floating IPs
+
+        :rtype: ``list`` of :class:`OpenStack_1_1_FloatingIpAddress`
+        """
+        return self._to_floating_ips(
+                self.connection.request('/v2.0/floatingips').object
+            )
+
+    def _to_floating_ips(self, obj):
+        ip_elements = obj['floatingips']
+        return [self._to_floating_ip(ip) for ip in ip_elements]
+
+    def _to_floating_ip(self, obj):
+        return HPCloud_FloatingIpAddress(id=obj['id'],
+                                       ip_address=obj['floating_ip_address'],
+                                       router_id= obj["router_id"],
+                                       status=obj["status"],
+                                       tenant_id=obj["tenant_id"],
+                                       pool=self,
+                                       network_id=obj['floating_network_id'],
+                                       port_id=obj["port_id"],
+                                       driver=self.connection.driver)
+
+    def get_floating_ip(self, ip):
+        """
+        Get specified floating IP from the pool
+
+        :param      ip: floating IP to get
+        :type       ip: ``str``
+
+        :rtype: :class:`OpenStack_1_1_FloatingIpAddress`
+        """
+        ip_obj, = [x for x in self.ex_list_floating_ips() if x.ip_address == ip]
+        return ip_obj
+
+    @_neutron_endpoint
+    def associate_floating_ip(self,floating_ip_id,port_id):
+        data={
+            "floatingip":
+                {
+                "port_id": port_id
+                }
+        }
+        resp = self.connection.request('/v2.0/floatingips/%s' % floating_ip_id,
+                                       method='PUT',
+                                       data=data)
+        print resp.object
+        obj = resp.object['floatingip']
+        return HPCloud_FloatingIpAddress(id=obj['id'],
+                                       ip_address=obj['floating_ip_address'],
+                                       router_id= obj["router_id"],
+                                       status=obj["status"],
+                                       tenant_id=obj["tenant_id"],
+                                       pool=self,
+                                       network_id=obj['floating_network_id'],
+                                       port_id=obj["port_id"],
+                                       driver=self.connection.driver)
+
+    @_neutron_endpoint
+    def disassociate_floating_ip(self,floating_ip):
+        data={
+            "floatingip":
+                {
+                "port_id": None
+                }
+        }
+        resp = self.connection.request('/v2.0/floatingips/%s' % floating_ip.id,
+                                       method='PUT',
+                                       data=data)
+        obj = resp.object['floatingip']
+        return HPCloud_FloatingIpAddress(id=obj['id'],
+                                       ip_address=obj['floating_ip_address'],
+                                       router_id= obj["router_id"],
+                                       status=obj["status"],
+                                       tenant_id=obj["tenant_id"],
+                                       pool=self,
+                                       network_id=obj['floating_network_id'],
+                                       port_id=obj["port_id"],
+                                       driver=self.connection.driver)
+
+    @_neutron_endpoint
+    def delete_floating_ip(self, ip):
+        """
+        Delete specified floating IP from the pool
+
+        :param      ip: floating IP to remove
+        :type       ip::class:`OpenStack_1_1_FloatingIpAddress`
+
+        :rtype: ``bool``
+        """
+        resp = self.connection.request('/v2.0/floatingips/%s' % ip.id,
+                                       method='DELETE')
+        return resp.status in (httplib.NO_CONTENT, httplib.ACCEPTED)
+
     @_neutron_endpoint
     def ex_list_networks(self):
         """
@@ -174,6 +285,10 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
                               status=obj.pop('status'), subnets=added_subnets,
                               router_external=obj.pop("router:external"),
                               extra=obj)
+    # @_neutron_endpoint
+    def ex_limits(self):
+        return self.connection.request("/limits").object
+
 
     @_neutron_endpoint
     def ex_create_network(self, name, admin_state_up=True, shared=False):
@@ -376,3 +491,41 @@ class HPCloudRouter(object):
 
     def __repr__(self):
         return '<HPCloudRouter id=%s name=%s external_gateway=%s>' % (self.id, self.name, bool(self.external_gateway))
+
+
+
+
+class HPCloud_FloatingIpAddress(object):
+    """
+    Floating IP info.
+    """
+
+    def __init__(self, id, router_id, status, tenant_id,
+                network_id, port_id, ip_address,
+                pool, node_id=None, driver=None):
+        self.id = str(id)
+        self.ip_address = ip_address
+        self.pool = pool
+        self.node_id = node_id
+        self.driver = driver
+        self.router_id = router_id
+        self.status = status
+        self.tenant_id = tenant_id
+        self.network_id = network_id
+        self.port_id = port_id
+
+    def delete(self):
+        """
+        Delete this floating IP
+
+        :rtype: ``bool``
+        """
+        if self.pool is not None:
+            return self.pool.delete_floating_ip(self)
+        elif self.driver is not None:
+            return self.driver.ex_delete_floating_ip(self)
+
+    def __repr__(self):
+        return ('<OpenStack_1_1_FloatingIpAddress: id=%s, ip_addr=%s,'
+                ' pool=%s, driver=%s>'
+                % (self.id, self.ip_address, self.pool, self.driver))
