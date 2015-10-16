@@ -283,7 +283,7 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
                 )
         return HPCloudNetwork(id=obj.pop('id'), name=obj.pop('name'),
                               status=obj.pop('status'), subnets=added_subnets,
-                              router_external=obj.pop("router:external"),
+                              router_external=obj.pop("router:external", False),
                               extra=obj)
     # @_neutron_endpoint
     def ex_limits(self):
@@ -348,7 +348,6 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
                 'enable_dhcp': enable_dhcp
             }
         }
-
         response = self.connection.request(self._neutron_subnets_url_prefix,
                                            method='POST', data=data).object
 
