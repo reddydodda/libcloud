@@ -192,7 +192,7 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
         return ip_obj
 
     @_neutron_endpoint
-    def create_floating_ip(self, floating_network_id, port_id=""):
+    def ex_create_floating_ip(self, floating_network_id, port_id=""):
         data = {
             "floatingip":
                 {
@@ -202,6 +202,7 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
         }
 
         resp = self.connection.request('/v2.0/floatingips', method='POST', data=data).object
+
         return resp
 
 
@@ -451,7 +452,7 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
         """
         resp = self.connection.request('/v2.0/ports', method='GET').object
 
-        return resp
+        return resp['ports']
 
 
 
