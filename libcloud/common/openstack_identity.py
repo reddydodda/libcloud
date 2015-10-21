@@ -362,7 +362,7 @@ class OpenStackServiceCatalog(object):
 
                 public_url = endpoint.get('publicURL', None)
                 private_url = endpoint.get('internalURL', None)
-                tenant
+
                 if public_url:
                     entry_endpoint = OpenStackServiceCatalogEntryEndpoint(
                         region=region, url=public_url,
