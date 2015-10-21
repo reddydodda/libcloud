@@ -391,6 +391,7 @@ class OpenStackServiceCatalog(object):
             entry_endpoints = []
             for endpoint in service.get('endpoints', []):
                 region = endpoint.get('region', None)
+                tenant_id = endpoint.get('tenantId', None)
 
                 public_url = endpoint.get('publicURL', None)
                 private_url = endpoint.get('internalURL', None)
@@ -398,13 +399,15 @@ class OpenStackServiceCatalog(object):
                 if public_url:
                     entry_endpoint = OpenStackServiceCatalogEntryEndpoint(
                         region=region, url=public_url,
-                        endpoint_type=OpenStackIdentityEndpointType.EXTERNAL)
+                        endpoint_type=OpenStackIdentityEndpointType.EXTERNAL,
+                        tenant_id=tenant_id)
                     entry_endpoints.append(entry_endpoint)
 
                 if private_url:
                     entry_endpoint = OpenStackServiceCatalogEntryEndpoint(
                         region=region, url=private_url,
-                        endpoint_type=OpenStackIdentityEndpointType.INTERNAL)
+                        endpoint_type=OpenStackIdentityEndpointType.INTERNAL,
+                        tenant_id=tenant_id)
                     entry_endpoints.append(entry_endpoint)
 
             entry = OpenStackServiceCatalogEntry(service_type=service_type,
@@ -445,7 +448,8 @@ class OpenStackServiceCatalog(object):
 
 
 class OpenStackServiceCatalogEntry(object):
-    def __init__(self, service_type, endpoints=None, service_name=None):
+    def __init__(self, service_type, endpoints=None, service_name=None,
+                 tenant_id=None):
         """
         :param service_type: Service type.
         :type service_type: ``str``
@@ -484,12 +488,15 @@ class OpenStackServiceCatalogEntryEndpoint(object):
         OpenStackIdentityEndpointType.ADMIN,
     ]
 
-    def __init__(self, region, url, endpoint_type='external'):
+    def __init__(self, region, url, tenant_id=None, endpoint_type='external'):
         """
         :param region: Endpoint region.
         :type region: ``str``
 
         :param url: Endpoint URL.
+        :type url: ``str``
+
+        :param tenant_id: Tenant/project id.
         :type url: ``str``
 
         :param endpoint_type: Endpoint type (external / internal / admin).
@@ -502,17 +509,19 @@ class OpenStackServiceCatalogEntryEndpoint(object):
         self.region = region
         self.url = url
         self.endpoint_type = endpoint_type
+        self.tenant_id = tenant_id
 
     def __eq__(self, other):
         return (self.region == other.region and self.url == other.url and
-                self.endpoint_type == other.endpoint_type)
+                self.endpoint_type == other.endpoint_type and self.tenant_id == other.tenant_id)
 
     def __ne__(self, other):
         return not self.__eq__(other=other)
 
     def __repr__(self):
         return (('<OpenStackServiceCatalogEntryEndpoint region=%s, url=%s, '
-                 'type=%s' % (self.region, self.url, self.endpoint_type)))
+                 'type=%s, tenant_id=%s' % (self.region, self.url,
+                 self.endpoint_type, self.tenant_id)))
 
 
 class OpenStackAuthResponse(Response):
