@@ -2430,25 +2430,22 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         ip_obj, = [x for x in floating_ips if x.ip_address == ip]
         return ip_obj
 
-    def ex_create_floating_ip(self):
-        """
-        Create new floating IP
+    @_neutron_endpoint
+    def ex_create_floating_ip(self, floating_network_id, port_id=None):
+        data = {
+            "floatingip":
+                {
+                    "port_id": port_id,
+                    "floating_network_id": floating_network_id
+                }
+        }
 
-        :rtype: :class:`OpenStack_1_1_FloatingIpAddress`
-        """
-        resp = self.connection.request('/os-floating-ips',
-                                       method='POST',
-                                       data={})
-        data = resp.object['floating_ip']
-        id = data['id']
-        ip_address = data['ip']
-        return OpenStack_1_1_FloatingIpAddress(id=id,
-                                               ip_address=ip_address,
-                                               pool=None,
-                                               node_id=None,
-                                               driver=self)
+        resp = self.connection.request('/v2.0/floatingips', method='POST', data=data).object
 
-    def ex_delete_floating_ip(self, ip):
+        return self._to_floating_ip(resp['floatingip'])
+
+    @_neutron_endpoint
+    def ex_delete_floating_ip(self, floating_ip_id):
         """
         Delete specified floating IP
 
@@ -2457,29 +2454,22 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
 
         :rtype: ``bool``
         """
-        resp = self.connection.request('/os-floating-ips/%s' % ip.id,
-                                       method='DELETE')
+        resp = self.connection.request('/v2.0/floatingips/%s' % floating_ip_id, method='DELETE')
         return resp.status in (httplib.NO_CONTENT, httplib.ACCEPTED)
 
-    def ex_attach_floating_ip_to_node(self, node, ip):
-        """
-        Attach the floating IP to the node
-
-        :param      node: node
-        :type       node: :class:`Node`
-
-        :param      ip: floating IP to attach
-        :type       ip: ``str`` or :class:`OpenStack_1_1_FloatingIpAddress`
-
-        :rtype: ``bool``
-        """
-        address = ip.ip_address if hasattr(ip, 'ip_address') else ip
+    @_neutron_endpoint
+    def ex_attach_floating_ip_to_node(self, floating_ip_id, port_id):
         data = {
-            'addFloatingIp': {'address': address}
+            "floatingip":
+                {
+                "port_id": port_id
+                }
         }
-        resp = self.connection.request('/servers/%s/action' % node.id,
-                                       method='POST', data=data)
-        return resp.status == httplib.ACCEPTED
+        resp = self.connection.request('/v2.0/floatingips/%s' % floating_ip_id,
+                                       method='PUT',
+                                       data=data).object
+
+        return self._to_floating_ip(resp['floatingip'])
 
     def ex_detach_floating_ip_from_node(self, node, ip):
         """

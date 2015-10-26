@@ -189,7 +189,6 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
         resp = self.connection.request('/v2.0/floatingips/%s' % floating_ip_id,
                                        method='PUT',
                                        data=data)
-        print resp.object
         obj = resp.object['floatingip']
         return HPCloud_FloatingIpAddress(id=obj['id'],
                                        ip_address=obj['floating_ip_address'],
