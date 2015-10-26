@@ -1685,7 +1685,7 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
 
         return self._to_routers(routers)
 
-    def ex_create_network(self, name, cidr):
+    def ex_create_nova_network(self, name, cidr):
         """
         Create a new Network
 
@@ -1703,7 +1703,7 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         return self._to_network(response['network'])
 
     @_neutron_endpoint
-    def ex_create_neutron_network(self, name, admin_state_up=True, shared=False):
+    def ex_create_network(self, name, admin_state_up=True, shared=False):
         """
         Create a new neutron Network
 
@@ -1735,10 +1735,10 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         response = self.connection.request(self._neutron_networks_url_prefix,
                                            method='POST', data=data).object
 
-        return self._to_neutron_network(response['network'], [])
+        return self._to_network(response['network'])
 
     @_neutron_endpoint
-    def ex_delete_neutron_network(self, network_id):
+    def ex_delete_network(self, network_id):
         """
         Delete neutron network
         """
@@ -1748,8 +1748,8 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         return response
 
     @_neutron_endpoint
-    def ex_create_neutron_subnet(self, name, network_id, cidr, allocation_pools=[], gateway_ip=None,
-                                 ip_version="4", enable_dhcp=True):
+    def ex_create_subnet(self, name, network_id, cidr, allocation_pools=[], gateway_ip=None,
+                         ip_version="4", enable_dhcp=True):
 
         data = {
             'subnet': {
@@ -1767,14 +1767,10 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
                                            method='POST', data=data).object
 
         subnet = response['subnet']
-        return OpenStackSubnet(name=subnet['name'],id=subnet['id'], cidr=subnet['cidr'],
-                                      enable_dhcp=subnet['enable_dhcp'],
-                                      allocation_pools=subnet['allocation_pools'],
-                                      gateway_ip=subnet['gateway_ip'],
-                                      dns_nameservers=subnet['dns_nameservers'])
+        return self._to_subnet(subnet)
 
     @_neutron_endpoint
-    def ex_delete_neutron_subnet(self, subnet_id):
+    def ex_delete_subnet(self, subnet_id):
         """
         Delete neutron subnet
         """
@@ -1784,7 +1780,7 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
 
         return response
 
-    def ex_delete_network(self, network):
+    def ex_delete_nova_network(self, network):
         """
         Get a list of NodeNetorks that are available.
 
@@ -2458,7 +2454,7 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         return resp.status in (httplib.NO_CONTENT, httplib.ACCEPTED)
 
     @_neutron_endpoint
-    def ex_attach_floating_ip_to_node(self, floating_ip_id, port_id):
+    def ex_associate_floating_ip_to_node(self, floating_ip_id, port_id):
         data = {
             "floatingip":
                 {
@@ -2471,25 +2467,19 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
 
         return self._to_floating_ip(resp['floatingip'])
 
-    def ex_detach_floating_ip_from_node(self, node, ip):
-        """
-        Detach the floating IP from the node
-
-        :param      node: node
-        :type       node: :class:`Node`
-
-        :param      ip: floating IP to remove
-        :type       ip: ``str`` or :class:`OpenStack_1_1_FloatingIpAddress`
-
-        :rtype: ``bool``
-        """
-        address = ip.ip_address if hasattr(ip, 'ip_address') else ip
+    @_neutron_endpoint
+    def ex_disassociate_floating_ip_from_node(self, floating_ip_id):
         data = {
-            'removeFloatingIp': {'address': address}
+            "floatingip":
+                {
+                "port_id": None
+                }
         }
-        resp = self.connection.request('/servers/%s/action' % node.id,
-                                       method='POST', data=data)
-        return resp.status == httplib.ACCEPTED
+        resp = self.connection.request('/v2.0/floatingips/%s' % floating_ip_id,
+                                       method='PUT',
+                                       data=data).object
+
+        return self._to_floating_ip(resp['floatingip'])
 
     def ex_get_metadata_for_node(self, node):
         """
