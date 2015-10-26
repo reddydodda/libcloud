@@ -319,23 +319,6 @@ class HPCloudNodeDriver(OpenStack_1_1_NodeDriver):
         return response
 
     @_neutron_endpoint
-    def ex_list_routers(self):
-        """
-        List routers
-        """
-        resp = self.connection.request('/v2.0/routers', method='GET').object
-
-        return self._to_routers(resp)
-
-    def _to_routers(self, obj_routers):
-        routers = obj_routers['routers']
-        return [self._to_router(router) for router in routers]
-
-    def _to_router(self, obj):
-        return HPCloudRouter(id=obj['id'], name=obj['name'], status=obj['status'],
-                             external_gateway=obj['external_gateway_info'])
-
-    @_neutron_endpoint
     def ex_create_router(self, name, external_gateway=False, ext_net_id=""):
         """
         Add external gateway to router

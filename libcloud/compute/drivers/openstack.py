@@ -1014,6 +1014,23 @@ class OpenStackSubnet(object):
         return '<OpenStackSubnet id=%s name=%s cidr=%s>' % (self.id, self.name, self.cidr)
 
 
+class OpenStackRouter(object):
+    """
+    An instance of a port
+    """
+
+    def __init__(self, id, name, status="ACTIVE", external_gateway_info={}, admin_state_up=False, extra={}):
+        self.id = id
+        self.name = name
+        self.status = status
+        self.external_gateway_info = external_gateway_info
+        self.external_gateway = bool(external_gateway_info)
+        self.admin_state_up = admin_state_up
+        self.extra = {}
+
+    def __repr__(self):
+        return '<OpenStackRouter id=%s name=%s external_gateway=%s>' % (self.id, self.name, self.external_gateway)
+
 class OpenStackSecurityGroup(object):
     """
     A Security Group.
@@ -1619,6 +1636,15 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
                                allocation_pools=obj.pop('allocation_pools', []), gateway_ip=obj.pop('gateway_ip', ''),
                                cidr=obj.pop('cidr', ''), ip_version=obj.pop('ip_version', 4), extra=obj)
 
+    def _to_routers(self, obj_routers):
+        routers = obj_routers['routers']
+        return [self._to_router(router) for router in routers]
+
+    def _to_router(self, obj):
+        return OpenStackRouter(id=obj.pop('id'), name=obj.pop('name'), status=obj.pop('status'),
+                               external_gateway_info=obj.pop('external_gateway_info', {}),
+                               admin_state_up=obj.pop('admin_state_up', False), extra=obj)
+
     def ex_list_nova_networks(self):
         """
         Get a list of Networks that are available.
@@ -1649,6 +1675,15 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         """
         subnets = self.connection.request(self._neutron_subnets_url_prefix).object
         return self._to_subnets(subnets)
+
+    @_neutron_endpoint
+    def ex_list_routers(self):
+        """
+        List routers
+        """
+        routers = self.connection.request('/v2.0/routers', method='GET').object
+
+        return self._to_routers(routers)
 
     def ex_create_network(self, name, cidr):
         """
@@ -2360,16 +2395,19 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
             self.connection.request('/os-floating-ip-pools').object)
 
     def _to_floating_ips(self, obj):
-        ip_elements = obj['floating_ips']
+        ip_elements = obj['floatingips']
         return [self._to_floating_ip(ip) for ip in ip_elements]
 
     def _to_floating_ip(self, obj):
-        return OpenStack_1_1_FloatingIpAddress(id=obj['id'],
-                                               ip_address=obj['ip'],
-                                               pool=None,
-                                               node_id=obj['instance_id'],
-                                               driver=self)
+        return OpenStack_1_1_FloatingIpAddress(id=obj.pop('id'),
+                                               floating_ip_address=obj.pop('floating_ip_address'),
+                                               floating_network_id=obj.pop('floating_network_id'),
+                                               fixed_ip_address=obj.pop('fixed_ip_address', ''),
+                                               status=obj.pop('status', False),
+                                               port_id=obj.pop('port_id', None),
+                                               extra=obj)
 
+    @_neutron_endpoint
     def ex_list_floating_ips(self):
         """
         List floating IPs
@@ -2377,7 +2415,7 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         :rtype: ``list`` of :class:`OpenStack_1_1_FloatingIpAddress`
         """
         return self._to_floating_ips(
-            self.connection.request('/os-floating-ips').object)
+            self.connection.request('/v2.0/floatingips').object)
 
     def ex_get_floating_ip(self, ip):
         """
@@ -2520,7 +2558,7 @@ class OpenStack_1_1_FloatingIpPool(object):
             self.connection.request('/os-floating-ips').object)
 
     def _to_floating_ips(self, obj):
-        ip_elements = obj['floating_ips']
+        ip_elements = obj['floatingips']
         return [self._to_floating_ip(ip) for ip in ip_elements]
 
     def _to_floating_ip(self, obj):
@@ -2582,25 +2620,17 @@ class OpenStack_1_1_FloatingIpAddress(object):
     Floating IP info.
     """
 
-    def __init__(self, id, ip_address, pool, node_id=None, driver=None):
+    def __init__(self, id, floating_ip_address, floating_network_id, fixed_ip_address="", status=False, port_id=None,
+                 extra={}):
         self.id = str(id)
-        self.ip_address = ip_address
-        self.pool = pool
-        self.node_id = node_id
-        self.driver = driver
-
-    def delete(self):
-        """
-        Delete this floating IP
-
-        :rtype: ``bool``
-        """
-        if self.pool is not None:
-            return self.pool.delete_floating_ip(self)
-        elif self.driver is not None:
-            return self.driver.ex_delete_floating_ip(self)
+        self.floating_ip_address = floating_ip_address
+        self.floating_network_id = floating_network_id
+        self.fixed_ip_address = fixed_ip_address
+        self.status = status
+        self.port_id = port_id
+        self.extra = extra
 
     def __repr__(self):
         return ('<OpenStack_1_1_FloatingIpAddress: id=%s, ip_addr=%s,'
-                ' pool=%s, driver=%s>'
-                % (self.id, self.ip_address, self.pool, self.driver))
+                ' attached_to_ip=%s>'
+                % (self.id, self.floating_ip_address, self.fixed_ip_address))
