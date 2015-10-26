@@ -2413,6 +2413,17 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         return self._to_floating_ips(
             self.connection.request('/v2.0/floatingips').object)
 
+
+    @_neutron_endpoint
+    def ex_list_ports(self):
+        """
+        List ports
+        """
+        resp = self.connection.request('/v2.0/ports', method='GET').object
+
+        return resp['ports']
+
+
     def ex_get_floating_ip(self, ip):
         """
         Get specified floating IP
