@@ -343,7 +343,6 @@ class OpenStackResponse(Response):
     def parse_error(self):
         text = None
         body = self.parse_body()
-
         if self.has_content_type('application/xml'):
             text = '; '.join([err.text or '' for err in body.getiterator()
                               if err.text])
@@ -353,7 +352,6 @@ class OpenStackResponse(Response):
             context = self.connection.context
             driver = self.connection.driver
             key_pair_name = context.get('key_pair_name', None)
-
             if len(values) > 0 and values[0]['code'] == 404 and key_pair_name:
                 raise KeyPairDoesNotExistError(name=key_pair_name,
                                                driver=driver)

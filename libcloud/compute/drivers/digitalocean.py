@@ -97,7 +97,7 @@ class DigitalOceanFirstGenNodeDriver(NodeDriver):
     website = 'https://www.digitalocean.com'
 
     NODE_STATE_MAP = {'new': NodeState.PENDING,
-                      'off': NodeState.UNKNOWN,
+                      'off': NodeState.STOPPED,
                       'active': NodeState.RUNNING}
 
     def list_nodes(self):
@@ -289,7 +289,7 @@ class DigitalOceanNodeDriver(NodeDriver):
     website = 'https://www.digitalocean.com'
 
     NODE_STATE_MAP = {'new': NodeState.PENDING,
-                      'off': NodeState.UNKNOWN,
+                      'off': NodeState.STOPPED,
                       'active': NodeState.RUNNING}
 
     def __init__(self, key, **kwargs):

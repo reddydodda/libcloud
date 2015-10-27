@@ -2156,7 +2156,9 @@ class BaseEC2NodeDriver(NodeDriver):
             attributes = INSTANCE_TYPES[instance_type]
             attributes = copy.deepcopy(attributes)
             price = self._get_size_price(size_id=instance_type)
+            name = '%s (%s)' % (attributes.get('name'), attributes.get('id'))
             attributes.update({'price': price})
+            attributes.update({'name': name})
             sizes.append(NodeSize(driver=self, **attributes))
         return sizes
 
@@ -4772,7 +4774,14 @@ class BaseEC2NodeDriver(NodeDriver):
         # Add additional properties to our extra dictionary
         extra['block_device_mapping'] = self._to_device_mappings(element)
         extra['groups'] = self._get_security_groups(element)
-        extra['network_interfaces'] = self._to_interfaces(element)
+        try:
+            # return list of ids for network interfaces as str
+            network_interfaces = self._to_interfaces(element)
+            network_interfaces = [network_interface.id for network_interface in network_interfaces]
+            network_interfaces = ','.join(network_interfaces)
+        except:
+            network_interfaces = []
+        extra['network_interfaces'] = network_interfaces
         extra['product_codes'] = product_codes
         extra['tags'] = tags
 

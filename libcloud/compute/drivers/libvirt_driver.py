@@ -79,7 +79,6 @@ class LibvirtNodeDriver(NodeDriver):
         Host can be an ip address or hostname
         ssh key should be a filename with the private key
         """
-
         if host in ['localhost', '127.0.0.1']:
             # local connection
             uri = 'qemu:///system'
@@ -113,6 +112,7 @@ class LibvirtNodeDriver(NodeDriver):
         self.key = user
         self.host = host
         self.ssh_port = ssh_port
+
         try:
             signal.signal(signal.SIGALRM, self.timeout_handler)
             signal.alarm(libvirt_connection_timeout)

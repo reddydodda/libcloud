@@ -1395,7 +1395,7 @@ class AzureNodeDriver(NodeDriver):
                             data=request.body, headers=request.headers,
                             method=request.method)
         except Exception as e:
-            response = type('testclass', (object,), {'status':404, 'body':'', 'error': e})()
+            raise Exception(e)
         return response
 
     def _update_request_uri_query(self, request):

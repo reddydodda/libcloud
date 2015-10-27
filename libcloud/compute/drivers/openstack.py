@@ -2171,10 +2171,13 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         image = api_node.get('image', None)
         image_id = image.get('id', None) if image else None
 
-        if api_node.get("config_drive", "false").lower() == "true":
-            config_drive = True
-        else:
-            config_drive = False
+        try:
+            if api_node.get("config_drive", "false").lower() == "true":
+                config_drive = True
+            else:
+                config_drive = False
+        except:
+             config_drive = False
 
         return Node(
             id=api_node['id'],
