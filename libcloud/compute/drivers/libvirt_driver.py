@@ -324,7 +324,7 @@ class LibvirtNodeDriver(NodeDriver):
         Searches inside /var, unless other location is specified
         """
         images = []
-        cmd = "find %s -name '*.iso'" % location
+        cmd = "sudo find %s -name '*.iso'" % location
         output = self.run_command(cmd)
 
         if output:
@@ -472,7 +472,7 @@ class LibvirtNodeDriver(NodeDriver):
         return sysinfo
 
     def create_node(self, name, disk_size=4, ram=512,
-                    cpu=1, image=None, disk_path=None, create_from_existing=None, os_type='linux'):
+                    cpu=1, image=None, disk_path=None, create_from_existing=None, os_type='linux', bridge=None):
         """
         Creates a VM
 
@@ -499,6 +499,14 @@ class LibvirtNodeDriver(NodeDriver):
         if not create_from_existing and not image:
             raise Exception("You have to specify at least an image iso, to boot from, or an existing disk_path to import")
 
+        # define the VM
+        if image:
+            if not self.ex_validate_disk(image):
+                raise Exception("You have specified %s as image which does not exist" % image)
+            image_conf = IMAGE_TEMPLATE % image
+        else:
+            image_conf = ''
+
         disk_size = str(disk_size) + 'G'
         ram = ram * 1000
         # TODO: get available ram, cpu and disk and inform if not available
@@ -508,32 +516,20 @@ class LibvirtNodeDriver(NodeDriver):
             if not self.ex_validate_disk(create_from_existing):
                 raise Exception("You have specified to create from an existing disk path that does not exist")
 
-
-        if not disk_path:
-            # make a default disk_path of  /var/lib/libvirt/images/vm_name.img
-            # the disk_path need not exist, so we can create it
-            disk_path = '/var/lib/libvirt/images/%s.img' % name
-            for i in range(1, 20):
-                if self.ex_validate_disk(disk_path):
-                    disk_path = '/var/lib/libvirt/images/%s.img' % name + str(i)
-                else:
-                    break
-        else:
-            if not self.ex_validate_disk(disk_path):
+        if image:
+            if not disk_path:
+                # make a default disk_path of  /var/lib/libvirt/images/vm_name.img
+                # the disk_path need not exist, so we can create it
                 disk_path = '/var/lib/libvirt/images/%s.img' % name
-            else:
-                disk_path = pjoin(disk_path, name) + '.img'
-            for i in range(1, 20):
-                if self.ex_validate_disk(disk_path):
-                    disk_path = '%s/%s.img' % (disk_path, name+str(i))
-                else:
-                    break
+                for i in range(1, 20):
+                    if self.ex_validate_disk(disk_path):
+                        disk_path = '/var/lib/libvirt/images/%s.img' % name + str(i)
+                    else:
+                        break
 
-        if create_from_existing:
-            cmd = "cp %s %s" % (create_from_existing, disk_path)
-            output = self.run_command(cmd)
-        else:
-            self.ex_create_disk(disk_path, disk_size)
+            if not self.ex_validate_disk(disk_path):
+                # in case existing disk path is provided, no need to create it
+                self.ex_create_disk(disk_path, disk_size)
 
         capabilities = self.ex_get_capabilities()
         if "<domain type='kvm'>" in capabilities:
@@ -543,18 +539,13 @@ class LibvirtNodeDriver(NodeDriver):
             # only qemu emulator available
             emu = 'qemu'
 
-        # define the VM
-        if image:
-            image_conf = IMAGE_TEMPLATE % image
-        else:
-            image_conf = ''
+        if bridge:
+            if bridge not in self.ex_list_bridges():
+                bridge = None
 
-        # bridges = self.ex_list_bridges()
-        # FIXME: needs testing
-        bridges = []
-        if bridges:
+        if bridge:
             net_type = 'bridge'
-            net_name = bridges[0]
+            net_name = bridge
         else:
             net_type = 'network'
             net_name = 'default'
