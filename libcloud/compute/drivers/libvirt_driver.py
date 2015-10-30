@@ -24,6 +24,8 @@ import subprocess
 import mimetypes
 import signal
 import paramiko
+import atexit
+from tempfile import NamedTemporaryFile
 
 from os.path import join as pjoin
 from collections import defaultdict
@@ -78,12 +80,25 @@ class LibvirtNodeDriver(NodeDriver):
         """Support the three ways to connect: local system, qemu+tcp, qemu+ssh
         Host can be an ip address or hostname
         ssh key should be a filename with the private key
+        if ssh key is a string we create a temp file with the string that will be deleted
+        on exit
         """
+        self.temp_key = None
+        self.secret = None
         if host in ['localhost', '127.0.0.1']:
             # local connection
             uri = 'qemu:///system'
         else:
             if ssh_key:
+                # if ssh key is string create temp file
+                if not os.path.isfile(ssh_key):
+                    key_temp_file = NamedTemporaryFile(delete=False)
+                    key_temp_file.write(ssh_key)
+                    key_temp_file.close()
+                    self.secret = key_temp_file.name
+                    self.temp_key = self.secret
+                else:
+                    self.secret = ssh_key
                 # ssh connection
                 # initially attempt to connect to host/port and raise exception on failure
                 try:
@@ -94,7 +109,7 @@ class LibvirtNodeDriver(NodeDriver):
                 except:
                     raise Exception("Make sure host is accessible and ssh port %s is open" % ssh_port)
 
-                uri = 'qemu+ssh://%s@%s:%s/system?keyfile=%s&no_tty=1&no_verify=1' % (user, host, ssh_port, ssh_key)
+                uri = 'qemu+ssh://%s@%s:%s/system?keyfile=%s&no_tty=1&no_verify=1' % (user, host, ssh_port, self.secret)
             else:
                 #tcp connection
                 try:
@@ -108,7 +123,6 @@ class LibvirtNodeDriver(NodeDriver):
                 uri = 'qemu+tcp://%s:5000/system' % host
 
         self._uri = uri
-        self.secret = ssh_key
         self.key = user
         self.host = host
         self.ssh_port = ssh_port
@@ -129,6 +143,26 @@ class LibvirtNodeDriver(NodeDriver):
             if 'End of file while reading data' in exc.message:
                 raise Exception("Make sure libvirt is running and user %s is authorised to connect" % user)
             raise Exception("Connection error")
+
+            atexit.register(self.disconnect)
+
+    def __del__(self):
+        self.disconnect()
+
+    def disconnect(self):
+        # closes connection to the hypevisor
+        try:
+            self.connection.close()
+        except:
+            pass
+
+        if not self.temp_key:
+            return
+
+        try:
+            os.remove(self.temp_key)
+        except Exception:
+            pass
 
     def list_nodes(self, show_hypervisor=True):
 
@@ -684,15 +718,6 @@ class LibvirtNodeDriver(NodeDriver):
 
         return arp_table
 
-    def disconnect(self):
-        # closes connection to the hypevisor
-        try:
-            self.connection.close()
-        except:
-            pass
-
-    def __del__(self):
-        self.disconnect()
 
     def run_command(self, cmd):
         """
