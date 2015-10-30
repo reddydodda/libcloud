@@ -549,7 +549,8 @@ class LibvirtNodeDriver(NodeDriver):
             # if create_from_existing is specified but the path does not exist fail with error
             if not self.ex_validate_disk(create_from_existing):
                 raise Exception("You have specified to create from an existing disk path that does not exist")
-
+            else:
+                disk_path = create_from_existing
         if image:
             if not disk_path:
                 # make a default disk_path of  /var/lib/libvirt/images/vm_name.img
