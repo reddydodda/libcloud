@@ -653,7 +653,7 @@ class LibvirtNodeDriver(NodeDriver):
         """
         Create disk using qemu-img
         """
-        cmd = "qemu-img create -f qcow2 %s %s" % (disk_path, disk_size)
+        cmd = "sudo qemu-img create -f qcow2 -o preallocation=metadata %s %s" % (disk_path, disk_size)
 
         output = self.run_command(cmd)
         if output:
