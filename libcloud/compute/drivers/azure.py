@@ -629,7 +629,8 @@ class AzureNodeDriver(NodeDriver):
 
         return volumes
 
-    def create_node(self, name, size, image, location, ex_cloud_service_name=None, endpoint_ports=[], **kwargs):
+    def create_node(self, name, size, image, location, ex_cloud_service_name=None, endpoint_ports=[], custom_data=None,
+                    **kwargs):
         """Create Azure Virtual Machine
 
            Reference: http://bit.ly/1fIsCb7
@@ -772,7 +773,7 @@ class AzureNodeDriver(NodeDriver):
                 enable_direct_server_return=False
             )
             machine_config = LinuxConfigurationSet(
-                name, ex_admin_user_id, password, False)
+                name, ex_admin_user_id, password, False, custom_data)
 
         network_config.input_endpoints.input_endpoints.append(endpoint)
 
@@ -2066,6 +2067,7 @@ class AzureXmlSerializer():
              ('HostName', configuration.host_name),
              ('UserName', configuration.user_name),
              ('UserPassword', configuration.user_password),
+             ('CustomData', configuration.custom_data),
              ('DisableSshPasswordAuthentication',
               configuration.disable_ssh_password_authentication,
               _lower)])
@@ -2366,7 +2368,7 @@ class OSVirtualHardDisk(WindowsAzureData):
 class LinuxConfigurationSet(WindowsAzureData):
 
     def __init__(self, host_name=None, user_name=None, user_password=None,
-                 disable_ssh_password_authentication=None):
+                 disable_ssh_password_authentication=None, custom_data=None):
         self.configuration_set_type = u'LinuxProvisioningConfiguration'
         self.host_name = host_name
         self.user_name = user_name
@@ -2374,6 +2376,7 @@ class LinuxConfigurationSet(WindowsAzureData):
         self.disable_ssh_password_authentication =\
             disable_ssh_password_authentication
         self.ssh = SSH()
+        self.custom_data = custom_data
 
 
 class WindowsConfigurationSet(WindowsAzureData):
