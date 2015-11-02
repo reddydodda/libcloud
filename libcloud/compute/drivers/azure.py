@@ -2368,7 +2368,7 @@ class OSVirtualHardDisk(WindowsAzureData):
 class LinuxConfigurationSet(WindowsAzureData):
 
     def __init__(self, host_name=None, user_name=None, user_password=None,
-                 disable_ssh_password_authentication=None, custom_data=None):
+                 disable_ssh_password_authentication=False, custom_data=None):
         self.configuration_set_type = u'LinuxProvisioningConfiguration'
         self.host_name = host_name
         self.user_name = user_name
