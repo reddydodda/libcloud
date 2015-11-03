@@ -629,8 +629,7 @@ class AzureNodeDriver(NodeDriver):
 
         return volumes
 
-    def create_node(self, name, size, image, location, public_key=None, key_pair=None,
-                    ex_cloud_service_name=None, endpoint_ports=[], custom_data=None,
+    def create_node(self, name, size, image, location, ex_cloud_service_name=None, endpoint_ports=[], custom_data=None,
                     **kwargs):
         """Create Azure Virtual Machine
 
@@ -2369,21 +2368,14 @@ class OSVirtualHardDisk(WindowsAzureData):
 class LinuxConfigurationSet(WindowsAzureData):
 
     def __init__(self, host_name=None, user_name=None, user_password=None,
-                 disable_ssh_password_authentication=None, custom_data=None,
-                 public_key=None, key_pair=None):
+                 disable_ssh_password_authentication=None, custom_data=None):
         self.configuration_set_type = u'LinuxProvisioningConfiguration'
         self.host_name = host_name
         self.user_name = user_name
         self.user_password = user_password
         self.disable_ssh_password_authentication =\
             disable_ssh_password_authentication
-        if public_key and key_pair:
-            ssh_path = "/home/%s/.ssh"
-            public = PublicKey(public_key, ssh_path+"/authorized_keys")
-            private = KeyPair(key_pair, ssh_path+"/id_rsa")
-            self.SSH([public], [private])
-        else:
-            self.ssh = SSH()
+        self.ssh = SSH()
         self.custom_data = custom_data
 
 
@@ -2459,16 +2451,15 @@ class CertificateSetting(WindowsAzureData):
 
 class SSH(WindowsAzureData):
 
-    def __init__(self, public_keys, key_pairs):
-
-        self.public_keys = PublicKeys(public_keys)
-        self.key_pairs = KeyPairs(key_pairs)
+    def __init__(self):
+        self.public_keys = PublicKeys()
+        self.key_pairs = KeyPairs()
 
 
 class PublicKeys(WindowsAzureData):
 
-    def __init__(self, public_keys):
-        self.public_keys = public_keys
+    def __init__(self):
+        self.public_keys = _list_of(PublicKey)
 
     def __iter__(self):
         return iter(self.public_keys)
@@ -2489,8 +2480,8 @@ class PublicKey(WindowsAzureData):
 
 class KeyPairs(WindowsAzureData):
 
-    def __init__(self, key_pairs):
-        self.key_pairs = key_pairs
+    def __init__(self):
+        self.key_pairs = _list_of(KeyPair)
 
     def __iter__(self):
         return iter(self.key_pairs)
