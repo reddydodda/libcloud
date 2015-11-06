@@ -329,24 +329,28 @@ class LibvirtNodeDriver(NodeDriver):
     def list_sizes(self):
         """
         Returns sizes
-        A max size with system capabilities is returned (if available),
-        otherwise a standard size
         """
         sizes = []
+        # append a min size
+        size_id = "1-512"
+        size = NodeSize(id=size_id, name=size_id, ram=512, disk=1, bandwidth=None,
+           price=None, driver=self, extra={'cpu': 1})
+        sizes.append(size)
+
         try:
             # not supported by all hypervisors
             info = self.connection.getInfo()
-            ram = info[1]
-            cores = info[2]
-            max_size = NodeSize(id=1, name='max', ram=ram, disk=1, bandwidth=None,
-                       price=None, driver=self, extra={'cpu': cores})
-            sizes.append(max_size)
-        except:
-            standard_size = NodeSize(id=0, name='standard_size', ram=512,
-                                disk=1, bandwidth=None, price=None,
-                                driver=self, extra={'cpu': 1})
-            sizes.append(min_size)
+            total_ram = info[1]
+            total_cores = info[2]
 
+            for core in range(1, total_cores+1, 2):
+                for ram in range(1024, total_ram+1, 1024):
+                    size_id = "%s:%s" % (core, ram)
+                    size = NodeSize(id=size_id, name=size_id, ram=ram, disk=1, bandwidth=None,
+                       price=None, driver=self, extra={'cpu': core})
+                    sizes.append(size)
+        except:
+            pass
         return sizes
 
     def list_locations(self):
@@ -506,7 +510,7 @@ class LibvirtNodeDriver(NodeDriver):
         return sysinfo
 
     def create_node(self, name, disk_size=4, ram=512,
-                    cpu=1, image=None, disk_path=None, create_from_existing=None, os_type='linux', bridge=None):
+                    cpu=1, image=None, disk_path=None, create_from_existing=None, os_type='linux', networks=[]):
         """
         Creates a VM
 
@@ -574,16 +578,18 @@ class LibvirtNodeDriver(NodeDriver):
             # only qemu emulator available
             emu = 'qemu'
 
-        if bridge:
-            if bridge not in self.ex_list_bridges():
-                bridge = None
-
-        if bridge:
-            net_type = 'bridge'
-            net_name = bridge
+        if networks:
+            network = networks[0]
         else:
-            net_type = 'network'
-            net_name = 'default'
+            network = 'default'
+
+        net_type = 'network'
+        net_name = network
+
+        if network in self.ex_list_bridges():
+            # network is a bridge
+            net_type = 'bridge'
+            net_name = network
 
 
         conf = XML_CONF_TEMPLATE % (emu, name, ram, cpu, disk_path, image_conf, net_type, net_type, net_name)
@@ -695,6 +701,18 @@ class LibvirtNodeDriver(NodeDriver):
             pass
         return bridges
 
+
+    def ex_list_networks(self):
+        networks = [Network('default', 'default')]
+        try:
+            # not supported by all hypervisors
+            for net in self.connection.listAllNetworks():
+                net_name = net.bridgeName()
+                networks.append(Network(net_name, net_name))
+        except:
+            pass
+        return networks
+
     def _parse_arp_table(self, arp_output):
         """
         Parse arp command output and return a dictionary which maps mac address
@@ -749,6 +767,15 @@ class LibvirtNodeDriver(NodeDriver):
                 pass
         return output
 
+class Network(object):
+
+    def __init__(self, id, name, extra={}):
+        self.id = str(id)
+        self.name = name
+        self.extra = extra
+
+    def __repr__(self):
+        return '<Network id="%s" name="%s">' % (self.id, self.name)
 
 XML_CONF_TEMPLATE = '''
 <domain type='%s'>
