@@ -333,7 +333,8 @@ class LibvirtNodeDriver(NodeDriver):
         sizes = []
         # append a min size
         size_id = "1-512"
-        size = NodeSize(id=size_id, name=size_id, ram=512, disk=1, bandwidth=None,
+        name = "CPU 1, RAM 512 MB"
+        size = NodeSize(id=size_id, name=name, ram=512, disk=1, bandwidth=None,
            price=None, driver=self, extra={'cpu': 1})
         sizes.append(size)
 
@@ -343,10 +344,11 @@ class LibvirtNodeDriver(NodeDriver):
             total_ram = info[1]
             total_cores = info[2]
 
-            for core in range(1, total_cores+1, 2):
+            for core in range(1, total_cores+1):
                 for ram in range(1024, total_ram+1, 1024):
                     size_id = "%s:%s" % (core, ram)
-                    size = NodeSize(id=size_id, name=size_id, ram=ram, disk=1, bandwidth=None,
+                    name = "CPU %s, RAM %s GB" % (core, str(ram / 1024))
+                    size = NodeSize(id=size_id, name=name, ram=ram, disk=1, bandwidth=None,
                        price=None, driver=self, extra={'cpu': core})
                     sizes.append(size)
         except:
