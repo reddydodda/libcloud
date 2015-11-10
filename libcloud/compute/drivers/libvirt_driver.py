@@ -332,7 +332,7 @@ class LibvirtNodeDriver(NodeDriver):
         """
         sizes = []
         # append a min size
-        size_id = "1-512"
+        size_id = "1:512"
         name = "CPU 1, RAM 512 MB"
         size = NodeSize(id=size_id, name=name, ram=512, disk=1, bandwidth=None,
            price=None, driver=self, extra={'cpu': 1})
@@ -548,7 +548,10 @@ class LibvirtNodeDriver(NodeDriver):
             image_conf = ''
 
         disk_size = str(disk_size) + 'G'
-        ram = ram * 1000
+        try:
+            ram = int(ram) * 1000
+        except:
+            ram = 1024 * 1000
         # TODO: get available ram, cpu and disk and inform if not available
         if create_from_existing:
             # create_from_existing case
