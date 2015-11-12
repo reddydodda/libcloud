@@ -139,7 +139,7 @@ class PacketNodeDriver(NodeDriver):
         data = self.connection.request('/plans').object['plans']
         return list(map(self._to_size, data))
 
-    def create_node(self, name, size, image, location, ex_project_id):
+    def create_node(self, name, size, image, location, ex_project_id, cloud_init=None):
         """
         Create a node.
 
@@ -150,7 +150,8 @@ class PacketNodeDriver(NodeDriver):
         params = {'hostname': name, 'plan': size.id,
                   'operating_system': image.id, 'facility': location.id,
                   'include': 'plan', 'billing_cycle': 'hourly'}
-
+        if cloud_init:
+            params["userdata"] = cloud_init
         data = self.connection.request('/projects/%s/devices' %
                                        (ex_project_id),
                                        params=params, method='POST')
@@ -237,7 +238,6 @@ class PacketNodeDriver(NodeDriver):
                 extra[key] = data[key]
 
         node = Node(id=data['id'], name=data['hostname'], state=state,
-                    image=image, size=size,
                     public_ips=ips['public'], private_ips=ips['private'],
                     extra=extra, driver=self)
         return node
