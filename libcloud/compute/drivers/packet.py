@@ -211,8 +211,9 @@ class PacketNodeDriver(NodeDriver):
         return res.status == httplib.NO_CONTENT
 
     def _to_node(self, data):
+        extra = {}
         extra_keys = ['created_at', 'updated_at',
-                      'userdata', 'billing_cycle', 'locked', 'operating_system', 'facility', 'project']
+                      'userdata', 'billing_cycle', 'locked', 'iqn', 'locked', 'project', 'description']
         if 'state' in data:
             state = self.NODE_STATE_MAP.get(data['state'], NodeState.UNKNOWN)
         else:
@@ -223,11 +224,14 @@ class PacketNodeDriver(NodeDriver):
 
         if 'operating_system' in data and data['operating_system'] is not None:
             image = self._to_image(data['operating_system'])
+            extra['operating_system'] = data['operating_system'].get('name')
 
         if 'plan' in data and data['plan'] is not None:
             size = self._to_size(data['plan'])
+            extra['plan'] = data['plan'].get('name')
+        if 'facility' in data:
+            extra['facility'] = data['facility'].get('name')
 
-        extra = {}
         for key in extra_keys:
             if key in data:
                 extra[key] = data[key]
