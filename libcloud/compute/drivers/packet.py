@@ -36,11 +36,11 @@ class PacketResponse(JsonResponse):
     def parse_error(self):
         if self.status == httplib.UNAUTHORIZED:
             body = self.parse_body()
-            raise InvalidCredsError(body['message'])
+            raise InvalidCredsError(body.get('error'))
         else:
             body = self.parse_body()
             if 'message' in body:
-                error = '%s (code: %s)' % (body['message'], self.status)
+                error = '%s (code: %s)' % (body.get('message'), self.status)
             else:
                 error = body
             return error
@@ -90,6 +90,21 @@ class PacketNodeDriver(NodeDriver):
                       'failed': NodeState.ERROR,
                       'active': NodeState.RUNNING}
 
+    def __init__(self, key, project=None):
+        # initialize a NodeDriver for packet.net using the API token
+        # and optionally the project (name or id)
+        # If project specified we need to be sure this is a valid project
+        # so we create the variable self.project_id
+        super(PacketNodeDriver, self).__init__(key=key, project=None)
+        self.project_name = project
+        self.project_id = None
+        self.projects = self.ex_list_projects()
+        if project:
+            for project_obj in self.projects:
+                if project in [project_obj.name, project_obj.id]:
+                    self.project_id = project_obj.id
+                    break
+
     def ex_list_projects(self):
         projects = []
         data = self.connection.request('/projects').object
@@ -102,21 +117,25 @@ class PacketNodeDriver(NodeDriver):
         if ex_project_id:
             return self.list_nodes_for_project(ex_project_id=ex_project_id)
         else:
-            projects = self.ex_list_projects()
-            projects = [project.id for project in projects]
-            def _list_one(project):
-                driver = get_driver(self.type)(self.key)
-                try:
-                    return driver.list_nodes_for_project(project)
-                except:
-                    return []
-            pool = multiprocessing.pool.ThreadPool(8)
-            results = pool.map(_list_one, projects)
-            pool.terminate()
-            nodes = []
-            for result in results:
-                nodes.extend(result)
-            return nodes
+            # if project has been specified on initialization of driver, then
+            # return nodes for this project only
+            if self.project_id:
+                return self.list_nodes_for_project(ex_project_id=self.project_id)
+            else:
+                projects = [project.id for project in self.projects]
+                def _list_one(project):
+                    driver = get_driver(self.type)(self.key)
+                    try:
+                        return driver.list_nodes_for_project(project)
+                    except:
+                        return []
+                pool = multiprocessing.pool.ThreadPool(8)
+                results = pool.map(_list_one, projects)
+                pool.terminate()
+                nodes = []
+                for result in results:
+                    nodes.extend(result)
+                return nodes
 
     def list_nodes_for_project(self, ex_project_id):
             data = self.connection.request('/projects/%s/devices' %
@@ -139,13 +158,21 @@ class PacketNodeDriver(NodeDriver):
         data = self.connection.request('/plans').object['plans']
         return list(map(self._to_size, data))
 
-    def create_node(self, name, size, image, location, ex_project_id, cloud_init=None):
+    def create_node(self, name, size, image, location, ex_project_id=None, cloud_init=None):
         """
         Create a node.
 
         :return: The newly created node.
         :rtype: :class:`Node`
         """
+        # if project has been specified on initialization of driver, then
+        # create on this project
+
+        if self.project_id:
+            ex_project_id = self.project_id
+        else:
+            if not ex_project_id:
+                raise Exception('ex_project_id needs to be specified')
 
         params = {'hostname': name, 'plan': size.id,
                   'operating_system': image.id, 'facility': location.id,
