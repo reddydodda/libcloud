@@ -88,12 +88,29 @@ class PacketNodeDriver(NodeDriver):
                       'failed': NodeState.ERROR,
                       'active': NodeState.RUNNING}
 
-    def list_nodes(self, ex_project_id):
-        data = self.connection.request('/projects/%s/devices' %
-                                       (ex_project_id),
-                                       params={'include': 'plan'}
-                                       ).object['devices']
-        return list(map(self._to_node, data))
+    def ex_list_projects(self):
+        projects = []
+        data = self.connection.request('/projects').object
+        projects = data.get('projects')
+        if projects:
+            projects = [project.get('id') for project in projects]
+        return projects
+
+    def list_nodes(self, ex_project_id=None):
+        nodes = []
+        if ex_project_id:
+            data = self.connection.request('/projects/%s/devices' %
+                                           (ex_project_id),
+                                           params={'include': 'plan'}
+                                           ).object['devices']
+            return list(map(self._to_node, data))
+        else:
+            projects = self.ex_list_projects()
+            for project_id in projects:
+                project = self.list_nodes(ex_project_id=project_id)
+                nodes.extend(project)
+            return nodes
+
 
     def list_locations(self):
         data = self.connection.request('/facilities')\
@@ -182,7 +199,7 @@ class PacketNodeDriver(NodeDriver):
 
     def _to_node(self, data):
         extra_keys = ['created_at', 'updated_at',
-                      'userdata', 'billing_cycle', 'locked']
+                      'userdata', 'billing_cycle', 'locked', 'operating_system', 'facility', 'project']
         if 'state' in data:
             state = self.NODE_STATE_MAP.get(data['state'], NodeState.UNKNOWN)
         else:
