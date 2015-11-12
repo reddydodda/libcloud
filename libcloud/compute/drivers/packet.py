@@ -15,12 +15,14 @@
 """
 Packet Driver
 """
+import multiprocessing.pool
 
 from libcloud.utils.py3 import httplib
 
 from libcloud.common.base import ConnectionKey, JsonResponse
 from libcloud.compute.types import Provider, NodeState, InvalidCredsError
 from libcloud.compute.base import NodeDriver, Node
+from libcloud.compute.providers import Provider, get_driver
 from libcloud.compute.base import NodeImage, NodeSize, NodeLocation
 from libcloud.compute.base import KeyPair
 
@@ -93,24 +95,35 @@ class PacketNodeDriver(NodeDriver):
         data = self.connection.request('/projects').object
         projects = data.get('projects')
         if projects:
-            projects = [project.get('id') for project in projects]
+            projects = [Project(project) for project in projects]
         return projects
 
     def list_nodes(self, ex_project_id=None):
-        nodes = []
         if ex_project_id:
+            return self.list_nodes_for_project(ex_project_id=ex_project_id)
+        else:
+            projects = self.ex_list_projects()
+            projects = [project.id for project in projects]
+            def _list_one(project):
+                driver = get_driver(self.type)(self.key)
+                try:
+                    return driver.list_nodes_for_project(project)
+                except:
+                    return []
+            pool = multiprocessing.pool.ThreadPool(8)
+            results = pool.map(_list_one, projects)
+            pool.terminate()
+            nodes = []
+            for result in results:
+                nodes.extend(result)
+            return nodes
+
+    def list_nodes_for_project(self, ex_project_id):
             data = self.connection.request('/projects/%s/devices' %
                                            (ex_project_id),
                                            params={'include': 'plan'}
                                            ).object['devices']
             return list(map(self._to_node, data))
-        else:
-            projects = self.ex_list_projects()
-            for project_id in projects:
-                project = self.list_nodes(ex_project_id=project_id)
-                nodes.extend(project)
-            return nodes
-
 
     def list_locations(self):
         data = self.connection.request('/facilities')\
@@ -273,3 +286,25 @@ class PacketNodeDriver(NodeDriver):
                 else:
                     private_ips.append(address['address'])
         return {'public': public_ips, 'private': private_ips}
+
+
+class Project(object):
+    def __init__(self, project):
+        self.id = project.get('id')
+        self.name = project.get('name')
+        self.extra = {}
+        self.extra['max_devices'] = project.get('max_devices')
+        self.extra['payment_method'] = project.get('payment_method')
+        self.extra['created_at'] = project.get('created_at')
+        self.extra['credit_amount'] = project.get('credit_amount')
+        self.extra['devices'] = project.get('devices')
+        self.extra['invitations'] = project.get('invitations')
+        self.extra['memberships'] = project.get('memberships')
+        self.extra['href'] = project.get('href')
+        self.extra['members'] = project.get('members')
+        self.extra['ssh_keys'] = project.get('ssh_keys')
+
+    def __repr__(self):
+        return (('<Project: id=%s, name=%s>') %
+                (self.id, self.name))
+
