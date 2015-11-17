@@ -298,6 +298,7 @@ class OpenStackBaseConnection(ConnectionUserAndKey):
 
         url = self._ex_force_base_url or self.get_endpoint()
         self._set_up_connection_info(url=url)
+        self.tenant_id = None
         if self.user_id:
             tenants = osa.list_projects()
             for tenant in tenants:
