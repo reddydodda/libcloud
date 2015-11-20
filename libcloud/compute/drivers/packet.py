@@ -104,6 +104,8 @@ class PacketNodeDriver(NodeDriver):
                 if project in [project_obj.name, project_obj.id]:
                     self.project_id = project_obj.id
                     break
+            if not self.project_id:
+                self.project_name = None
 
     def ex_list_projects(self):
         projects = []
