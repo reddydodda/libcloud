@@ -198,6 +198,18 @@ class PacketNodeDriver(NodeDriver):
                                       params=params, method='POST')
         return res.status == httplib.OK
 
+    def ex_start_node(self, node):
+        params = {'type': 'power_on'}
+        res = self.connection.request('/devices/%s/actions' % (node.id),
+                                      params=params, method='POST')
+        return res.status == httplib.OK
+
+    def ex_stop_node(self, node):
+        params = {'type': 'power_off'}
+        res = self.connection.request('/devices/%s/actions' % (node.id),
+                                      params=params, method='POST')
+        return res.status == httplib.OK
+
     def destroy_node(self, node):
         res = self.connection.request('/devices/%s' % (node.id),
                                       method='DELETE')
@@ -283,19 +295,14 @@ class PacketNodeDriver(NodeDriver):
     def _to_size(self, data):
         extra = {'description': data['description'], 'line': data['line']}
 
-        ram = data['specs']['memory']['total'].lower()
-        if 'mb' in ram:
-            ram = int(ram.replace('mb', ''))
-        elif 'gb' in ram:
-            ram = int(ram.replace('gb', '')) * 1024
-
+        ram = data['specs']['memory']['total']
+        cpus = data['specs']['cpus'][0].get('count')
         disk = 0
         for disks in data['specs']['drives']:
             disk += disks['count'] * int(disks['size'].replace('GB', ''))
-
-        price = data['pricing']['hourly']
-
-        return NodeSize(id=data['slug'], name=data['name'], ram=ram, disk=disk,
+        name = "%s - %s CPU, %s RAM" % (data.get('name'), cpus, ram)
+        price = "%s / hour" % data['pricing']['hourly']
+        return NodeSize(id=data['slug'], name=name, ram=ram, disk=disk,
                         bandwidth=0, price=price, extra=extra, driver=self)
 
     def _to_key_pairs(self, data):
