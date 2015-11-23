@@ -728,7 +728,7 @@ class OpenStackIdentityConnection(ConnectionUserAndKey):
     def _to_project(self, data):
         project = OpenStackIdentityProject(id=data['id'],
                                            name=data['name'],
-                                           description=data['description'],
+                                           description=data.get('description'),
                                            enabled=data['enabled'],
                                            domain_id=data.get('domain_id',
                                                               None))
