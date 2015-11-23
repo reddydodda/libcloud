@@ -300,7 +300,7 @@ class PacketNodeDriver(NodeDriver):
         disk = 0
         for disks in data['specs']['drives']:
             disk += disks['count'] * int(disks['size'].replace('GB', ''))
-        name = "%s - %s CPU, %s RAM" % (data.get('name'), cpus, ram)
+        name = "%s - %s RAM" % (data.get('name'), ram)
         price = "%s / hour" % data['pricing']['hourly']
         return NodeSize(id=data['slug'], name=name, ram=ram, disk=disk,
                         bandwidth=0, price=price, extra=extra, driver=self)
