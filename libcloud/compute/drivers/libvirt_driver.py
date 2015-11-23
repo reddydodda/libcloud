@@ -364,7 +364,7 @@ class LibvirtNodeDriver(NodeDriver):
         Searches inside /var, unless other location is specified
         """
         images = []
-        cmd = "sudo find %s -name '*.iso'" % location
+        cmd = "sudo find %s -name '*.iso' -o -name '*.img'" % location
         output = self.run_command(cmd)
 
         if output:
@@ -543,7 +543,11 @@ class LibvirtNodeDriver(NodeDriver):
         if image:
             if not self.ex_validate_disk(image):
                 raise Exception("You have specified %s as image which does not exist" % image)
-            image_conf = IMAGE_TEMPLATE % image
+            if image.endswith('.img'):
+                # will create the disk conf, cdrom conf not needed
+                image_conf = ''
+            else:
+                image_conf = IMAGE_TEMPLATE % image
         else:
             image_conf = ''
 
@@ -571,9 +575,16 @@ class LibvirtNodeDriver(NodeDriver):
                     else:
                         break
 
-            if not self.ex_validate_disk(disk_path):
-                # in case existing disk path is provided, no need to create it
-                self.ex_create_disk(disk_path, disk_size)
+            if image.endswith('.img'):
+                if self.ex_validate_disk(disk_path):
+                    raise Exception("You have specified to copy %s to a path that exists" %  image)
+                else:
+                    cmd = "sudo cp %s %s" % (image, disk_path)
+                    output = self.run_command(cmd)
+            else:
+                if not self.ex_validate_disk(disk_path):
+                    # in case existing disk path is provided, no need to create it
+                    self.ex_create_disk(disk_path, disk_size)
 
         capabilities = self.ex_get_capabilities()
         if "<domain type='kvm'>" in capabilities:
