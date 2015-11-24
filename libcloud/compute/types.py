@@ -132,7 +132,7 @@ class Provider(object):
     VSPHERE = 'vsphere'
     PROFIT_BRICKS = 'profitbricks'
     VULTR = 'vultr'
-
+    PACKET = 'packet'
     # OpenStack based providers
     HPCLOUD = 'hpcloud'
     KILI = 'kili'

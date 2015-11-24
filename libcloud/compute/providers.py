@@ -163,6 +163,8 @@ DRIVERS = {
     ('libcloud.compute.drivers.profitbricks', 'ProfitBricksNodeDriver'),
     Provider.VULTR:
     ('libcloud.compute.drivers.vultr', 'VultrNodeDriver'),
+    Provider.PACKET:
+    ('libcloud.compute.drivers.packet', 'PacketNodeDriver'),
 
     # Deprecated
     Provider.CLOUDSIGMA_US:

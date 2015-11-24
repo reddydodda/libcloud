@@ -354,6 +354,8 @@ class DigitalOceanNodeDriver(NodeDriver):
 
         private_networking = kwargs.get('private_networking', True)
         params['private_networking'] = private_networking
+        user_data = kwargs.get('user_data', None)
+        params['user_data'] = user_data
         headers = {'Content-type': 'application/json'}
 
         data = self.connection.request('/droplets', data=json.dumps(params),
