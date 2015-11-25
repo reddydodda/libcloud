@@ -382,6 +382,11 @@ class LibvirtNodeDriver(NodeDriver):
         domain = self._get_domain_for_node(node=node)
         return domain.destroy() == 0
 
+    def ex_undefine_node(self, node):
+        cmd = "sudo virsh undefine %s" % node.id
+        output = self.run_command(cmd)
+        return True
+
     def ex_start_node(self, node):
         """
         Start a stopped node.
