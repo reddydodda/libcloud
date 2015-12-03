@@ -1287,7 +1287,6 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         """
 
         server_params = self._create_args_to_params(None, **kwargs)
-
         resp = self.connection.request("/servers",
                                        method='POST',
                                        data={'server': server_params})
@@ -1361,9 +1360,10 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         if 'ex_keyname' in kwargs:
             server_params['key_name'] = kwargs['ex_keyname']
 
-        if 'ex_userdata' in kwargs:
+        if 'ex_userdata' in kwargs and kwargs['ex_userdata']:
             server_params['user_data'] = base64.b64encode(
                 b(kwargs['ex_userdata'])).decode('ascii')
+            server_params['config_drive'] = 'True'
 
         if 'ex_disk_config' in kwargs:
             server_params['OS-DCF:diskConfig'] = kwargs['ex_disk_config']

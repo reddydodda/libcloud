@@ -16,7 +16,7 @@
 Vultr Driver
 """
 
-import time
+import time, base64
 
 from libcloud.utils.py3 import httplib
 from libcloud.utils.py3 import urlencode
@@ -108,7 +108,7 @@ class VultrNodeDriver(NodeDriver):
         images = self._list_resources('/v1/os/list', self._to_image)
         return sorted(images, key=lambda k: k.name)
 
-    def create_node(self, name, size, image, location, ssh_key=[]):
+    def create_node(self, name, size, image, location, ssh_key=[], userdata=None):
 
         # SSHKEYID string (optional) List of SSH keys to apply to this server
         # on install (only valid for Linux/FreeBSD).  See v1/sshkey/list.
@@ -118,6 +118,8 @@ class VultrNodeDriver(NodeDriver):
                   'OSID': image.id, 'label': name}
         if ssh_key:
             params['SSHKEYID'] = ','.join(ssh_key)
+        if userdata:
+            params['userdata'] = base64.b64encode(userdata)
 
         result = self.connection.post('/v1/server/create', params)
         if result.status != httplib.OK:
