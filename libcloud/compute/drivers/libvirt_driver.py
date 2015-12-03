@@ -820,9 +820,9 @@ XML_CONF_TEMPLATE = '''
   <on_crash>restart</on_crash>
   <devices>
     <disk type='file' device='disk'>
-      <driver name='qemu' type='raw' io='native'/>
+      <driver name='qemu' type='raw' io='native' cache='none'/>
       <source file='%s'/>
-      <target dev='hda' bus='ide'/>
+      <target dev='hda' bus='virtio'/>
     </disk>%s
     <interface type='%s'>
       <source %s='%s'/>
