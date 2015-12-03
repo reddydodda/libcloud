@@ -64,7 +64,7 @@ class LibvirtNodeDriver(NodeDriver):
         0: NodeState.TERMINATED,  # no state
         1: NodeState.RUNNING,  # domain is running
         2: NodeState.PENDING,  # domain is blocked on resource
-        3: NodeState.TERMINATED,  # domain is paused by user
+        3: NodeState.SUSPENDED,  # domain is paused by user
         4: NodeState.TERMINATED,  # domain is being shut down
         5: NodeState.TERMINATED,  # domain is shut off
         6: NodeState.UNKNOWN,  # domain is crashed
@@ -587,7 +587,7 @@ class LibvirtNodeDriver(NodeDriver):
                 if self.ex_validate_disk(disk_path):
                     raise Exception("You have specified to copy %s to a path that exists" %  image)
                 else:
-                    cmd = "sudo cp %s %s" % (image, disk_path)
+                    cmd = "sudo qemu-img convert -O raw %s %s" % (image, disk_path)
                     output = self.run_command(cmd)
             else:
                 if not self.ex_validate_disk(disk_path):
@@ -684,7 +684,7 @@ class LibvirtNodeDriver(NodeDriver):
         """
         Create disk using qemu-img
         """
-        cmd = "sudo qemu-img create -f qcow2 -o preallocation=metadata %s %s" % (disk_path, disk_size)
+        cmd = "sudo qemu-img create -f raw %s %s" % (disk_path, disk_size)
 
         output = self.run_command(cmd)
         if output:
@@ -817,15 +817,16 @@ XML_CONF_TEMPLATE = '''
   <clock offset='utc'/>
   <on_poweroff>destroy</on_poweroff>
   <on_reboot>restart</on_reboot>
-  <on_crash>destroy</on_crash>
+  <on_crash>restart</on_crash>
   <devices>
     <disk type='file' device='disk'>
-      <driver name='qemu' type='qcow2'/>
+      <driver name='qemu' type='raw' io='native'/>
       <source file='%s'/>
       <target dev='hda' bus='ide'/>
     </disk>%s
     <interface type='%s'>
       <source %s='%s'/>
+      <model type='virtio'/>
     </interface>
     <input type='mouse' bus='ps2'/>
     <graphics type='vnc' port='-1' autoport='yes' listen='127.0.0.1'/>
