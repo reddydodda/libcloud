@@ -118,7 +118,7 @@ class LibvirtNodeDriver(NodeDriver):
                     so.connect((host, 5000))
                     so.close()
                 except:
-                    raise Exception("If you don't specify an ssh key, mist.io tries to connect to port 5000 through qemu+tcp")
+                    raise Exception("If you don't specify an ssh key, libvirt will try to connect to port 5000 through qemu+tcp")
 
                 uri = 'qemu+tcp://%s:5000/system' % host
 
