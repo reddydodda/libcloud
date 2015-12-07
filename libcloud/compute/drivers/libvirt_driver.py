@@ -623,10 +623,7 @@ class LibvirtNodeDriver(NodeDriver):
         # start the VM
 
         domain = self.connection.lookupByName(name)
-        try:
-            domain.create()
-        except:
-            raise
+        domain.create()
 
         nodes = self.list_nodes(show_hypervisor=False)
         for node in nodes:
