@@ -238,54 +238,6 @@ class LibvirtNodeDriver(NodeDriver):
         return node
 
 
-    def _get_vnc_port_for_domain(self, node):
-        """
-        Returns the vnc port for a domain
-        """
-        cmd = "virsh vncdisplay %s" % node.name
-        output = self.run_command(cmd)
-
-        try:
-            port = output.split(":")[1].replace('\n', '')
-            vnc_port = int(port) + 5900
-        except:
-            vnc_port = None
-
-        return vnc_port
-
-    def ex_set_ssh_fw(self, node):
-        """
-        """
-        remote_port = self._get_vnc_port_for_domain(node)
-        local_port = self.ex_bind_local_port()
-        if remote_port and local_port:
-            cmd = "nohup ssh -L %s:localhost:%s %s@%s -i %s -N &" % \
-                (local_port, remote_port, self.key, self.host, self.secret)
-        else:
-            return None
-
-        cmd = shlex.split(cmd)
-        child = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
-        return local_port
-
-    # SOS: ssh fw need to be closed as longs as vnc session closes
-
-    def ex_bind_local_port(self):
-        """
-        Find a local port to bind and return
-        """
-        for port in range(50000, 65535):
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.bind(("", port))
-                s.listen(1)
-                s.close()
-                return port
-            except:
-                pass
-        return None
-
     def _get_ip_addresses_for_domain(self, domain):
         """
         Retrieve IP addresses for the provided domain.
