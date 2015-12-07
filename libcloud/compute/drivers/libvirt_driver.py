@@ -46,6 +46,7 @@ try:
 except ImportError:
     raise RuntimeError('Libvirt driver requires \'libvirt\' Python ' +
                                'package')
+
 # increase default timeout for libvirt connection
 libvirt_connection_timeout = 2*60
 
@@ -85,7 +86,7 @@ class LibvirtNodeDriver(NodeDriver):
         """
         self.temp_key = None
         self.secret = None
-        if host in ['localhost', '127.0.0.1']:
+        if host in ['localhost', '127.0.0.1', '0.0.0.0']:
             # local connection
             uri = 'qemu:///system'
         else:
@@ -111,7 +112,7 @@ class LibvirtNodeDriver(NodeDriver):
 
                 uri = 'qemu+ssh://%s@%s:%s/system?keyfile=%s&no_tty=1&no_verify=1' % (user, host, ssh_port, self.secret)
             else:
-                #tcp connection
+                # tcp connection
                 try:
                     socket.setdefaulttimeout(15)
                     so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -731,13 +732,14 @@ class LibvirtNodeDriver(NodeDriver):
             except:
                 pass
         else:
-            try:
-                cmd = shlex.split(cmd)
-                child = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                         stderr=subprocess.PIPE)
-                output, _ = child.communicate()
-            except:
-                pass
+            if self._uri == 'qemu:///system':
+                try:
+                    cmd = shlex.split(cmd)
+                    child = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                             stderr=subprocess.PIPE)
+                    output, _ = child.communicate()
+                except:
+                    pass
         return output
 
 class Network(object):
