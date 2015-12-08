@@ -47,7 +47,7 @@ except ImportError:
     raise RuntimeError('Libvirt driver requires \'libvirt\' Python ' +
                                'package')
 
-ALLOW_LIBVIRT_LOCALHOST = True
+ALLOW_LIBVIRT_LOCALHOST = False
 
 # increase default timeout for libvirt connection
 libvirt_connection_timeout = 2*60
