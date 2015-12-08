@@ -47,6 +47,8 @@ except ImportError:
     raise RuntimeError('Libvirt driver requires \'libvirt\' Python ' +
                                'package')
 
+ALLOW_LIBVIRT_LOCALHOST = True
+
 # increase default timeout for libvirt connection
 libvirt_connection_timeout = 2*60
 
@@ -88,7 +90,10 @@ class LibvirtNodeDriver(NodeDriver):
         self.secret = None
         if host in ['localhost', '127.0.0.1', '0.0.0.0']:
             # local connection
-            uri = 'qemu:///system'
+            if ALLOW_LIBVIRT_LOCALHOST:
+                uri = 'qemu:///system'
+            else:
+                raise Exception("In order to connect to local libvirt enable ALLOW_LIBVIRT_LOCALHOST variable")
         else:
             if ssh_key:
                 # if ssh key is string create temp file
