@@ -48,6 +48,7 @@ except ImportError:
                                'package')
 
 ALLOW_LIBVIRT_LOCALHOST = False
+IMAGES_LOCATION = "/var/lib/libvirt/images"
 
 # increase default timeout for libvirt connection
 libvirt_connection_timeout = 2*60
@@ -316,10 +317,10 @@ class LibvirtNodeDriver(NodeDriver):
     def list_locations(self):
         return []
 
-    def list_images(self, location='/var'):
+    def list_images(self, location=IMAGES_LOCATION):
         """
         Returns iso images as NodeImages
-        Searches inside /var, unless other location is specified
+        Searches inside IMAGES_LOCATION, unless other location is specified
         """
         images = []
         cmd = "sudo find %s -name '*.iso' -o -name '*.img'" % location
@@ -534,10 +535,10 @@ class LibvirtNodeDriver(NodeDriver):
             if not disk_path:
                 # make a default disk_path of  /var/lib/libvirt/images/vm_name.img
                 # the disk_path need not exist, so we can create it
-                disk_path = '/var/lib/libvirt/images/%s.img' % name
+                disk_path = '%s/%s.img' % (IMAGES_LOCATION, name)
                 for i in range(1, 20):
                     if self.ex_validate_disk(disk_path):
-                        disk_path = '/var/lib/libvirt/images/%s.img' % name + str(i)
+                        disk_path = '%s/%s.img' % (IMAGES_LOCATION, name + str(i))
                     else:
                         break
 
