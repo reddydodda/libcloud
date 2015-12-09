@@ -16,12 +16,16 @@ from __future__ import with_statement
 
 import re
 import os
+import shlex
 import socket
 import time
 import platform
 import subprocess
 import mimetypes
 import signal
+import paramiko
+import atexit
+from tempfile import NamedTemporaryFile
 
 from os.path import join as pjoin
 from collections import defaultdict
@@ -31,7 +35,7 @@ try:
 except ImportError:
     from xml.etree import ElementTree as ET
 
-from libcloud.compute.base import NodeDriver, Node
+from libcloud.compute.base import NodeDriver, Node, NodeImage, NodeSize
 from libcloud.compute.base import NodeState
 from libcloud.compute.types import Provider
 from libcloud.utils.networking import is_public_subnet
@@ -42,6 +46,10 @@ try:
 except ImportError:
     raise RuntimeError('Libvirt driver requires \'libvirt\' Python ' +
                                'package')
+
+ALLOW_LIBVIRT_LOCALHOST = False
+IMAGES_LOCATION = "/var/lib/libvirt/images"
+
 # increase default timeout for libvirt connection
 libvirt_connection_timeout = 2*60
 
@@ -60,7 +68,7 @@ class LibvirtNodeDriver(NodeDriver):
         0: NodeState.TERMINATED,  # no state
         1: NodeState.RUNNING,  # domain is running
         2: NodeState.PENDING,  # domain is blocked on resource
-        3: NodeState.TERMINATED,  # domain is paused by user
+        3: NodeState.SUSPENDED,  # domain is paused by user
         4: NodeState.TERMINATED,  # domain is being shut down
         5: NodeState.TERMINATED,  # domain is shut off
         6: NodeState.UNKNOWN,  # domain is crashed
@@ -76,31 +84,55 @@ class LibvirtNodeDriver(NodeDriver):
         """Support the three ways to connect: local system, qemu+tcp, qemu+ssh
         Host can be an ip address or hostname
         ssh key should be a filename with the private key
+        if ssh key is a string we create a temp file with the string that will be deleted
+        on exit
         """
-        if host in ['localhost', '127.0.0.1']:
+        self.temp_key = None
+        self.secret = None
+        if host in ['localhost', '127.0.0.1', '0.0.0.0']:
             # local connection
-            uri = 'qemu:///system'
+            if ALLOW_LIBVIRT_LOCALHOST:
+                uri = 'qemu:///system'
+            else:
+                raise Exception("In order to connect to local libvirt enable ALLOW_LIBVIRT_LOCALHOST variable")
         else:
             if ssh_key:
+                # if ssh key is string create temp file
+                if not os.path.isfile(ssh_key):
+                    key_temp_file = NamedTemporaryFile(delete=False)
+                    key_temp_file.write(ssh_key)
+                    key_temp_file.close()
+                    self.secret = key_temp_file.name
+                    self.temp_key = self.secret
+                else:
+                    self.secret = ssh_key
                 # ssh connection
                 # initially attempt to connect to host/port and raise exception on failure
                 try:
-                    socket.setdefaulttimeout(10)
+                    socket.setdefaulttimeout(15)
                     so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     so.connect((host, ssh_port))
                     so.close()
                 except:
                     raise Exception("Make sure host is accessible and ssh port %s is open" % ssh_port)
 
-                uri = 'qemu+ssh://%s@%s:%s/system?keyfile=%s&no_tty=1&no_verify=1' % (user, host, ssh_port, ssh_key)
+                uri = 'qemu+ssh://%s@%s:%s/system?keyfile=%s&no_tty=1&no_verify=1' % (user, host, ssh_port, self.secret)
             else:
-                #tcp connection
+                # tcp connection
+                try:
+                    socket.setdefaulttimeout(15)
+                    so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    so.connect((host, 5000))
+                    so.close()
+                except:
+                    raise Exception("If you don't specify an ssh key, libvirt will try to connect to port 5000 through qemu+tcp")
+
                 uri = 'qemu+tcp://%s:5000/system' % host
 
         self._uri = uri
-        self.secret = ssh_key
         self.key = user
         self.host = host
+        self.ssh_port = ssh_port
 
         try:
             signal.signal(signal.SIGALRM, self.timeout_handler)
@@ -119,7 +151,28 @@ class LibvirtNodeDriver(NodeDriver):
                 raise Exception("Make sure libvirt is running and user %s is authorised to connect" % user)
             raise Exception("Connection error")
 
+            atexit.register(self.disconnect)
+
+    def __del__(self):
+        self.disconnect()
+
+    def disconnect(self):
+        # closes connection to the hypevisor
+        try:
+            self.connection.close()
+        except:
+            pass
+
+        if not self.temp_key:
+            return
+
+        try:
+            os.remove(self.temp_key)
+        except Exception:
+            pass
+
     def list_nodes(self, show_hypervisor=True):
+
         # active domains
         domain_ids = self.connection.listDomainsID()
         domains = [self.connection.lookupByID(id) for id in domain_ids]
@@ -135,28 +188,8 @@ class LibvirtNodeDriver(NodeDriver):
         # libvirt connection. Then we can check what ip address each MAC
         # address has
         self.arp_table = {}
-        if self.secret:
-            try:
-                import paramiko
-                ssh=paramiko.SSHClient()
-                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-                ssh.connect(self.host, username=self.key, key_filename=self.secret,
-                            timeout=None, allow_agent=False, look_for_keys=False)
-                stdin,stdout,stderr = ssh.exec_command("arp -an")
-                output = stdout.read()
-                ssh.close()
-                self.arp_table = self._parse_arp_table(output)
-            except:
-                pass
-        else:
-            cmd = ['arp', '-an']
-            child = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE)
-            stdout, _ = child.communicate()
-            self.arp_table = self._parse_arp_table(arp_output=stdout)
-
-
+        cmd = "arp -an"
+        self.arp_table = self._parse_arp_table(self.run_command(cmd))
 
         nodes = [self._to_node(domain) for domain in domains]
 
@@ -202,7 +235,7 @@ class LibvirtNodeDriver(NodeDriver):
         extra = {'uuid': domain.UUIDString(), 'os_type': domain.OSType(),
                  'types': self.connection.getType(),
                  'hypervisor_name': self.connection.getHostname(),
-                 'used_memory': memory / 1024, 'vcpu_count': vcpu_count,
+                 'memory': '%s MB' % str(memory / 1024), 'processors': vcpu_count,
                  'used_cpu_time': used_cpu_time}
 
         node = Node(id=domain.UUIDString(), name=domain.name(), state=state,
@@ -210,6 +243,7 @@ class LibvirtNodeDriver(NodeDriver):
                     driver=self, extra=extra)
         node._uuid = domain.UUIDString()  # we want to use a custom UUID
         return node
+
 
     def _get_ip_addresses_for_domain(self, domain):
         """
@@ -252,13 +286,52 @@ class LibvirtNodeDriver(NodeDriver):
         return result
 
     def list_sizes(self):
-        return []
+        """
+        Returns sizes
+        """
+        sizes = []
+        # append a min size
+        size_id = "1:512"
+        name = "CPU 1, RAM 512 MB"
+        size = NodeSize(id=size_id, name=name, ram=512, disk=1, bandwidth=None,
+           price=None, driver=self, extra={'cpu': 1})
+        sizes.append(size)
+
+        try:
+            # not supported by all hypervisors
+            info = self.connection.getInfo()
+            total_ram = info[1]
+            total_cores = info[2]
+
+            for core in range(1, total_cores+1):
+                for ram in range(1024, total_ram+1, 1024):
+                    size_id = "%s:%s" % (core, ram)
+                    name = "CPU %s, RAM %s GB" % (core, str(ram / 1024))
+                    size = NodeSize(id=size_id, name=name, ram=ram, disk=1, bandwidth=None,
+                       price=None, driver=self, extra={'cpu': core})
+                    sizes.append(size)
+        except:
+            pass
+        return sizes
 
     def list_locations(self):
         return []
 
-    def list_images(self):
-        return []
+    def list_images(self, location=IMAGES_LOCATION):
+        """
+        Returns iso images as NodeImages
+        Searches inside IMAGES_LOCATION, unless other location is specified
+        """
+        images = []
+        cmd = "sudo find %s -name '*.iso' -o -name '*.img'" % location
+        output = self.run_command(cmd)
+
+        if output:
+            for image in output.strip().split('\n'):
+                nodeimage = NodeImage(id=image, name=image, driver=self, extra={})
+                images.append(nodeimage)
+
+        return images
 
     def reboot_node(self, node):
         domain = self._get_domain_for_node(node=node)
@@ -267,6 +340,14 @@ class LibvirtNodeDriver(NodeDriver):
     def destroy_node(self, node):
         domain = self._get_domain_for_node(node=node)
         return domain.destroy() == 0
+
+    def ex_undefine_node(self, node):
+        cmd = "sudo virsh destroy %s" % node.id
+        output = self.run_command(cmd)
+        cmd = "sudo virsh undefine %s" % node.id
+        output = self.run_command(cmd)
+
+        return True
 
     def ex_start_node(self, node):
         """
@@ -364,6 +445,13 @@ class LibvirtNodeDriver(NodeDriver):
 
         return file_path
 
+    def ex_get_capabilities(self):
+        """
+        Return hypervisor capabilities
+        """
+        capabilities = self.connection.getCapabilities()
+        return capabilities
+
     def ex_get_hypervisor_hostname(self):
         """
         Return a system hostname on which the hypervisor is running.
@@ -390,6 +478,176 @@ class LibvirtNodeDriver(NodeDriver):
 
         return sysinfo
 
+    def create_node(self, name, disk_size=4, ram=512,
+                    cpu=1, image=None, disk_path=None, create_from_existing=None, os_type='linux', networks=[]):
+        """
+        Creates a VM
+
+        If image is missing, we assume we are creating the VM by importing
+        existing image (create_from_existing has to be specified)
+
+        If image is specified, should be a path. Eg
+        eg /var/lib/libvirt/images/CentOS-7-x86_64-Minimal-1503-01.iso
+
+        If disk_path is specified, needs to be a path, eg /var/lib/libvirt/images/name.img
+
+        If it exists, raise an error and exit, otherwise we will try to create
+        with qemu-img - disk_size being the size of it (in gigabytes)
+
+        Cases that are covered by this:
+        1) Boot from iso -needs name, iso image, ram, cpu, disk space, size
+        2) Import existing image - needs create_from_existing, ram, cpu
+
+        """
+        # name validator, name should be unique
+        name = self.ex_name_validator(name)
+        # check which case we are on. If both image and disk_path are empty, then fail with error.
+
+        if not create_from_existing and not image:
+            raise Exception("You have to specify at least an image iso, to boot from, or an existing disk_path to import")
+
+        # define the VM
+        if image:
+            if not self.ex_validate_disk(image):
+                raise Exception("You have specified %s as image which does not exist" % image)
+            if image.endswith('.img'):
+                # will create the disk conf, cdrom conf not needed
+                image_conf = ''
+            else:
+                image_conf = IMAGE_TEMPLATE % image
+        else:
+            image_conf = ''
+
+        disk_size = str(disk_size) + 'G'
+        try:
+            ram = int(ram) * 1000
+        except:
+            ram = 1024 * 1000
+        # TODO: get available ram, cpu and disk and inform if not available
+        if create_from_existing:
+            # create_from_existing case
+            # if create_from_existing is specified but the path does not exist fail with error
+            if not self.ex_validate_disk(create_from_existing):
+                raise Exception("You have specified to create from an existing disk path that does not exist")
+            else:
+                disk_path = create_from_existing
+        if image:
+            if not disk_path:
+                # make a default disk_path of  /var/lib/libvirt/images/vm_name.img
+                # the disk_path need not exist, so we can create it
+                disk_path = '%s/%s.img' % (IMAGES_LOCATION, name)
+                for i in range(1, 20):
+                    if self.ex_validate_disk(disk_path):
+                        disk_path = '%s/%s.img' % (IMAGES_LOCATION, name + str(i))
+                    else:
+                        break
+
+            if image.endswith('.img'):
+                if self.ex_validate_disk(disk_path):
+                    raise Exception("You have specified to copy %s to a path that exists" %  image)
+                else:
+                    cmd = "sudo qemu-img convert -O raw %s %s" % (image, disk_path)
+                    output = self.run_command(cmd)
+            else:
+                if not self.ex_validate_disk(disk_path):
+                    # in case existing disk path is provided, no need to create it
+                    self.ex_create_disk(disk_path, disk_size)
+
+        capabilities = self.ex_get_capabilities()
+        if "<domain type='kvm'>" in capabilities:
+            # kvm hypervisor supported by the system
+            emu = 'kvm'
+        else:
+            # only qemu emulator available
+            emu = 'qemu'
+
+        if networks:
+            network = networks[0]
+        else:
+            network = 'default'
+
+        net_type = 'network'
+        net_name = network
+
+        if network in self.ex_list_bridges():
+            # network is a bridge
+            net_type = 'bridge'
+            net_name = network
+
+
+        conf = XML_CONF_TEMPLATE % (emu, name, ram, cpu, disk_path, image_conf, net_type, net_type, net_name)
+
+        self.connection.defineXML(conf)
+
+        # start the VM
+
+        domain = self.connection.lookupByName(name)
+        domain.create()
+
+        nodes = self.list_nodes(show_hypervisor=False)
+        for node in nodes:
+            if node.name == name:
+                return node
+
+        return True
+
+
+    def ex_clone_vm(self, node, new_name=None):
+        """
+        Clones a VM
+        """
+        # TODO
+        # if VM is running, raise exception and exit
+        # step1: get existing node conf through loookupbyname and fetch disk info
+        # step2: remove uuid and mac from new node conf
+        # step3: set name in new node conf
+        # step4: cp disk img to new one
+        # step4: define new xml
+        # step5: start new node
+
+        return None
+
+
+    def ex_name_validator(self, name):
+        """
+        Makes sure name is not in use, and checks
+        it is comprised only by alphanumeric chars and -_."
+        """
+        if not re.search(r'^[0-9a-zA-Z-_.]+[0-9a-zA-Z]$', name):
+            raise Exception("Alphanumeric, dots, dashes and underscores are only allowed in VM name")
+
+        nodes = self.list_nodes(show_hypervisor=False)
+
+        if name in [node.name for node in nodes]:
+            raise Exception("VM with name %s already exists" % name)
+
+        return name
+
+    def ex_validate_disk(self, disk_path):
+        """
+        Check if disk_path exists
+        """
+
+        cmd = 'ls %s' % disk_path
+        output = self.run_command(cmd)
+
+        if output:
+            return True
+        else:
+            return False
+
+    def ex_create_disk(self, disk_path, disk_size):
+        """
+        Create disk using qemu-img
+        """
+        cmd = "sudo qemu-img create -f raw %s %s" % (disk_path, disk_size)
+
+        output = self.run_command(cmd)
+        if output:
+            return True
+        else:
+            return False
+
     def _get_domain_for_node(self, node):
         """
         Return libvirt domain object for the provided node.
@@ -412,6 +670,28 @@ class LibvirtNodeDriver(NodeDriver):
             result[name] = value
 
         return result
+
+    def ex_list_bridges(self):
+        bridges = []
+        try:
+            # not supported by all hypervisors
+            for net in self.connection.listAllNetworks():
+                    bridges.append(net.bridgeName())
+        except:
+            pass
+        return bridges
+
+
+    def ex_list_networks(self):
+        networks = [Network('default', 'default')]
+        try:
+            # not supported by all hypervisors
+            for net in self.connection.listAllNetworks():
+                net_name = net.bridgeName()
+                networks.append(Network(net_name, net_name))
+        except:
+            pass
+        return networks
 
     def _parse_arp_table(self, arp_output):
         """
@@ -437,12 +717,88 @@ class LibvirtNodeDriver(NodeDriver):
 
         return arp_table
 
-    def disconnect(self):
-        # closes connection to the hypevisor
-        try:
-            self.connection.close()
-        except:
-            pass
 
-    def __del__(self):
-        self.disconnect()
+    def run_command(self, cmd):
+        """
+        Run a command on a local or remote hypervisor
+        If the hypervisor is remote, run the command with paramiko
+        """
+        output = ''
+        if self.secret:
+            try:
+                ssh=paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+                ssh.connect(self.host, username=self.key, key_filename=self.secret,
+                            port=self.ssh_port, timeout=None, allow_agent=False, look_for_keys=False)
+                stdin,stdout,stderr = ssh.exec_command(cmd)
+
+                output = stdout.read()
+                ssh.close()
+            except:
+                pass
+        else:
+            if ALLOW_LIBVIRT_LOCALHOST and self._uri == 'qemu:///system':
+                try:
+                    cmd = shlex.split(cmd)
+                    child = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                             stderr=subprocess.PIPE)
+                    output, _ = child.communicate()
+                except:
+                    pass
+        return output
+
+class Network(object):
+
+    def __init__(self, id, name, extra={}):
+        self.id = str(id)
+        self.name = name
+        self.extra = extra
+
+    def __repr__(self):
+        return '<Network id="%s" name="%s">' % (self.id, self.name)
+
+XML_CONF_TEMPLATE = '''
+<domain type='%s'>
+  <name>%s</name>
+  <memory>%s</memory>
+  <vcpu>%s</vcpu>
+  <os>
+   <type arch='x86_64'>hvm</type>
+    <boot dev='hd'/>
+    <boot dev='cdrom'/>
+  </os>
+ <features>
+    <acpi/>
+  </features>
+  <clock offset='utc'/>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>restart</on_crash>
+  <devices>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='raw' io='native' cache='none'/>
+      <source file='%s'/>
+      <target dev='hda' bus='virtio'/>
+    </disk>%s
+    <interface type='%s'>
+      <source %s='%s'/>
+      <model type='virtio'/>
+    </interface>
+    <input type='mouse' bus='ps2'/>
+    <graphics type='vnc' port='-1' autoport='yes' listen='127.0.0.1'/>
+    <video>
+      <model type='cirrus' vram='9216' heads='1'/>
+    </video>
+  </devices>
+</domain>
+'''
+
+IMAGE_TEMPLATE = '''
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='%s'/>
+     <target dev='hdb' bus='ide'/>
+     <readonly/>
+    </disk>
+'''
