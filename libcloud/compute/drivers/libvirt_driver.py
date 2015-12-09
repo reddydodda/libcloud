@@ -738,7 +738,7 @@ class LibvirtNodeDriver(NodeDriver):
             except:
                 pass
         else:
-            if self._uri == 'qemu:///system':
+            if ALLOW_LIBVIRT_LOCALHOST and self._uri == 'qemu:///system':
                 try:
                     cmd = shlex.split(cmd)
                     child = subprocess.Popen(cmd, stdout=subprocess.PIPE,
