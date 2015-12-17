@@ -542,7 +542,7 @@ local-hostname: %s''' % (name, name)
                     output = self._run_command('sudo echo "%s" > %s' % (metadata, metadata_file)).get('output')
 
                     if not cloud_init:
-                        cloud_init = "#!/bin/bash\n touch /tmp/hello"
+                        cloud_init = "#!/bin/bash\ntouch /tmp/hello"
                     userdata_file = pjoin(directory, 'user-data')
                     output = self._run_command('sudo echo "%s" > %s' % (cloud_init, userdata_file)).get('output')
                     cloudinit_files = '%s %s' % (metadata_file, userdata_file)
