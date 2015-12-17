@@ -334,7 +334,8 @@ class LibvirtNodeDriver(NodeDriver):
 
         if output:
             for image in output.strip().split('\n'):
-                nodeimage = NodeImage(id=image, name=image, driver=self, extra={})
+                name = image.replace(IMAGES_LOCATION+'/', '')
+                nodeimage = NodeImage(id=image, name=name, driver=self, extra={})
                 images.append(nodeimage)
 
         return images
