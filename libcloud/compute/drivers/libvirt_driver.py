@@ -540,12 +540,12 @@ local-hostname: %s''' % (name, name)
 
                     metadata_file = pjoin(directory, 'meta-data')
                     output = self._run_command('sudo echo "%s" > %s' % (metadata, metadata_file)).get('output')
-                    cloudinit_files = '%s' % metadata_file
 
-                    if cloud_init:
-                        userdata_file = pjoin(directory, 'user-data')
-                        output = self._run_command('sudo echo "%s" > %s' % (cloud_init, userdata_file)).get('output')
-                        cloudinit_files = '%s %s' % (metadata_file, userdata_file)
+                    if not cloud_init:
+                        cloud_init = "#!/bin/bash\n touch /tmp/hello"
+                    userdata_file = pjoin(directory, 'user-data')
+                    output = self._run_command('sudo echo "%s" > %s' % (cloud_init, userdata_file)).get('output')
+                    cloudinit_files = '%s %s' % (metadata_file, userdata_file)
 
                     configiso_file = pjoin(directory, 'config.iso')
                     output = self._run_command('sudo genisoimage -o %s -V cidata -r -J %s' % (configiso_file, cloudinit_files)).get('output')
