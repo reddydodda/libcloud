@@ -504,7 +504,10 @@ class LibvirtNodeDriver(NodeDriver):
         Cases that are covered by this:
         1) Boot from iso -needs name, iso image, ram, cpu, disk space, size
         2) Import existing image - needs create_from_existing, ram, cpu
-
+        3) Create from existing disk image (.raw, .qcow, .qcow2, .img). Can pass a public key and optionally
+        cloud init file if img is a cloud-init enabled image. First we copy the disk image, then we resize it,
+        and if cloud init specified (or public key) we create an iso through genisoimage that will be used to deploy the
+        related cloudinit setting on first boot time
         """
         # name validator, name should be unique
         name = self.ex_name_validator(name)
@@ -523,15 +526,28 @@ class LibvirtNodeDriver(NodeDriver):
                     # gen an isoimage through it and specify it
                     directory = pjoin(LIBCLOUD_DIRECTORY, name)
                     output = self._run_command('sudo mkdir -p %s' % directory).get('output')
-                    metadata = CLOUDINIT_META_DATA % (name, name, public_key)
+                    if public_key:
+                        metadata = \
+'''instance-id: %s
+local-hostname: %s
+public-keys:
+  - %s''' % (name, name, public_key)
+                    else:
+                        metadata = \
+'''instance-id: %s
+local-hostname: %s''' % (name, name)
+
                     metadata_file = pjoin(directory, 'meta-data')
                     output = self._run_command('sudo echo "%s" > %s' % (metadata, metadata_file)).get('output')
+                    cloudinit_files = '%s' % metadata_file
 
-                    userdata_file = pjoin(directory, 'user-data')
-                    output = self._run_command('sudo echo "%s" > %s' % (cloud_init, userdata_file)).get('output')
+                    if cloud_init:
+                        userdata_file = pjoin(directory, 'user-data')
+                        output = self._run_command('sudo echo "%s" > %s' % (cloud_init, userdata_file)).get('output')
+                        cloudinit_files = '%s %s' % (metadata_file, userdata_file)
 
                     configiso_file = pjoin(directory, 'config.iso')
-                    output = self._run_command('sudo genisoimage -o %s -V cidata -r -J %s %s' % (configiso_file, metadata_file, userdata_file)).get('output')
+                    output = self._run_command('sudo genisoimage -o %s -V cidata -r -J %s' % (configiso_file, cloudinit_files)).get('output')
                     image_conf = IMAGE_TEMPLATE % configiso_file
             else:
                 image_conf = IMAGE_TEMPLATE % image
@@ -834,12 +850,5 @@ IMAGE_TEMPLATE = '''
      <target dev='hdb' bus='ide'/>
      <readonly/>
     </disk>
-'''
-
-CLOUDINIT_META_DATA = '''
-instance-id: %s
-local-hostname: %s
-public-keys:
-  - %s
 '''
 
