@@ -172,7 +172,7 @@ class DockerNodeDriver(NodeDriver):
         show_all=False will show only running containers
         """
         try:
-            result = self.connection.request("/containers/ps?all=%s" %
+            result = self.connection.request("/containers/json?all=%s" %
                                          str(show_all)).object
         except Exception as exc:
             if hasattr(exc,'errno') and exc.errno == 111:
