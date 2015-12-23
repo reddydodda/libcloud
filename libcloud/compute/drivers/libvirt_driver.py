@@ -50,6 +50,12 @@ except ImportError:
 ALLOW_LIBVIRT_LOCALHOST = False
 IMAGES_LOCATION = "/var/lib/libvirt/images"
 
+# directory to store cloudinit related files etc
+LIBCLOUD_DIRECTORY = "/var/lib/libvirt/libcloud"
+
+# disk image types to create VMs from
+DISK_IMAGE_TYPES = ('.img','.raw','.qcow','.qcow2')
+
 # increase default timeout for libvirt connection
 libvirt_connection_timeout = 2*60
 
@@ -189,7 +195,7 @@ class LibvirtNodeDriver(NodeDriver):
         # address has
         self.arp_table = {}
         cmd = "arp -an"
-        self.arp_table = self._parse_arp_table(self.run_command(cmd))
+        self.arp_table = self._parse_arp_table(self._run_command(cmd).get('output'))
 
         nodes = [self._to_node(domain) for domain in domains]
 
@@ -323,12 +329,13 @@ class LibvirtNodeDriver(NodeDriver):
         Searches inside IMAGES_LOCATION, unless other location is specified
         """
         images = []
-        cmd = "sudo find %s -name '*.iso' -o -name '*.img'" % location
-        output = self.run_command(cmd)
+        cmd = "sudo find %s -name '*.iso' -o -name '*.img' -o -name '*.raw' -o -name '*.qcow' -o -name '*.qcow2'" % location
+        output = self._run_command(cmd).get('output')
 
         if output:
             for image in output.strip().split('\n'):
-                nodeimage = NodeImage(id=image, name=image, driver=self, extra={})
+                name = image.replace(IMAGES_LOCATION+'/', '')
+                nodeimage = NodeImage(id=image, name=name, driver=self, extra={})
                 images.append(nodeimage)
 
         return images
@@ -343,9 +350,9 @@ class LibvirtNodeDriver(NodeDriver):
 
     def ex_undefine_node(self, node):
         cmd = "sudo virsh destroy %s" % node.id
-        output = self.run_command(cmd)
+        output = self._run_command(cmd).get('output')
         cmd = "sudo virsh undefine %s" % node.id
-        output = self.run_command(cmd)
+        output = self._run_command(cmd).get('output')
 
         return True
 
@@ -479,7 +486,8 @@ class LibvirtNodeDriver(NodeDriver):
         return sysinfo
 
     def create_node(self, name, disk_size=4, ram=512,
-                    cpu=1, image=None, disk_path=None, create_from_existing=None, os_type='linux', networks=[]):
+                    cpu=1, image=None, disk_path=None, create_from_existing=None,
+                    os_type='linux', networks=[], cloud_init=None, public_key=None):
         """
         Creates a VM
 
@@ -497,7 +505,10 @@ class LibvirtNodeDriver(NodeDriver):
         Cases that are covered by this:
         1) Boot from iso -needs name, iso image, ram, cpu, disk space, size
         2) Import existing image - needs create_from_existing, ram, cpu
-
+        3) Create from existing disk image (.raw, .qcow, .qcow2, .img). Can pass a public key and optionally
+        cloud init file if img is a cloud-init enabled image. First we copy the disk image, then we resize it,
+        and if cloud init specified (or public key) we create an iso through genisoimage that will be used to deploy the
+        related cloudinit setting on first boot time
         """
         # name validator, name should be unique
         name = self.ex_name_validator(name)
@@ -505,20 +516,46 @@ class LibvirtNodeDriver(NodeDriver):
 
         if not create_from_existing and not image:
             raise Exception("You have to specify at least an image iso, to boot from, or an existing disk_path to import")
-
         # define the VM
         if image:
             if not self.ex_validate_disk(image):
                 raise Exception("You have specified %s as image which does not exist" % image)
-            if image.endswith('.img'):
-                # will create the disk conf, cdrom conf not needed
+            if image.endswith(DISK_IMAGE_TYPES):
                 image_conf = ''
+                if cloud_init or public_key:
+                    # suppose the img is cloudinit based, create user-data and meta-data,
+                    # gen an isoimage through it and specify it
+                    directory = pjoin(LIBCLOUD_DIRECTORY, name)
+                    output = self._run_command('sudo mkdir -p %s' % directory).get('output')
+                    if public_key:
+                        metadata = \
+'''instance-id: %s
+local-hostname: %s
+public-keys:
+  - %s''' % (name, name, public_key)
+                    else:
+                        metadata = \
+'''instance-id: %s
+local-hostname: %s''' % (name, name)
+
+                    metadata_file = pjoin(directory, 'meta-data')
+                    output = self._run_command('sudo echo "%s" > %s' % (metadata, metadata_file)).get('output')
+
+                    if not cloud_init:
+                        cloud_init = "#!/bin/bash\ntouch /tmp/hello"
+                    userdata_file = pjoin(directory, 'user-data')
+                    output = self._run_command('sudo echo "%s" > %s' % (cloud_init, userdata_file)).get('output')
+                    cloudinit_files = '%s %s' % (metadata_file, userdata_file)
+
+                    configiso_file = pjoin(directory, 'config.iso')
+                    output = self._run_command('sudo genisoimage -o %s -V cidata -r -J %s' % (configiso_file, cloudinit_files)).get('output')
+                    image_conf = IMAGE_TEMPLATE % configiso_file
             else:
                 image_conf = IMAGE_TEMPLATE % image
         else:
             image_conf = ''
 
-        disk_size = str(disk_size) + 'G'
+        disk_size_gb = str(disk_size) + 'G'
         try:
             ram = int(ram) * 1000
         except:
@@ -542,16 +579,27 @@ class LibvirtNodeDriver(NodeDriver):
                     else:
                         break
 
-            if image.endswith('.img'):
+            if image.endswith(DISK_IMAGE_TYPES):
                 if self.ex_validate_disk(disk_path):
                     raise Exception("You have specified to copy %s to a path that exists" %  image)
                 else:
-                    cmd = "sudo qemu-img convert -O raw %s %s" % (image, disk_path)
-                    output = self.run_command(cmd)
+                    cmd = "sudo qemu-img convert %s %s" % (image, disk_path)
+                    run_cmd = self._run_command(cmd)
+                    output = run_cmd.get('output')
+                    error = run_cmd.get('error')
+                    if error:
+                        raise Exception('Failed to copy disk %s' % image)
+
+                    cmd = "sudo qemu-img resize %s %s" % (disk_path, disk_size_gb)
+                    run_cmd = self._run_command(cmd)
+                    output = run_cmd.get('output')
+                    error = run_cmd.get('error')
+                    if error:
+                        raise Exception('Failed to set the size for disk %s' % disk_path)
             else:
                 if not self.ex_validate_disk(disk_path):
                     # in case existing disk path is provided, no need to create it
-                    self.ex_create_disk(disk_path, disk_size)
+                    self.ex_create_disk(disk_path, disk_size_gb)
 
         capabilities = self.ex_get_capabilities()
         if "<domain type='kvm'>" in capabilities:
@@ -629,12 +677,12 @@ class LibvirtNodeDriver(NodeDriver):
         """
 
         cmd = 'ls %s' % disk_path
-        output = self.run_command(cmd)
+        error = self._run_command(cmd).get('error')
 
-        if output:
-            return True
-        else:
+        if error:
             return False
+        else:
+            return True
 
     def ex_create_disk(self, disk_path, disk_size):
         """
@@ -642,11 +690,11 @@ class LibvirtNodeDriver(NodeDriver):
         """
         cmd = "sudo qemu-img create -f raw %s %s" % (disk_path, disk_size)
 
-        output = self.run_command(cmd)
-        if output:
-            return True
-        else:
+        error = self._run_command(cmd).get('error')
+        if error:
             return False
+        else:
+            return True
 
     def _get_domain_for_node(self, node):
         """
@@ -718,12 +766,13 @@ class LibvirtNodeDriver(NodeDriver):
         return arp_table
 
 
-    def run_command(self, cmd):
+    def _run_command(self, cmd):
         """
         Run a command on a local or remote hypervisor
         If the hypervisor is remote, run the command with paramiko
         """
         output = ''
+        error = ''
         if self.secret:
             try:
                 ssh=paramiko.SSHClient()
@@ -734,6 +783,7 @@ class LibvirtNodeDriver(NodeDriver):
                 stdin,stdout,stderr = ssh.exec_command(cmd)
 
                 output = stdout.read()
+                error = stderr.read()
                 ssh.close()
             except:
                 pass
@@ -746,7 +796,7 @@ class LibvirtNodeDriver(NodeDriver):
                     output, _ = child.communicate()
                 except:
                     pass
-        return output
+        return {'output': output, 'error': error}
 
 class Network(object):
 
@@ -802,3 +852,4 @@ IMAGE_TEMPLATE = '''
      <readonly/>
     </disk>
 '''
+
