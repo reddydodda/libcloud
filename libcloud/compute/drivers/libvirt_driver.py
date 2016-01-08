@@ -242,8 +242,7 @@ class LibvirtNodeDriver(NodeDriver):
                  'types': self.connection.getType(),
                  'hypervisor_name': self.connection.getHostname(),
                  'memory': '%s MB' % str(memory / 1024), 'processors': vcpu_count,
-                 'used_cpu_time': used_cpu_time}
-
+                 'used_cpu_time': used_cpu_time, 'xml_description': str(domain.XMLDesc())}
         node = Node(id=domain.UUIDString(), name=domain.name(), state=state,
                     public_ips=public_ips, private_ips=private_ips,
                     driver=self, extra=extra)
@@ -546,10 +545,12 @@ local-hostname: %s''' % (name, name)
                     userdata_file = pjoin(directory, 'user-data')
                     output = self._run_command('sudo echo "%s" > %s' % (cloud_init, userdata_file)).get('output')
                     cloudinit_files = '%s %s' % (metadata_file, userdata_file)
-
                     configiso_file = pjoin(directory, 'config.iso')
-                    output = self._run_command('sudo genisoimage -o %s -V cidata -r -J %s' % (configiso_file, cloudinit_files)).get('output')
-                    image_conf = IMAGE_TEMPLATE % configiso_file
+                    error_output = self._run_command('sudo genisoimage -o %s -V cidata -r -J %s' % (configiso_file, cloudinit_files)).get('error')
+                    if "command not found" in error_output:
+                        image_conf = ''
+                    else:
+                        image_conf = IMAGE_TEMPLATE % configiso_file
             else:
                 image_conf = IMAGE_TEMPLATE % image
         else:
