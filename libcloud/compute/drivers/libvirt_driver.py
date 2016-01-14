@@ -26,7 +26,7 @@ import signal
 import paramiko
 import atexit
 from tempfile import NamedTemporaryFile
-
+from xml.sax.saxutils import escape
 from os.path import join as pjoin
 from collections import defaultdict
 
@@ -237,12 +237,16 @@ class LibvirtNodeDriver(NodeDriver):
             # avoid duplicate insertion in public ips
             public_ips.append(public_ip)
 
+        try:
+            xml_description = escape(domain.XMLDesc())
+        except:
+            xml_description = ''
 
         extra = {'uuid': domain.UUIDString(), 'os_type': domain.OSType(),
                  'types': self.connection.getType(),
                  'hypervisor_name': self.connection.getHostname(),
                  'memory': '%s MB' % str(memory / 1024), 'processors': vcpu_count,
-                 'used_cpu_time': used_cpu_time, 'xml_description': str(domain.XMLDesc())}
+                 'used_cpu_time': used_cpu_time, 'xml_description': xml_description}
         node = Node(id=domain.UUIDString(), name=domain.name(), state=state,
                     public_ips=public_ips, private_ips=private_ips,
                     driver=self, extra=extra)
