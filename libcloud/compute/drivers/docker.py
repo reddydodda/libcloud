@@ -22,6 +22,7 @@ import base64
 import datetime
 import shlex
 import re
+import socket
 
 try:
     import simplejson as json
@@ -141,6 +142,14 @@ class DockerNodeDriver(NodeDriver):
 
         self.connection.host = host
         self.connection.port = port
+
+        try:
+            socket.setdefaulttimeout(15)
+            so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            so.connect((host, int(port)))
+            so.close()
+        except:
+            raise Exception("Make sure host is accessible and docker port %s is open" % port)
 
 
 
