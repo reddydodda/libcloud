@@ -26,7 +26,6 @@ import signal
 import paramiko
 import atexit
 from tempfile import NamedTemporaryFile
-from xml.sax.saxutils import escape
 from os.path import join as pjoin
 from collections import defaultdict
 
@@ -238,7 +237,7 @@ class LibvirtNodeDriver(NodeDriver):
             public_ips.append(public_ip)
 
         try:
-            xml_description = escape(domain.XMLDesc())
+            xml_description = domain.XMLDesc()
         except:
             xml_description = ''
 
