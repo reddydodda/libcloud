@@ -592,14 +592,14 @@ local-hostname: %s''' % (name, name)
                     output = run_cmd.get('output')
                     error = run_cmd.get('error')
                     if error:
-                        raise Exception('Failed to copy disk %s' % image)
+                        raise Exception('Failed to copy disk %s: %s' % (image, error))
 
                     cmd = "sudo qemu-img resize %s %s" % (disk_path, disk_size_gb)
                     run_cmd = self._run_command(cmd)
                     output = run_cmd.get('output')
                     error = run_cmd.get('error')
                     if error:
-                        raise Exception('Failed to set the size for disk %s' % disk_path)
+                        raise Exception('Failed to set the size for disk %s: %s' % (disk_path, error))
             else:
                 if not self.ex_validate_disk(disk_path):
                     # in case existing disk path is provided, no need to create it
