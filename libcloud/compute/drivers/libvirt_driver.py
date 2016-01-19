@@ -26,7 +26,6 @@ import signal
 import paramiko
 import atexit
 from tempfile import NamedTemporaryFile
-
 from os.path import join as pjoin
 from collections import defaultdict
 
@@ -237,13 +236,16 @@ class LibvirtNodeDriver(NodeDriver):
             # avoid duplicate insertion in public ips
             public_ips.append(public_ip)
 
+        try:
+            xml_description = domain.XMLDesc()
+        except:
+            xml_description = ''
 
         extra = {'uuid': domain.UUIDString(), 'os_type': domain.OSType(),
                  'types': self.connection.getType(),
                  'hypervisor_name': self.connection.getHostname(),
                  'memory': '%s MB' % str(memory / 1024), 'processors': vcpu_count,
-                 'used_cpu_time': used_cpu_time}
-
+                 'used_cpu_time': used_cpu_time, 'xml_description': xml_description}
         node = Node(id=domain.UUIDString(), name=domain.name(), state=state,
                     public_ips=public_ips, private_ips=private_ips,
                     driver=self, extra=extra)
@@ -546,10 +548,12 @@ local-hostname: %s''' % (name, name)
                     userdata_file = pjoin(directory, 'user-data')
                     output = self._run_command('sudo echo "%s" > %s' % (cloud_init, userdata_file)).get('output')
                     cloudinit_files = '%s %s' % (metadata_file, userdata_file)
-
                     configiso_file = pjoin(directory, 'config.iso')
-                    output = self._run_command('sudo genisoimage -o %s -V cidata -r -J %s' % (configiso_file, cloudinit_files)).get('output')
-                    image_conf = IMAGE_TEMPLATE % configiso_file
+                    error_output = self._run_command('sudo genisoimage -o %s -V cidata -r -J %s' % (configiso_file, cloudinit_files)).get('error')
+                    if "command not found" in error_output:
+                        image_conf = ''
+                    else:
+                        image_conf = IMAGE_TEMPLATE % configiso_file
             else:
                 image_conf = IMAGE_TEMPLATE % image
         else:
@@ -588,14 +592,14 @@ local-hostname: %s''' % (name, name)
                     output = run_cmd.get('output')
                     error = run_cmd.get('error')
                     if error:
-                        raise Exception('Failed to copy disk %s' % image)
+                        raise Exception('Failed to copy disk %s: %s' % (image, error))
 
                     cmd = "sudo qemu-img resize %s %s" % (disk_path, disk_size_gb)
                     run_cmd = self._run_command(cmd)
                     output = run_cmd.get('output')
                     error = run_cmd.get('error')
                     if error:
-                        raise Exception('Failed to set the size for disk %s' % disk_path)
+                        raise Exception('Failed to set the size for disk %s: %s' % (disk_path, error))
             else:
                 if not self.ex_validate_disk(disk_path):
                     # in case existing disk path is provided, no need to create it
