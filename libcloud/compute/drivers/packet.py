@@ -158,7 +158,7 @@ class PacketNodeDriver(NodeDriver):
 
     def list_sizes(self):
         data = self.connection.request('/plans').object['plans']
-        return list(map(self._to_size, data))
+        return [self._to_size(size) for size in data if size.get('line') == 'baremetal']
 
     def create_node(self, name, size, image, location, ex_project_id=None, cloud_init=None):
         """
