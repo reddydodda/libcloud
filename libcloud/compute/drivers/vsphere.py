@@ -59,7 +59,6 @@ class VSphereNodeDriver(NodeDriver):
             self.connection = connect.SmartConnect(host=host, user=username,
                                                    pwd=password)
             atexit.register(connect.Disconnect, self.connection)
-
         except Exception as exc:
             if 'incorrect user name' in getattr(exc, 'msg', ''):
                 raise InvalidCredsError('Check your username and password are valid')
@@ -68,6 +67,30 @@ class VSphereNodeDriver(NodeDriver):
                 raise Exception('Check that the host provided is a vSphere installation')
             if 'Name or service not known' in message:
                 raise Exception('Check that the vSphere host is accessible')
+            if 'certificate verify failed' in message:
+                # bypass self signed certificates
+                try:
+                    import ssl
+                    context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+                    context.verify_mode = ssl.CERT_NONE
+                except ImportError:
+                    raise ImportError('To use self signed certificates, please upgrade to python 2.7.11 and pyvmomi 6.0.0+')
+
+                context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+                context.verify_mode = ssl.CERT_NONE
+                try:
+                    self.connection = connect.SmartConnect(host=host, user=username,
+                                                           pwd=password, sslContext=context)
+                    atexit.register(connect.Disconnect, self.connection)
+                except Exception as exc:
+                    if 'incorrect user name' in getattr(exc, 'msg', ''):
+                        raise InvalidCredsError('Check your username and password are valid')
+                    message = str(exc.message)
+                    if 'Connection refused' in message or 'is not a VIM server' in message:
+                        raise Exception('Check that the host provided is a vSphere installation')
+                    if 'Name or service not known' in message:
+                        raise Exception('Check that the vSphere host is accessible')
+
 
     def list_locations(self):
         """
