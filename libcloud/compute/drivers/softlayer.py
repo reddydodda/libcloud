@@ -420,6 +420,10 @@ class SoftLayerNodeDriver(NodeDriver):
         if sshKeys:
             newCCI['sshKeys'] = [{'id': sshKeys}]
 
+        postInstallScriptUri = kwargs['postInstallScriptUri']
+        if postInstallScriptUri:
+            newCCI['postInstallScriptUri'] = postInstallScriptUri
+
         res = self.connection.request(
             'SoftLayer_Virtual_Guest', 'createObject', newCCI
         ).object
