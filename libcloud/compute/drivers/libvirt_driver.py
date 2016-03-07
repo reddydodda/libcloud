@@ -598,7 +598,8 @@ local-hostname: %s''' % (name, name)
                     run_cmd = self._run_command(cmd)
                     output = run_cmd.get('output')
                     error = run_cmd.get('error')
-                    if error:
+                    if error and 'WARNING' not in error:
+                        # ignore WARNINGS
                         raise Exception('Failed to set the size for disk %s: %s' % (disk_path, error))
             else:
                 if not self.ex_validate_disk(disk_path):
