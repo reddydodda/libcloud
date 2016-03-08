@@ -45,6 +45,10 @@ DRIVERS = {
     ('libcloud.compute.drivers.ec2', 'EC2APSENodeDriver'),
     Provider.EC2_AP_NORTHEAST:
     ('libcloud.compute.drivers.ec2', 'EC2APNENodeDriver'),
+    Provider.EC2_AP_NORTHEAST1:
+    ('libcloud.compute.drivers.ec2', 'EC2APNE1NodeDriver'),
+    Provider.EC2_AP_NORTHEAST2:
+    ('libcloud.compute.drivers.ec2', 'EC2APNE2NodeDriver'),
     Provider.EC2_SA_EAST:
     ('libcloud.compute.drivers.ec2', 'EC2SAEastNodeDriver'),
     Provider.EC2_AP_SOUTHEAST2:
@@ -83,8 +87,6 @@ DRIVERS = {
     ('libcloud.compute.drivers.rackspace', 'RackspaceNodeDriver'),
     Provider.RACKSPACE_FIRST_GEN:
     ('libcloud.compute.drivers.rackspace', 'RackspaceFirstGenNodeDriver'),
-    Provider.HPCLOUD:
-    ('libcloud.compute.drivers.hpcloud', 'HPCloudNodeDriver'),
     Provider.KILI:
     ('libcloud.compute.drivers.kili', 'KiliCloudNodeDriver'),
     Provider.VPSNET:

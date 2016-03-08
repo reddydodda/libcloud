@@ -134,7 +134,6 @@ class Provider(object):
     VULTR = 'vultr'
     PACKET = 'packet'
     # OpenStack based providers
-    HPCLOUD = 'hpcloud'
     KILI = 'kili'
 
     # Deprecated constants which are still supported
@@ -145,6 +144,8 @@ class Provider(object):
     EC2_US_WEST = 'ec2_us_west'
     EC2_AP_SOUTHEAST = 'ec2_ap_southeast'
     EC2_AP_NORTHEAST = 'ec2_ap_northeast'
+    EC2_AP_NORTHEAST1 = 'ec2_ap_northeast_1'
+    EC2_AP_NORTHEAST2 = 'ec2_ap_northeast_2'
     EC2_US_WEST_OREGON = 'ec2_us_west_oregon'
     EC2_SA_EAST = 'ec2_sa_east'
     EC2_AP_SOUTHEAST2 = 'ec2_ap_southeast_2'
