@@ -16,9 +16,17 @@
 import os
 import sys
 import binascii
+import socket
+import time
+import ssl
+from datetime import datetime, timedelta
+from functools import wraps
 
+from libcloud.utils.py3 import httplib
+from libcloud.common.exceptions import RateLimitReachedError
 
 __all__ = [
+    'find',
     'get_driver',
     'set_driver',
     'merge_valid_keys',
@@ -27,8 +35,34 @@ __all__ = [
     'dict2str',
     'reverse_dict',
     'lowercase_keys',
-    'get_secure_random_string'
+    'get_secure_random_string',
+    'retry',
+
+    'ReprMixin'
 ]
+
+# Error message which indicates a transient SSL error upon which request
+# can be retried
+TRANSIENT_SSL_ERROR = 'The read operation timed out'
+
+
+class TransientSSLError(ssl.SSLError):
+    """Represent transient SSL errors, e.g. timeouts"""
+    pass
+
+
+# Constants used by the ``retry`` decorator
+DEFAULT_TIMEOUT = 30  # default retry timeout
+DEFAULT_DELAY = 1  # default sleep delay used in each iterator
+DEFAULT_BACKOFF = 1  # retry backup multiplier
+RETRY_EXCEPTIONS = (RateLimitReachedError, socket.error, socket.gaierror,
+                    httplib.NotConnected, httplib.ImproperConnectionState,
+                    TransientSSLError)
+
+
+def find(l, predicate):
+    results = [x for x in l if predicate(x)]
+    return results[0] if len(results) > 0 else None
 
 
 def get_driver(drivers, provider):
@@ -252,3 +286,92 @@ def get_secure_random_string(size):
     value = binascii.hexlify(value)
     value = value.decode('utf-8')[:size]
     return value
+
+
+class ReprMixin(object):
+    """
+    Mixin class which adds __repr__ and __str__ methods for the attributes
+    specified on the class.
+    """
+
+    _repr_attributes = []
+
+    def __repr__(self):
+        attributes = []
+        for attribute in self._repr_attributes:
+            value = getattr(self, attribute, None)
+            attributes.append('%s=%s' % (attribute, value))
+
+        values = (self.__class__.__name__, ', '.join(attributes))
+        result = '<%s %s>' % values
+        return result
+
+    def __str__(self):
+        return str(self.__repr__())
+
+
+def retry(retry_exceptions=RETRY_EXCEPTIONS, retry_delay=DEFAULT_DELAY,
+          timeout=DEFAULT_TIMEOUT, backoff=DEFAULT_BACKOFF):
+    """
+    Retry decorator that helps to handle common transient exceptions.
+
+    :param retry_exceptions: types of exceptions to retry on.
+    :param retry_delay: retry delay between the attempts.
+    :param timeout: maximum time to wait.
+    :param backoff: multiplier added to delay between attempts.
+
+    :Example:
+
+    retry_request = retry(timeout=1, retry_delay=1, backoff=1)
+    retry_request(self.connection.request)()
+    """
+    if retry_exceptions is None:
+        retry_exceptions = RETRY_EXCEPTIONS
+    if retry_delay is None:
+        retry_delay = DEFAULT_DELAY
+    if timeout is None:
+        timeout = DEFAULT_TIMEOUT
+    if backoff is None:
+        backoff = DEFAULT_BACKOFF
+
+    timeout = max(timeout, 0)
+
+    def transform_ssl_error(func, *args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except ssl.SSLError:
+            exc = sys.exc_info()[1]
+
+            if TRANSIENT_SSL_ERROR in str(exc):
+                raise TransientSSLError(*exc.args)
+
+            raise exc
+
+    def decorator(func):
+        @wraps(func)
+        def retry_loop(*args, **kwargs):
+            current_delay = retry_delay
+            end = datetime.now() + timedelta(seconds=timeout)
+
+            while True:
+                try:
+                    return transform_ssl_error(func, *args, **kwargs)
+                except retry_exceptions:
+                    exc = sys.exc_info()[1]
+
+                    if isinstance(exc, RateLimitReachedError):
+                        time.sleep(exc.retry_after)
+
+                        # Reset retries if we're told to wait due to rate
+                        # limiting
+                        current_delay = retry_delay
+                        end = datetime.now() + timedelta(
+                            seconds=exc.retry_after + timeout)
+                    elif datetime.now() >= end:
+                        raise
+                    else:
+                        time.sleep(current_delay)
+                        current_delay *= backoff
+
+        return retry_loop
+    return decorator

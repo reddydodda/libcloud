@@ -35,7 +35,27 @@ __all__ = [
 ]
 
 
-class Provider(object):
+class Type(object):
+    @classmethod
+    def tostring(cls, value):
+        """Return the string representation of the state object attribute
+        :param str value: the state object to turn into string
+        :return: the uppercase string that represents the state object
+        :rtype: str
+        """
+        return value.upper()
+
+    @classmethod
+    def fromstring(cls, value):
+        """Return the state object attribute that matches the string
+        :param str value: the string to look up
+        :return: the state object attribute that matches the string
+        :rtype: str
+        """
+        return getattr(cls, value.upper(), None)
+
+
+class Provider(Type):
     """
     Defines for each of the supported providers
 
@@ -188,7 +208,7 @@ OLD_CONSTANT_TO_NEW_MAPPING = {
 }
 
 
-class NodeState(object):
+class NodeState(Type):
     """
     Standard states for a node
 
@@ -214,22 +234,8 @@ class NodeState(object):
     ERROR = 7
     PAUSED = 8
 
-    @classmethod
-    def tostring(cls, value):
-        values = cls.__dict__
-        values = dict([(key, string) for key, string in values.items() if
-                       not key.startswith('__')])
 
-        for item_key, item_value in values.items():
-            if value == item_value:
-                return item_key
-
-    @classmethod
-    def fromstring(cls, value):
-        return getattr(cls, value.upper(), None)
-
-
-class StorageVolumeState(object):
+class StorageVolumeState(Type):
     """
     Standard states of a StorageVolume
     """
@@ -242,6 +248,18 @@ class StorageVolumeState(object):
     BACKUP = 6
     ATTACHING = 7
     UNKNOWN = 8
+
+
+class VolumeSnapshotState(Type):
+    """
+    Standard states of VolumeSnapshots
+    """
+    AVAILABLE = 'available'
+    ERROR = 'error'
+    CREATING = 'creating'
+    DELETING = 'deleting'
+    RESTORING = 'restoring'
+    UNKNOWN = 'unknown'
 
 
 class Architecture(object):
