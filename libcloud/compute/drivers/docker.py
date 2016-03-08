@@ -498,14 +498,14 @@ class DockerNodeDriver(NodeDriver):
             state = NodeState.RUNNING
         else:
             state = NodeState.STOPPED
-
-        ports = json.dumps(data.get('Ports', {}))
+        ports = data.get('Ports', [])
+        ports.sort()
         extra = {
             'id': data.get('Id'),
             'status': data.get('Status'),
             'created': ts_to_str(data.get('Created')),
             'image': data.get('Image'),
-            'ports': ports,
+            'ports': json.dumps(ports),
             'command': data.get('Command'),
             'sizerw': data.get('SizeRw'),
             'sizerootfs': data.get('SizeRootFs'),
