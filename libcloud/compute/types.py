@@ -224,30 +224,33 @@ class NodeState(Type):
     :cvar PAUSED: Node is paused.
     :cvar UNKNOWN: Node state is unknown.
     """
-    RUNNING = 0
-    REBOOTING = 1
-    TERMINATED = 2
-    PENDING = 3
-    UNKNOWN = 4
-    STOPPED = 5
-    SUSPENDED = 6
-    ERROR = 7
-    PAUSED = 8
+    RUNNING = 'running'
+    STARTING = 'starting'
+    REBOOTING = 'rebooting'
+    TERMINATED = 'terminated'
+    PENDING = 'pending'
+    UNKNOWN = 'unknown'
+    STOPPING = 'stopping'
+    STOPPED = 'stopped'
+    SUSPENDED = 'suspended'
+    ERROR = 'error'
+    PAUSED = 'paused'
+    RECONFIGURING = 'reconfiguring'
 
 
 class StorageVolumeState(Type):
     """
     Standard states of a StorageVolume
     """
-    AVAILABLE = 0
-    ERROR = 1
-    INUSE = 2
-    CREATING = 3
-    DELETING = 4
-    DELETED = 5
-    BACKUP = 6
-    ATTACHING = 7
-    UNKNOWN = 8
+    AVAILABLE = 'available'
+    ERROR = 'error'
+    INUSE = 'inuse'
+    CREATING = 'creating'
+    DELETING = 'deleting'
+    DELETED = 'deleted'
+    BACKUP = 'backup'
+    ATTACHING = 'attaching'
+    UNKNOWN = 'unknown'
 
 
 class VolumeSnapshotState(Type):
