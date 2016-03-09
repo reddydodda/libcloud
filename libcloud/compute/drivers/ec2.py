@@ -1118,7 +1118,7 @@ REGION_DETAILS = {
     # Asia Pacific (Seoul) Region
     'ap-northeast-2': {
         'endpoint': 'ec2.ap-northeast-2.amazonaws.com',
-        'api_name': 'ec2_ap_northeast',
+        'api_name': 'ec2_ap_northeast_2',
         'country': 'South Korea',
         'signature_version': '4',
         'instance_types': [
