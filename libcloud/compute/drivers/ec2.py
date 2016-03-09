@@ -99,6 +99,7 @@ def GiB(value):
 
 
 INSTANCE_TYPES = {
+
     't1.micro': {
         'id': 't1.micro',
         'name': 'Micro Instance',
@@ -107,6 +108,62 @@ INSTANCE_TYPES = {
         'bandwidth': None,
         'extra': {
             'virtualizationTypes': ['paravirtual']
+        }
+    },
+    # Burstable Performance General Purpose
+    't2.nano': {
+        'id': 't2.nano',
+        'name': 'Burstable Performance Nano Instance',
+        'ram': 512,
+        'disk': 0,  # EBS Only
+        'bandwidth': None,
+        'extra': {
+            'cpu': 1,
+            'virtualizationTypes': ['hvm']
+        }
+    },
+    't2.micro': {
+        'id': 't2.micro',
+        'name': 'Burstable Performance Micro Instance',
+        'ram': GiB(1),
+        'disk': 0,  # EBS Only
+        'bandwidth': None,
+        'extra': {
+            'cpu': 1,
+            'virtualizationTypes': ['hvm']
+        }
+    },
+    't2.small': {
+        'id': 't2.small',
+        'name': 'Burstable Performance Small Instance',
+        'ram': GiB(2),
+        'disk': 0,  # EBS Only
+        'bandwidth': None,
+        'extra': {
+            'cpu': 11,
+            'virtualizationTypes': ['hvm']
+        }
+    },
+    't2.medium': {
+        'id': 't2.medium',
+        'name': 'Burstable Performance Medium Instance',
+        'ram': GiB(4),
+        'disk': 0,  # EBS Only
+        'bandwidth': None,
+        'extra': {
+            'cpu': 2,
+            'virtualizationTypes': ['hvm']
+        }
+    },
+    't2.large': {
+        'id': 't2.large',
+        'name': 'Burstable Performance Medium Instance',
+        'ram': GiB(8),
+        'disk': 0,  # EBS Only
+        'bandwidth': None,
+        'extra': {
+            'cpu': 2,
+            'virtualizationTypes': ['hvm']
         }
     },
     'm1.small': {
@@ -658,62 +715,6 @@ INSTANCE_TYPES = {
             'virtualizationTypes': ['hvm']
         }
     },
-    # Burstable Performance General Purpose
-    't2.nano': {
-        'id': 't2.nano',
-        'name': 'Burstable Performance Nano Instance',
-        'ram': 512,
-        'disk': 0,  # EBS Only
-        'bandwidth': None,
-        'extra': {
-            'cpu': 1,
-            'virtualizationTypes': ['hvm']
-        }
-    },
-    't2.micro': {
-        'id': 't2.micro',
-        'name': 'Burstable Performance Micro Instance',
-        'ram': GiB(1),
-        'disk': 0,  # EBS Only
-        'bandwidth': None,
-        'extra': {
-            'cpu': 1,
-            'virtualizationTypes': ['hvm']
-        }
-    },
-    't2.small': {
-        'id': 't2.small',
-        'name': 'Burstable Performance Small Instance',
-        'ram': GiB(2),
-        'disk': 0,  # EBS Only
-        'bandwidth': None,
-        'extra': {
-            'cpu': 11,
-            'virtualizationTypes': ['hvm']
-        }
-    },
-    't2.medium': {
-        'id': 't2.medium',
-        'name': 'Burstable Performance Medium Instance',
-        'ram': GiB(4),
-        'disk': 0,  # EBS Only
-        'bandwidth': None,
-        'extra': {
-            'cpu': 2,
-            'virtualizationTypes': ['hvm']
-        }
-    },
-    't2.large': {
-        'id': 't2.large',
-        'name': 'Burstable Performance Medium Instance',
-        'ram': GiB(8),
-        'disk': 0,  # EBS Only
-        'bandwidth': None,
-        'extra': {
-            'cpu': 2,
-            'virtualizationTypes': ['hvm']
-        }
-    }
 }
 
 #  From <https://aws.amazon.com/marketplace/help/200777880>
