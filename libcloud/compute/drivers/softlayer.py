@@ -535,15 +535,17 @@ class SoftLayerNodeDriver(NodeDriver):
                 for node in nodes:
                     if node.id not in [n.id for n in existing_nodes] and node.extra['hostname'] == name:
                         new_node = node
-                        return node
+                        return new_node
                 time.sleep(10)
         else:
             res = self.connection.request(
                 'SoftLayer_Virtual_Guest', 'createObject', newCCI
             ).object
             node_id = res['id']
-            raw_node = self._get_order_information(node_id)
-            return self._to_node(raw_node)
+            node = Node(id=node_id, name=name, state=NodeState.PENDING,
+                    public_ips=[], private_ips=[], extra=None,
+                    driver=self)
+            return node
 
     def create_key_pair(self, label, key):
         """Creates an ssh key, given a label and public key
