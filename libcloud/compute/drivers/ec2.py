@@ -99,7 +99,6 @@ def GiB(value):
 
 
 INSTANCE_TYPES = {
-
     't1.micro': {
         'id': 't1.micro',
         'name': 'Micro Instance',
@@ -2826,6 +2825,7 @@ class BaseEC2NodeDriver(NodeDriver):
             attributes = INSTANCE_TYPES[instance_type]
             attributes = copy.deepcopy(attributes)
             price = self._get_size_price(size_id=instance_type)
+            attributes['name'] = "%s - %s" % (attributes['id'], attributes['name'])
             attributes.update({'price': price})
             sizes.append(NodeSize(driver=self, **attributes))
         return sizes
