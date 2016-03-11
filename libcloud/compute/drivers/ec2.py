@@ -544,7 +544,8 @@ INSTANCE_TYPES = {
         'disk': 2 * 1024,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 16
+            'cpu': 16,
+            'virtualizationTypes': ['paravirtual']
         }
     },
     'hi1.4xlarge': {
@@ -2818,9 +2819,9 @@ class BaseEC2NodeDriver(NodeDriver):
         return nodes
 
     def list_sizes(self, location=None):
-        available_types = REGION_DETAILS[self.region_name]['instance_types']
+        #available_types = REGION_DETAILS[self.region_name]['instance_types']
+        available_types = INSTANCE_TYPES.keys()
         sizes = []
-
         for instance_type in available_types:
             attributes = INSTANCE_TYPES[instance_type]
             attributes = copy.deepcopy(attributes)
@@ -2828,7 +2829,7 @@ class BaseEC2NodeDriver(NodeDriver):
             attributes['name'] = "%s - %s" % (attributes['id'], attributes['name'])
             attributes.update({'price': price})
             sizes.append(NodeSize(driver=self, **attributes))
-        return sizes
+        return sorted(sizes, key=lambda k: k.id)
 
     def list_images(self, location=None, ex_image_ids=None, ex_owner=None,
                     ex_executableby=None, ex_filters=None):
