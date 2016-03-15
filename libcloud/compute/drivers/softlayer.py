@@ -39,24 +39,36 @@ DEFAULT_DISK_SIZE = 100
 DATACENTERS = {
     'hou02': {'country': 'US'},
     'sea01': {'country': 'US', 'name': 'Seattle - West Coast U.S.'},
-    'wdc01': {'country': 'US', 'name': 'Washington, DC - East Coast U.S.'},
-    'dal01': {'country': 'US'},
-    'dal02': {'country': 'US'},
-    'dal04': {'country': 'US'},
-    'dal05': {'country': 'US', 'name': 'Dallas - Central U.S.'},
-    'dal06': {'country': 'US'},
-    'dal07': {'country': 'US'},
-    'sjc01': {'country': 'US', 'name': 'San Jose - West Coast U.S.'},
-    'sng01': {'country': 'SG', 'name': 'Singapore - Southeast Asia'},
-    'ams01': {'country': 'NL', 'name': 'Amsterdam - Western Europe'},
+    'wdc01': {'country': 'US', 'name': 'Washington, DC'},
+    'wdc04': {'country': 'US', 'name': 'Washington 4, DC'},
+
+    'dal01': {'country': 'US', 'name': 'Dal01 - Dallas'},
+    'dal02': {'country': 'US', 'name': 'Dal02 - Dallas'},
+    'dal04': {'country': 'US', 'name': 'Dal04 - Dallas'},
+    'dal05': {'country': 'US', 'name': 'Dal05 - Dallas'},
+    'dal06': {'country': 'US', 'name': 'Dal06 - Dallas'},
+    'dal07': {'country': 'US', 'name': 'Dal07 - Dallas'},
+    'dal09': {'country': 'US', 'name': 'Dal09 - Dallas'},
+    'sjc01': {'country': 'US', 'name': 'San Jose'},
+    'sng01': {'country': 'SG', 'name': 'Singapore'},
+    'ams01': {'country': 'NL', 'name': 'AMS01 - Amsterdam'},
+    'ams03': {'country': 'NL', 'name': 'AMS03 - Amsterdam'},
+    'how02': {'country': 'US', 'name': 'Houston'},
 }
 
 NODE_STATE_MAP = {
     'RUNNING': NodeState.RUNNING,
+    'ACTIVE': NodeState.RUNNING,
     'HALTED': NodeState.UNKNOWN,
     'PAUSED': NodeState.UNKNOWN,
-    'INITIATING': NodeState.PENDING
+    'INITIATING': NodeState.PENDING,
+    'DEPLOY': NodeState.PENDING,
+    'DEPLOY2': NodeState.PENDING,
+    'MACWAIT': NodeState.PENDING,
+    'RECLAIM': NodeState.PENDING
 }
+
+
 
 SL_BASE_TEMPLATES = [
     {
@@ -105,16 +117,6 @@ SL_BASE_TEMPLATES = [
         'disk': 100,
         'cpus': 4,
     }, {
-        'name': '6 CPU, 4GB ram, 100GB',
-        'ram': 4 * 1024,
-        'disk': 100,
-        'cpus': 6,
-    }, {
-        'name': '6 CPU, 8GB ram, 100GB',
-        'ram': 8 * 1024,
-        'disk': 100,
-        'cpus': 6,
-    }, {
         'name': '8 CPU, 8GB ram, 100GB',
         'ram': 8 * 1024,
         'disk': 100,
@@ -124,6 +126,36 @@ SL_BASE_TEMPLATES = [
         'ram': 16 * 1024,
         'disk': 100,
         'cpus': 8,
+    }, {
+        'name': '12 CPU, 12GB ram, 100GB',
+        'ram': 12 * 1024,
+        'disk': 100,
+        'cpus': 12,
+    }, {
+        'name': '12 CPU, 32GB ram, 100GB',
+        'ram': 32 * 1024,
+        'disk': 100,
+        'cpus': 12,
+    }, {
+        'name': '16 CPU, 16GB ram, 100GB',
+        'ram': 16 * 1024,
+        'disk': 100,
+        'cpus': 16,
+    }, {
+        'name': '16 CPU, 32GB ram, 100GB',
+        'ram': 32 * 1024,
+        'disk': 100,
+        'cpus': 16,
+    }, {
+        'name': '16 CPU, 48GB ram, 100GB',
+        'ram': 48 * 1024,
+        'disk': 100,
+        'cpus': 16,
+    }, {
+        'name': '16 CPU, 64GB ram, 100GB',
+        'ram': 64 * 1024,
+        'disk': 100,
+        'cpus': 16,
     }]
 
 SL_TEMPLATES = {}
@@ -216,9 +248,10 @@ class SoftLayerNodeDriver(NodeDriver):
     website = 'http://www.softlayer.com/'
     type = Provider.SOFTLAYER
 
+
     features = {'create_node': ['generates_password', 'ssh_key']}
 
-    def _to_node(self, host):
+    def _to_node(self, host, bare_metal=None):
         try:
             password = \
                 host['operatingSystem']['passwords'][0]['password']
@@ -233,8 +266,15 @@ class SoftLayerNodeDriver(NodeDriver):
 
         # When machine is launching it gets state halted
         # we change this to pending
-        state = NODE_STATE_MAP.get(host['powerState']['keyName'],
-                                   NodeState.UNKNOWN)
+        if bare_metal:
+            try:
+                state = NODE_STATE_MAP.get(host['hardwareStatus']['status'],
+                                           NodeState.UNKNOWN)
+            except:
+                state = NodeState.UNKNOWN
+        else:
+            state = NODE_STATE_MAP.get(host['powerState']['keyName'],
+                                       NodeState.UNKNOWN)
 
         if not password and state == NodeState.UNKNOWN:
             state = NODE_STATE_MAP['INITIATING']
@@ -252,6 +292,36 @@ class SoftLayerNodeDriver(NodeDriver):
                     .get('softwareDescription', {}) \
                     .get('longDescription', None)
 
+        extra={
+            'hostname': host['hostname'],
+            'fullyQualifiedDomainName': host['fullyQualifiedDomainName'],
+            'password': password,
+            'datacenter': host.get('datacenter', {}).get('longName', None),
+            'image': image,
+            'hourlyRecurringFee': hourlyRecurringFee,
+            'recurringFee': recurringFee,
+            'recurringMonths': recurringMonths,
+            'created': createDate,
+            'plan_description': host.get('billingItem', {}).get('description', ''),
+            'hoursUsed': host.get('billingItem', {}).get('hoursUsed', ''),
+        }
+
+        notes = host.get('notes', None)
+        if notes:
+            extra['notes'] = notes
+        billingItem = host.get('billingItem', {}).get('id', None)
+        if billingItem:
+            extra['billingItem'] = billingItem
+
+        if bare_metal:
+            extra['memory'] = host.get('memoryCapacity')
+            extra['cpu'] = host.get('processorPhysicalCoreAmount')
+            extra['server_type'] = 'Bare Metal'
+        else:
+            extra['maxCpu'] = host.get('maxCpu', None)
+            extra['maxMemory'] = host.get('maxMemory', None)
+            extra['server_type'] = 'Cloud server'
+
         return Node(
             id=host['id'],
             name=host['fullyQualifiedDomainName'],
@@ -259,43 +329,57 @@ class SoftLayerNodeDriver(NodeDriver):
             public_ips=public_ips,
             private_ips=private_ips,
             driver=self,
-            extra={
-                'hostname': host['hostname'],
-                'fullyQualifiedDomainName': host['fullyQualifiedDomainName'],
-                'password': password,
-                'maxCpu': host.get('maxCpu', None),
-                'datacenter': host.get('datacenter', {}).get('longName', None),
-                'maxMemory': host.get('maxMemory', None),
-                'image': image,
-                'hourlyRecurringFee': hourlyRecurringFee,
-                'recurringFee': recurringFee,
-                'recurringMonths': recurringMonths,
-                'created': createDate,
-            }
+            extra=extra
         )
 
     def destroy_node(self, node):
-        self.connection.request(
-            'SoftLayer_Virtual_Guest', 'deleteObject', id=node.id
-        )
+        if node.extra.get('server_type', '') == 'Bare Metal':
+            try:
+                billingItem = node.extra.get('billingItem')
+                if billingItem:
+                    self.connection.request(
+                        'SoftLayer_Billing_Item', 'cancelItem', True, True, id=billingItem)
+                else:
+                    return False
+            except:
+                return False
+        else:
+            self.connection.request(
+                    'SoftLayer_Virtual_Guest', 'deleteObject', id=node.id
+                )
         return True
 
     def reboot_node(self, node):
-        self.connection.request(
-            'SoftLayer_Virtual_Guest', 'rebootSoft', id=node.id
-        )
+        if node.extra.get('server_type', '') == 'Bare Metal':
+            self.connection.request(
+                'SoftLayer_Hardware', 'rebootSoft', id=node.id
+            )
+        else:
+            self.connection.request(
+                'SoftLayer_Virtual_Guest', 'rebootSoft', id=node.id
+            )
         return True
 
     def ex_stop_node(self, node):
-        self.connection.request(
-            'SoftLayer_Virtual_Guest', 'powerOff', id=node.id
-        )
+        if node.extra.get('server_type', '') == 'Bare Metal':
+            self.connection.request(
+                'SoftLayer_Hardware', 'powerOff', id=node.id
+            )
+        else:
+            self.connection.request(
+                'SoftLayer_Virtual_Guest', 'powerOff', id=node.id
+            )
         return True
 
     def ex_start_node(self, node):
-        self.connection.request(
-            'SoftLayer_Virtual_Guest', 'powerOn', id=node.id
-        )
+        if node.extra.get('server_type', '') == 'Bare Metal':
+            self.connection.request(
+                'SoftLayer_Hardware', 'powerOn', id=node.id
+            )
+        else:
+            self.connection.request(
+                    'SoftLayer_Virtual_Guest', 'powerOn', id=node.id
+                )
         return True
 
     def _get_order_information(self, node_id, timeout=1200, check_interval=5):
@@ -313,7 +397,6 @@ class SoftLayerNodeDriver(NodeDriver):
                 id=node_id,
                 object_mask=mask
             ).object
-
             if res.get('provisionDate', None):
                 return res
 
@@ -356,13 +439,16 @@ class SoftLayerNodeDriver(NodeDriver):
                                            disk=None, bandwidth=None,
                                            price=None,
                                            driver=self.connection.driver))
-        ex_size_data = SL_TEMPLATES.get(int(size.id)) or {}
-        # plan keys are ints
+        try:
+            ex_size_data = SL_TEMPLATES.get(int(size.id)) or {}
+            # plan keys are ints for cloud servers, while str for bare metal
+        except:
+            ex_size_data = {}
         cpu_count = kwargs.get('ex_cpus') or ex_size_data.get('cpus') or \
             DEFAULT_CPU_SIZE
         ram = kwargs.get('ex_ram') or ex_size_data.get('ram') or \
             DEFAULT_RAM_SIZE
-        bandwidth = kwargs.get('ex_bandwidth') or size.bandwidth or 10
+        bandwidth = kwargs.get('ex_bandwidth') or size.bandwidth or 1000
         hourly = 'true' if kwargs.get('ex_hourly', True) else 'false'
 
         local_disk = 'true'
@@ -393,41 +479,73 @@ class SoftLayerNodeDriver(NodeDriver):
             # it shouldn't be.
             domain = DEFAULT_DOMAIN
 
-        newCCI = {
-            'hostname': name,
-            'domain': domain,
-            'startCpus': cpu_count,
-            'maxMemory': ram,
-            'networkComponents': [{'maxSpeed': bandwidth}],
-            'hourlyBillingFlag': hourly,
-            'operatingSystemReferenceCode': os,
-            'localDiskFlag': local_disk,
-            'blockDevices': [
-                {
-                    'device': '0',
-                    'diskImage': {
-                        'capacity': disk_size,
-                    }
-                }
-            ]
+        postInstallScriptUri = kwargs.get('postInstallScriptUri')
 
-        }
+        bare_metal = kwargs.get('bare_metal', False)
+
+        if bare_metal:
+            newCCI = {
+                'hostname': name,
+                'domain': domain,
+                'fixedConfigurationPreset': {'keyName': size.id},
+                'networkComponents': [{'maxSpeed': bandwidth}],
+                'hourlyBillingFlag': hourly,
+                'operatingSystemReferenceCode': os
+                }
+        else:
+            newCCI = {
+                'hostname': name,
+                'domain': domain,
+                'startCpus': cpu_count,
+                'maxMemory': ram,
+                'networkComponents': [{'maxSpeed': bandwidth}],
+                'hourlyBillingFlag': hourly,
+                'operatingSystemReferenceCode': os,
+                'localDiskFlag': local_disk,
+                'blockDevices': [
+                    {
+                        'device': '0',
+                        'diskImage': {
+                            'capacity': disk_size,
+                        }
+                    }
+                ]
+
+            }
 
         if datacenter:
             newCCI['datacenter'] = {'name': datacenter}
-        #sshKeys is an optional ssh key id to deploy
-        sshKeys = kwargs['sshKeys']
+        # sshKeys is an optional ssh key id to deploy
+        sshKeys = kwargs.get('sshKeys')
         if sshKeys:
             newCCI['sshKeys'] = [{'id': sshKeys}]
+        if postInstallScriptUri:
+            newCCI['postInstallScriptUri'] = postInstallScriptUri
 
-        res = self.connection.request(
-            'SoftLayer_Virtual_Guest', 'createObject', newCCI
-        ).object
-
-        node_id = res['id']
-        raw_node = self._get_order_information(node_id)
-
-        return self._to_node(raw_node)
+        if bare_metal:
+            existing_nodes = self.list_nodes()
+            res = self.connection.request(
+                'SoftLayer_Hardware', 'createObject', newCCI
+            ).object
+            # softlayer won't return the id after this, it is available only after machine is provisioned
+            # so we have to find it ourselves
+            new_node = None
+            for i in range(0, 10):
+                nodes = self.list_nodes()
+                for node in nodes:
+                    if node.id not in [n.id for n in existing_nodes] and node.extra['hostname'] == name:
+                        new_node = node
+                        return new_node
+                time.sleep(10)
+        else:
+            res = self.connection.request(
+                'SoftLayer_Virtual_Guest', 'createObject', newCCI
+            ).object
+            node_id = res['id']
+            node = Node(id=node_id, name=name, state=NodeState.PENDING,
+                    public_ips=[], private_ips=[], extra=None,
+                    driver=self)
+            return node
 
     def create_key_pair(self, label, key):
         """Creates an ssh key, given a label and public key
@@ -450,16 +568,25 @@ class SoftLayerNodeDriver(NodeDriver):
             driver=self.connection.driver
         )
 
+
+    def _to_bare_metal_image(self, img):
+        return NodeImage(
+            id=img['template']['operatingSystemReferenceCode'],
+            name="Bare Metal: %s" % img['itemPrice']['item']['description'],
+            driver=self.connection.driver
+        )
+
     def _to_key(self, data):
         return NodeKey(id=data.get('id'),
                        name=data.get('label'),
                        key=data.get('key'))
 
     def list_images(self, location=None):
-        result = self.connection.request(
-            'SoftLayer_Virtual_Guest', 'getCreateObjectOptions'
-        ).object
-        return [self._to_image(i) for i in result['operatingSystems']]
+        cloud_images = self.connection.request('SoftLayer_Virtual_Guest', 'getCreateObjectOptions').object
+        cloud_images = [self._to_image(i) for i in cloud_images['operatingSystems']]
+        bare_metal_images = self.connection.request('SoftLayer_Hardware', 'getCreateObjectOptions').object
+        bare_metal_images = [self._to_bare_metal_image(i) for i in bare_metal_images['operatingSystems']]
+        return cloud_images + bare_metal_images
 
     def _to_size(self, id, size):
         return NodeSize(
@@ -472,8 +599,22 @@ class SoftLayerNodeDriver(NodeDriver):
             driver=self.connection.driver,
         )
 
+    def _to_bare_metal_size(self, size):
+        return NodeSize(
+            id=size['keyName'],
+            name='Bare Metal: %s' %  size['description'],
+            price=size['totalMinimumHourlyFee'],
+            ram=None,
+            disk=None,
+            bandwidth=None,
+            driver=self.connection.driver,
+        )
+
     def list_sizes(self, location=None):
-        return [self._to_size(id, s) for id, s in SL_TEMPLATES.items()]
+        bare_metal_sizes = self.connection.request('SoftLayer_Hardware', 'getCreateObjectOptions').object
+        bare_metal_sizes = [self._to_bare_metal_size(size['preset']) for size in bare_metal_sizes['fixedConfigurationPresets']]
+        cloud_sizes = [self._to_size(id, s) for id, s in SL_TEMPLATES.items()]
+        return bare_metal_sizes + cloud_sizes
 
     def _to_loc(self, loc):
         country = 'UNKNOWN'
@@ -486,14 +627,17 @@ class SoftLayerNodeDriver(NodeDriver):
         return NodeLocation(id=loc_id, name=name,
                             country=country, driver=self)
 
+
+
     def list_locations(self):
-        res = self.connection.request(
-            'SoftLayer_Virtual_Guest', 'getCreateObjectOptions'
-        ).object
-        return [self._to_loc(l) for l in res['datacenters']]
+        locations = self.connection.request('SoftLayer_Virtual_Guest', 'getCreateObjectOptions').object
+        locations = [self._to_loc(location) for location in locations['datacenters']]
+
+        return locations
 
     def list_nodes(self):
-        mask = {
+        # virtual servers
+        virtual_mask = {
             'virtualGuests': {
                 'powerState': '',
                 'hostname': '',
@@ -506,9 +650,35 @@ class SoftLayerNodeDriver(NodeDriver):
         res = self.connection.request(
             'SoftLayer_Account',
             'getVirtualGuests',
-            object_mask=mask
+            object_mask=virtual_mask
         ).object
-        return [self._to_node(h) for h in res]
+        virtual = [self._to_node(h) for h in res]
+        # bare metal servers
+        bare_mask = {
+            'hardware': {
+                'id': '',
+                'hostname': '',
+                'domain': '',
+                'hardwareStatusId': '',
+                'globalIdentifier': '',
+                'fullyQualifiedDomainName': '',
+                'processorPhysicalCoreAmount': '',
+                'memoryCapacity': '',
+                'primaryBackendIpAddress': '',
+                'primaryIpAddress': '',
+                'datacenter': '',
+                'billingItem': '',
+                'operatingSystem': {'passwords': ''}
+            },
+        }
+
+        res = self.connection.request(
+            'SoftLayer_Account',
+            'getHardware',
+            object_mask=bare_mask
+        ).object
+        bare_metal = [self._to_node(h, bare_metal=True) for h in res]
+        return virtual + bare_metal
 
     def list_key_pairs(self):
         res = self.connection.request(
