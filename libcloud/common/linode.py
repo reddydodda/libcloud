@@ -42,6 +42,9 @@ LINODE_PLAN_IDS = {1024: '1',
                    65536: '10',
                    98304: '12'}
 
+# Available filesystems for disk creation
+LINODE_DISK_FILESYSTEMS = ['ext3', 'ext4', 'swap', 'raw']
+
 
 class LinodeException(Exception):
     """Error originating from the Linode API
@@ -109,9 +112,7 @@ class LinodeResponse(JsonResponse):
 
         if not self.success():
             # Raise the first error, as there will usually only be one
-            # However ignore ERRORCODE: 0 since it is not a real error
-            if not self.errors[0].code is 0:
-                raise self.errors[0]
+            raise self.errors[0]
 
     def parse_body(self):
         """Parse the body of the response into JSON objects
@@ -129,8 +130,8 @@ class LinodeResponse(JsonResponse):
             ret = []
             errs = []
             for obj in js:
-                if ("DATA" not in obj or "ERRORARRAY" not in obj
-                        or "ACTION" not in obj):
+                if ("DATA" not in obj or "ERRORARRAY" not in obj or
+                        "ACTION" not in obj):
                     ret.append(None)
                     errs.append(self.invalid)
                     continue
