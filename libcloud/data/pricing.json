@@ -267,7 +267,7 @@
             "m3.xlarge": {"mswinSQL": "$1.507/hour", "mswin": "$0.633/hour", "mswinSQLWeb": "$0.939/hour", "rhel": "$0.441/hour", "linux": "$0.381/hour", "sles": "$0.481/hour"}
         },
 
-        "ec2_ap_northeast_1": {
+        "ec2_ap_northeast": {
             "d2.2xlarge": {"sles": "$1.788/hour", "mswin": "$1.909/hour", "rhel": "$1.818/hour", "linux": "$1.688/hour"},
             "g2.8xlarge": {"sles": "$3.692/hour", "mswin": "$3.87/hour", "rhel": "$3.722/hour", "linux": "$3.592/hour"},
             "m3.large": {"mswinSQL": "$0.706/hour", "mswin": "$0.292/hour", "mswinSQLWeb": "$0.364/hour", "rhel": "$0.253/hour", "linux": "$0.193/hour", "sles": "$0.293/hour"},
