@@ -65,7 +65,8 @@ NODE_STATE_MAP = {
     'DEPLOY': NodeState.PENDING,
     'DEPLOY2': NodeState.PENDING,
     'MACWAIT': NodeState.PENDING,
-    'RECLAIM': NodeState.PENDING
+    'RECLAIM': NodeState.PENDING,
+    '5': NodeState.RUNNING,
 }
 
 
@@ -268,7 +269,7 @@ class SoftLayerNodeDriver(NodeDriver):
         # we change this to pending
         if bare_metal:
             try:
-                state = NODE_STATE_MAP.get(host['hardwareStatus']['status'],
+                state = NODE_STATE_MAP.get(str(host['hardwareStatusId']),
                                            NodeState.UNKNOWN)
             except:
                 state = NodeState.UNKNOWN
