@@ -67,6 +67,7 @@ NODE_STATE_MAP = {
     'MACWAIT': NodeState.PENDING,
     'RECLAIM': NodeState.PENDING,
     '5': NodeState.RUNNING,
+    '3': NodeState.PENDING
 }
 
 
