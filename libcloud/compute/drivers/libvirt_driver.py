@@ -43,8 +43,8 @@ try:
     import libvirt
     have_libvirt = True
 except ImportError:
-    raise RuntimeError('Libvirt driver requires \'libvirt\' Python ' +
-                               'package')
+    raise RuntimeError('Missing "libvirt" dependency. You can install it '
+                       'using pip. For example ./bin/pip install libvirt-python ')
 
 ALLOW_LIBVIRT_LOCALHOST = False
 IMAGES_LOCATION = "/var/lib/libvirt/images"
