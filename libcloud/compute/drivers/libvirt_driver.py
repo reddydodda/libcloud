@@ -207,7 +207,7 @@ class LibvirtNodeDriver(NodeDriver):
                 public_ip = self.host
 
             extra = {'tags': {'type': 'hypervisor'}}
-            node = Node(id=self.host, name=name, state=0,
+            node = Node(id=self.host, name=name, state=NodeState.RUNNING,
                     public_ips=[public_ip], private_ips=[], driver=self,
                     extra=extra)
             nodes.append(node)
