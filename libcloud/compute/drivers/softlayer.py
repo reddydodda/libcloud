@@ -429,6 +429,8 @@ class SoftLayerNodeDriver(NodeDriver):
         :type       ex_os: ``str``
         :keyword    ex_keyname: The name of the key pair
         :type       ex_keyname: ``str``
+        :keyword    ex_backend_vlan: Id of the backend (private) network Vlan
+        :type       ex_backend_vlan: ``int``
         """
         name = kwargs['name']
         os = 'DEBIAN_LATEST'
@@ -485,6 +487,8 @@ class SoftLayerNodeDriver(NodeDriver):
 
         bare_metal = kwargs.get('bare_metal', False)
 
+        ex_backend_vlan = kwargs.get('ex_backend_vlan', None)
+
         if bare_metal:
             newCCI = {
                 'hostname': name,
@@ -524,6 +528,13 @@ class SoftLayerNodeDriver(NodeDriver):
         if postInstallScriptUri:
             newCCI['postInstallScriptUri'] = postInstallScriptUri
 
+        if ex_backend_vlan:
+            backend_network = {
+                'networkVlan': {
+                    'id': int(ex_backend_vlan)
+                }
+            }
+            newCCI['primaryBackendNetworkComponent'] = backend_network
         if bare_metal:
             existing_nodes = self.list_nodes()
             res = self.connection.request(
