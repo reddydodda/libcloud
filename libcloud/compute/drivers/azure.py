@@ -1097,7 +1097,7 @@ class AzureNodeDriver(NodeDriver):
         ssh_port = []
         powershell_port = []
         for port in data.instance_endpoints:
-            if port.name == 'Remote Desktop':
+            if port.name == 'Remote Desktop' or 'RdpInput' in port.name:
                 remote_desktop_port = port.public_port
             if port.name == 'PowerShell':
                 powershell_port = port.public_port
