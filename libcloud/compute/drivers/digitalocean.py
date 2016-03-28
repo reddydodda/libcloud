@@ -46,6 +46,8 @@ class DigitalOceanResponse(JsonResponse):
 
             if 'error_message' in body:
                 error = '%s (code: %s)' % (body['error_message'], self.status)
+            elif 'message' in body:
+                error = '%s (code: %s)' % (body['message'], self.status)
             else:
                 error = body
             return error
