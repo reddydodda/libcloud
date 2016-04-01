@@ -61,10 +61,13 @@ def get_pubkey_ssh2_fingerprint(pubkey):
     return _to_md5_fingerprint(der.encode())
 
 
-def get_pubkey_comment(pubkey, default=None):
+def get_pubkey_comment(pubkey, default='unnamed'):
     if pubkey.startswith("ssh-"):
         # This is probably an OpenSSH key
-        return pubkey.strip().split(' ', 3)[2]
+        try:
+            return pubkey.strip().split(' ', 3)[2]
+        except:
+            pass
     if default:
         return default
     raise ValueError('Public key is not in a supported format')
