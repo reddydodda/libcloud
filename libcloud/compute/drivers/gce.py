@@ -1393,6 +1393,16 @@ class GCENodeDriver(NodeDriver):
                          response.get('items', [])]
         return list_networks
 
+    def ex_list_subnets(self):
+        """
+        Return the list of subnets
+        """
+
+        request = '/aggregated/subnetworks'
+        response = self.connection.request(request, method='GET').object
+        subnets = response.get('items', [])
+        return subnets
+
     def list_nodes(self, ex_zone=None):
         """
         Return a list of nodes in the current zone or all zones.
