@@ -214,7 +214,8 @@ class DockerNodeDriver(NodeDriver):
             'volumes': result.get('Volumes'),
             'env': result.get('Config', {}).get('Env'),
             'ports': result.get('ExposedPorts'),
-            'network_settings': result.get('NetworkSettings', {})
+            'network_settings': result.get('NetworkSettings', {}),
+            'exit_code': result['State'].get("ExitCode")
         }
         node_id = result.get('Id')
         if not node_id:
@@ -308,6 +309,7 @@ class DockerNodeDriver(NodeDriver):
             logs = result.body
 
         return logs
+
 
 
     def create_node(self, name, image, command=None, hostname=None, user='',
