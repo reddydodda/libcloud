@@ -299,7 +299,7 @@ class DockerNodeDriver(NodeDriver):
         payload = {}
         data = json.dumps(payload)
         if float(self._get_api_version()) > 1.10:
-            logs = self.connection.request("/containers/%s/logs?follow=%s&stdout=1&stderr=1" %(node.id, str(stream)),headers={"Content-Type": "application/vnd.docker.raw-stream"}).object
+            logs = self.connection.request("/containers/%s/logs?follow=%s&stdout=1&stderr=1" %(node.id, int(stream)),headers={"Content-Type": "application/vnd.docker.raw-stream"}).object
         else:
             result = self.connection.request("/containers/%s/attach?logs=1&stream=%s&stdout=1&stderr=1" %
                                              (node.id, str(stream)), method='POST', data=data,
