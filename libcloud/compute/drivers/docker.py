@@ -55,7 +55,11 @@ class DockerResponse(JsonResponse):
         try:
             # error responses are tricky in Docker. Eg response could be
             # an error, but response status could still be 200
-            body = json.loads(self.body)
+            content_type = self.headers.get('content-type', 'application/json')
+            if content_type == 'application/json' or content_type == '':
+                body = json.loads(self.body)
+            else:
+                body = self.body
         except ValueError:
             m = re.search('Error: (.+?)"', self.body)
             if m:
@@ -85,7 +89,8 @@ class DockerConnection(ConnectionUserAndKey):
         If user and password are specified, include a base http auth
         header
         """
-        headers['Content-Type'] = 'application/json'
+        if not headers.get('Content-Type'):
+            headers['Content-Type'] = 'application/json'
         if self.user_id and self.key:
             user_b64 = base64.b64encode(b('%s:%s' % (self.user_id, self.key)))
             headers['Authorization'] = 'Basic %s' % (user_b64.decode('utf-8'))
@@ -209,7 +214,8 @@ class DockerNodeDriver(NodeDriver):
             'volumes': result.get('Volumes'),
             'env': result.get('Config', {}).get('Env'),
             'ports': result.get('ExposedPorts'),
-            'network_settings': result.get('NetworkSettings', {})
+            'network_settings': result.get('NetworkSettings', {}),
+            'exit_code': result['State'].get("ExitCode")
         }
         node_id = result.get('Id')
         if not node_id:
@@ -280,6 +286,7 @@ class DockerNodeDriver(NodeDriver):
                                          method='POST')
         return result.status in VALID_RESPONSE_CODES
 
+
     def get_logs(self, node, stream=False):
         """
         Get container logs
@@ -291,18 +298,19 @@ class DockerNodeDriver(NodeDriver):
         """
         payload = {}
         data = json.dumps(payload)
-
         if float(self._get_api_version()) > 1.10:
-            result = self.connection.request("/containers/%s/logs?follow=\
-                                              %s&stdout=1&stderr=1" %
-                                              (node.id, str(stream))).object
-            logs = json.loads(result)
+            logs = self.connection.request("/containers/%s/logs?follow=%s&stdout=1&stderr=1" %(node.id, int(stream)),headers={"Content-Type": "application/vnd.docker.raw-stream"}).object
         else:
             result = self.connection.request("/containers/%s/attach?logs=1&stream=%s&stdout=1&stderr=1" %
-                                            (node.id, str(stream)), method='POST', data=data)
+                                             (node.id, str(stream)), method='POST', data=data,
+                                             headers={
+                                                 "Content-Type": "application/vnd.docker.raw-stream"
+                                             })
             logs = result.body
 
         return logs
+
+
 
     def create_node(self, name, image, command=None, hostname=None, user='',
                     detach=False, stdin_open=True, tty=True,
