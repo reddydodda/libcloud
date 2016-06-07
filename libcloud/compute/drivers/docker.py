@@ -31,6 +31,7 @@ except:
 
 from libcloud.utils.py3 import httplib
 from libcloud.utils.py3 import b
+from libcloud.utils.networking import is_private_subnet
 
 from libcloud.compute.providers import Provider
 from libcloud.common.base import JsonResponse, ConnectionUserAndKey
@@ -155,8 +156,6 @@ class DockerNodeDriver(NodeDriver):
             so.close()
         except:
             raise Exception("Make sure host is accessible and docker port %s is open" % port)
-
-
 
     def _get_api_version(self):
         """
@@ -519,18 +518,36 @@ class DockerNodeDriver(NodeDriver):
             'sizerootfs': data.get('SizeRootFs'),
         }
 
+        public_ips = []
+        private_ips = []
+        if is_private(self.connection.host):
+            private_ips.append(self.connection.host)
+        else:
+            public_ips.append(self.connection.host)
+
         node = (Node(id=data['Id'],
                      name=name,
                      state=state,
-                     public_ips=[self.connection.host],
-                     private_ips=[],
+                     public_ips=public_ips,
+                     private_ips=private_ips,
                      driver=self.connection.driver,
                      extra=extra))
         return node
 
 
 def ts_to_str(timestamp):
-    """Return a timestamp as a nicely formated datetime string."""
+    """Return a timestamp as a nicely formatted datetime string."""
     date = datetime.datetime.fromtimestamp(timestamp)
     date_string = date.strftime("%d/%m/%Y %H:%M %Z")
     return date_string
+
+
+def is_private(hostname):
+    hostname = socket.gethostbyname(hostname)
+    if is_private_subnet(hostname):
+        return True
+    return False
+
+
+def is_public(hostname):
+    return not is_private(hostname=hostname)
