@@ -104,86 +104,21 @@ INSTANCE_TYPES = {
         'name': 'Micro Instance',
         'ram': GiB(0.613),
         'disk': 15,  # GB
-        'bandwidth': None,
-        'extra': {
-            'virtualizationTypes': ['paravirtual']
-        }
-    },
-    # Burstable Performance General Purpose
-    't2.nano': {
-        'id': 't2.nano',
-        'name': 'Burstable Performance Nano Instance',
-        'ram': 512,
-        'disk': 0,  # EBS Only
-        'bandwidth': None,
-        'extra': {
-            'cpu': 1,
-            'virtualizationTypes': ['hvm']
-        }
-    },
-    't2.micro': {
-        'id': 't2.micro',
-        'name': 'Burstable Performance Micro Instance',
-        'ram': GiB(1),
-        'disk': 0,  # EBS Only
-        'bandwidth': None,
-        'extra': {
-            'cpu': 1,
-            'virtualizationTypes': ['hvm']
-        }
-    },
-    't2.small': {
-        'id': 't2.small',
-        'name': 'Burstable Performance Small Instance',
-        'ram': GiB(2),
-        'disk': 0,  # EBS Only
-        'bandwidth': None,
-        'extra': {
-            'cpu': 11,
-            'virtualizationTypes': ['hvm']
-        }
-    },
-    't2.medium': {
-        'id': 't2.medium',
-        'name': 'Burstable Performance Medium Instance',
-        'ram': GiB(4),
-        'disk': 0,  # EBS Only
-        'bandwidth': None,
-        'extra': {
-            'cpu': 2,
-            'virtualizationTypes': ['hvm']
-        }
-    },
-    't2.large': {
-        'id': 't2.large',
-        'name': 'Burstable Performance Medium Instance',
-        'ram': GiB(8),
-        'disk': 0,  # EBS Only
-        'bandwidth': None,
-        'extra': {
-            'cpu': 2,
-            'virtualizationTypes': ['hvm']
-        }
+        'bandwidth': None
     },
     'm1.small': {
         'id': 'm1.small',
         'name': 'Small Instance',
         'ram': GiB(1.7),
         'disk': 160,  # GB
-        'bandwidth': None,
-        'extra': {
-            'virtualizationTypes': ['paravirtual']
-        }
+        'bandwidth': None
     },
     'm1.medium': {
         'id': 'm1.medium',
         'name': 'Medium Instance',
         'ram': GiB(3.75),
         'disk': 410,  # GB
-        'bandwidth': None,
-        'extra': {
-            'virtualizationTypes': ['paravirtual']
-        }
+        'bandwidth': None
     },
     'm1.large': {
         'id': 'm1.large',
@@ -192,8 +127,7 @@ INSTANCE_TYPES = {
         'disk': 2 * 420,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 2,
-            'virtualizationTypes': ['paravirtual']
+            'cpu': 2
         }
     },
     'm1.xlarge': {
@@ -203,8 +137,7 @@ INSTANCE_TYPES = {
         'disk': 4 * 420,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 4,
-            'virtualizationTypes': ['paravirtual']
+            'cpu': 4
         }
     },
     'c1.medium': {
@@ -214,8 +147,7 @@ INSTANCE_TYPES = {
         'disk': 350,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 2,
-            'virtualizationTypes': ['paravirtual']
+            'cpu': 2
         }
     },
     'c1.xlarge': {
@@ -225,8 +157,7 @@ INSTANCE_TYPES = {
         'disk': 4 * 420,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 8,
-            'virtualizationTypes': ['paravirtual']
+            'cpu': 8
         }
     },
     'm2.xlarge': {
@@ -236,8 +167,7 @@ INSTANCE_TYPES = {
         'disk': 420,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 2,
-            'virtualizationTypes': ['paravirtual']
+            'cpu': 2
         }
     },
     'm2.2xlarge': {
@@ -247,8 +177,7 @@ INSTANCE_TYPES = {
         'disk': 850,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 4,
-            'virtualizationTypes': ['paravirtual']
+            'cpu': 4
         }
     },
     'm2.4xlarge': {
@@ -258,8 +187,7 @@ INSTANCE_TYPES = {
         'disk': 2 * 840,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 8,
-            'virtualizationTypes': ['paravirtual']
+            'cpu': 8
         }
     },
     'm3.medium': {
@@ -269,8 +197,7 @@ INSTANCE_TYPES = {
         'disk': 4,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 1,
-            'virtualizationTypes': ['paravirtual', 'hvm']
+            'cpu': 1
         }
     },
     'm3.large': {
@@ -280,8 +207,7 @@ INSTANCE_TYPES = {
         'disk': 32,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 2,
-            'virtualizationTypes': ['paravirtual', 'hvm']
+            'cpu': 2
         }
     },
     'm3.xlarge': {
@@ -291,8 +217,7 @@ INSTANCE_TYPES = {
         'disk': 2 * 40,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 4,
-            'virtualizationTypes': ['paravirtual', 'hvm']
+            'cpu': 4
         }
     },
     'm3.2xlarge': {
@@ -302,8 +227,7 @@ INSTANCE_TYPES = {
         'disk': 2 * 80,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 8,
-            'virtualizationTypes': ['paravirtual', 'hvm']
+            'cpu': 8
         }
     },
     'm4.large': {
@@ -313,8 +237,7 @@ INSTANCE_TYPES = {
         'disk': 0,  # EBS only
         'bandwidth': None,
         'extra': {
-            'cpu': 2,
-            'virtualizationTypes': ['hvm']
+            'cpu': 2
         }
     },
     'm4.xlarge': {
@@ -324,8 +247,7 @@ INSTANCE_TYPES = {
         'disk': 0,  # EBS only
         'bandwidth': None,
         'extra': {
-            'cpu': 4,
-            'virtualizationTypes': ['hvm']
+            'cpu': 4
         }
     },
     'm4.2xlarge': {
@@ -335,8 +257,7 @@ INSTANCE_TYPES = {
         'disk': 0,  # EBS only
         'bandwidth': None,
         'extra': {
-            'cpu': 8,
-            'virtualizationTypes': ['hvm']
+            'cpu': 8
         }
     },
     'm4.4xlarge': {
@@ -346,8 +267,7 @@ INSTANCE_TYPES = {
         'disk': 0,  # EBS only
         'bandwidth': None,
         'extra': {
-            'cpu': 16,
-            'virtualizationTypes': ['hvm']
+            'cpu': 16
         }
     },
     'm4.10xlarge': {
@@ -357,8 +277,7 @@ INSTANCE_TYPES = {
         'disk': 0,  # EBS only
         'bandwidth': None,
         'extra': {
-            'cpu': 40,
-            'virtualizationTypes': ['hvm']
+            'cpu': 40
         }
     },
     'cg1.4xlarge': {
@@ -368,8 +287,7 @@ INSTANCE_TYPES = {
         'disk': 2 * 840,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 16,
-            'virtualizationTypes': ['hvm']
+            'cpu': 16
         }
     },
     'g2.2xlarge': {
@@ -379,8 +297,7 @@ INSTANCE_TYPES = {
         'disk': 60,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 8,
-            'virtualizationTypes': ['hvm']
+            'cpu': 8
         }
     },
     'g2.8xlarge': {
@@ -390,8 +307,7 @@ INSTANCE_TYPES = {
         'disk': 2 * 120,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 32,
-            'virtualizationTypes': ['hvm']
+            'cpu': 32
         }
     },
     'cc1.4xlarge': {
@@ -399,10 +315,7 @@ INSTANCE_TYPES = {
         'name': 'Cluster Compute Quadruple Extra Large Instance',
         'ram': 23552,
         'disk': 1690,
-        'bandwidth': None,
-        'extra': {
-            'virtualizationTypes': ['hvm']
-        }
+        'bandwidth': None
     },
     'cc2.8xlarge': {
         'id': 'cc2.8xlarge',
@@ -411,8 +324,7 @@ INSTANCE_TYPES = {
         'disk': 4 * 840,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 32,
-            'virtualizationTypes': ['hvm']
+            'cpu': 32
         }
     },
     # c3 instances have 2 SSDs of the specified disk size
@@ -423,8 +335,7 @@ INSTANCE_TYPES = {
         'disk': 2 * 16,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 2,
-            'virtualizationTypes': ['paravirtual', 'hvm']
+            'cpu': 2
         }
     },
     'c3.xlarge': {
@@ -434,8 +345,7 @@ INSTANCE_TYPES = {
         'disk': 2 * 40,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 4,
-            'virtualizationTypes': ['paravirtual', 'hvm']
+            'cpu': 4
         }
     },
     'c3.2xlarge': {
@@ -445,8 +355,7 @@ INSTANCE_TYPES = {
         'disk': 2 * 80,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 8,
-            'virtualizationTypes': ['paravirtual', 'hvm']
+            'cpu': 8
         }
     },
     'c3.4xlarge': {
@@ -456,8 +365,7 @@ INSTANCE_TYPES = {
         'disk': 2 * 160,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 16,
-            'virtualizationTypes': ['paravirtual', 'hvm']
+            'cpu': 16
         }
     },
     'c3.8xlarge': {
@@ -467,8 +375,7 @@ INSTANCE_TYPES = {
         'disk': 2 * 320,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 32,
-            'virtualizationTypes': ['paravirtual', 'hvm']
+            'cpu': 32
         }
     },
     'c4.large': {
@@ -478,8 +385,7 @@ INSTANCE_TYPES = {
         'disk': 0,  # EBS only
         'bandwidth': None,
         'extra': {
-            'cpu': 2,
-            'virtualizationTypes': ['hvm']
+            'cpu': 2
         }
     },
     'c4.xlarge': {
@@ -489,8 +395,7 @@ INSTANCE_TYPES = {
         'disk': 0,  # EBS only
         'bandwidth': None,
         'extra': {
-            'cpu': 4,
-            'virtualizationTypes': ['hvm']
+            'cpu': 4
         }
     },
     'c4.2xlarge': {
@@ -500,8 +405,7 @@ INSTANCE_TYPES = {
         'disk': 0,  # EBS only
         'bandwidth': None,
         'extra': {
-            'cpu': 8,
-            'virtualizationTypes': ['hvm']
+            'cpu': 8
         }
     },
     'c4.4xlarge': {
@@ -511,8 +415,7 @@ INSTANCE_TYPES = {
         'disk': 0,  # EBS only
         'bandwidth': None,
         'extra': {
-            'cpu': 16,
-            'virtualizationTypes': ['hvm']
+            'cpu': 16
         }
     },
     'c4.8xlarge': {
@@ -522,8 +425,7 @@ INSTANCE_TYPES = {
         'disk': 0,  # EBS only
         'bandwidth': None,
         'extra': {
-            'cpu': 32,
-            'virtualizationTypes': ['hvm']
+            'cpu': 32
         }
     },
     'cr1.8xlarge': {
@@ -533,8 +435,7 @@ INSTANCE_TYPES = {
         'disk': 2 * 120,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 32,
-            'virtualizationTypes': ['hvm']
+            'cpu': 32
         }
     },
     'hs1.4xlarge': {
@@ -544,19 +445,7 @@ INSTANCE_TYPES = {
         'disk': 2 * 1024,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 16,
-            'virtualizationTypes': ['paravirtual']
-        }
-    },
-    'hi1.4xlarge': {
-        'id': 'hi1.4xlarge',
-        'name': 'High Storage Four Extra Large Instance',
-        'ram': GiB(117),
-        'disk': 2 * 1024,  # GB
-        'bandwidth': None,
-        'extra': {
-            'cpu': 16,
-            'virtualizationTypes': ['paravirtual', 'hvm']
+            'cpu': 16
         }
     },
     'hs1.8xlarge': {
@@ -566,8 +455,7 @@ INSTANCE_TYPES = {
         'disk': 24 * 2000,
         'bandwidth': None,
         'extra': {
-            'cpu': 17,
-            'virtualizationTypes': ['paravirtual', 'hvm']
+            'cpu': 17
         }
     },
     # i2 instances have up to eight SSD drives
@@ -578,8 +466,7 @@ INSTANCE_TYPES = {
         'disk': 800,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 4,
-            'virtualizationTypes': ['hvm']
+            'cpu': 4
         }
     },
     'i2.2xlarge': {
@@ -589,8 +476,7 @@ INSTANCE_TYPES = {
         'disk': 2 * 800,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 8,
-            'virtualizationTypes': ['hvm']
+            'cpu': 8
         }
     },
     'i2.4xlarge': {
@@ -600,8 +486,7 @@ INSTANCE_TYPES = {
         'disk': 4 * 800,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 16,
-            'virtualizationTypes': ['hvm']
+            'cpu': 16
         }
     },
     'i2.8xlarge': {
@@ -611,8 +496,7 @@ INSTANCE_TYPES = {
         'disk': 8 * 800,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 32,
-            'virtualizationTypes': ['hvm']
+            'cpu': 32
         }
     },
     'd2.xlarge': {
@@ -622,8 +506,7 @@ INSTANCE_TYPES = {
         'disk': 3 * 2000,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 4,
-            'virtualizationTypes': ['hvm']
+            'cpu': 4
         }
     },
     'd2.2xlarge': {
@@ -633,8 +516,7 @@ INSTANCE_TYPES = {
         'disk': 6 * 2000,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 8,
-            'virtualizationTypes': ['hvm']
+            'cpu': 8
         }
     },
     'd2.4xlarge': {
@@ -644,8 +526,7 @@ INSTANCE_TYPES = {
         'disk': 12 * 2000,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 16,
-            'virtualizationTypes': ['hvm']
+            'cpu': 16
         }
     },
     'd2.8xlarge': {
@@ -655,8 +536,7 @@ INSTANCE_TYPES = {
         'disk': 24 * 2000,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 36,
-            'virtualizationTypes': ['hvm']
+            'cpu': 36
         }
     },
     # 1x SSD
@@ -667,8 +547,7 @@ INSTANCE_TYPES = {
         'disk': 32,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 2,
-            'virtualizationTypes': ['hvm']
+            'cpu': 2
         }
     },
     'r3.xlarge': {
@@ -678,8 +557,7 @@ INSTANCE_TYPES = {
         'disk': 80,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 4,
-            'virtualizationTypes': ['hvm']
+            'cpu': 4
         }
     },
     'r3.2xlarge': {
@@ -689,8 +567,7 @@ INSTANCE_TYPES = {
         'disk': 160,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 8,
-            'virtualizationTypes': ['hvm']
+            'cpu': 8
         }
     },
     'r3.4xlarge': {
@@ -700,8 +577,7 @@ INSTANCE_TYPES = {
         'disk': 320,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 16,
-            'virtualizationTypes': ['hvm']
+            'cpu': 16
         }
     },
     'r3.8xlarge': {
@@ -711,10 +587,70 @@ INSTANCE_TYPES = {
         'disk': 2 * 320,  # GB
         'bandwidth': None,
         'extra': {
-            'cpu': 32,
-            'virtualizationTypes': ['hvm']
+            'cpu': 32
         }
     },
+    # Burstable Performance General Purpose
+    't2.nano': {
+        'id': 't2.nano',
+        'name': 'Burstable Performance Nano Instance',
+        'ram': 512,
+        'disk': 0,  # EBS Only
+        'bandwidth': None,
+        'extra': {
+            'cpu': 1
+        }
+    },
+    't2.micro': {
+        'id': 't2.micro',
+        'name': 'Burstable Performance Micro Instance',
+        'ram': GiB(1),
+        'disk': 0,  # EBS Only
+        'bandwidth': None,
+        'extra': {
+            'cpu': 1
+        }
+    },
+    't2.small': {
+        'id': 't2.small',
+        'name': 'Burstable Performance Small Instance',
+        'ram': GiB(2),
+        'disk': 0,  # EBS Only
+        'bandwidth': None,
+        'extra': {
+            'cpu': 11
+        }
+    },
+    't2.medium': {
+        'id': 't2.medium',
+        'name': 'Burstable Performance Medium Instance',
+        'ram': GiB(4),
+        'disk': 0,  # EBS Only
+        'bandwidth': None,
+        'extra': {
+            'cpu': 2
+        }
+    },
+    't2.large': {
+        'id': 't2.large',
+        'name': 'Burstable Performance Medium Instance',
+        'ram': GiB(8),
+        'disk': 0,  # EBS Only
+        'bandwidth': None,
+        'extra': {
+            'cpu': 2
+        }
+    },
+    'x1.32xlarge': {
+        'id': 'x1.32xlarge',
+        'name': 'Memory Optimized ThirtyTwo Extra Large instance',
+        'ram': GiB(1952),
+        'disk': 2 * 1920,  # GB
+        'bandwidth': None,
+        'extra': {
+            'cpu': 128
+        }
+    }
 }
 
 #  From <https://aws.amazon.com/marketplace/help/200777880>
@@ -761,7 +697,6 @@ REGION_DETAILS = {
             'g2.8xlarge',
             'cr1.8xlarge',
             'hs1.8xlarge',
-            'hi1.4xlarge',
             'i2.xlarge',
             'i2.2xlarge',
             'i2.4xlarge',
@@ -779,7 +714,8 @@ REGION_DETAILS = {
             't2.micro',
             't2.small',
             't2.medium',
-            't2.large'
+            't2.large',
+            'x1.32xlarge'
         ]
     },
     # US West (Northern California) Region
@@ -875,7 +811,6 @@ REGION_DETAILS = {
             'c4.4xlarge',
             'c4.8xlarge',
             'hs1.8xlarge',
-            'hi1.4xlarge',
             'cc2.8xlarge',
             'i2.xlarge',
             'i2.2xlarge',
@@ -894,7 +829,8 @@ REGION_DETAILS = {
             't2.micro',
             't2.small',
             't2.medium',
-            't2.large'
+            't2.large',
+            'x1.32xlarge'
         ]
     },
     # EU (Ireland) Region
@@ -936,7 +872,6 @@ REGION_DETAILS = {
             'c4.4xlarge',
             'c4.8xlarge',
             'hs1.8xlarge',
-            'hi1.4xlarge',
             'cc2.8xlarge',
             'i2.xlarge',
             'i2.2xlarge',
@@ -955,7 +890,8 @@ REGION_DETAILS = {
             't2.micro',
             't2.small',
             't2.medium',
-            't2.large'
+            't2.large',
+            'x1.32xlarge'
         ]
     },
     # EU (Frankfurt) Region
@@ -1000,7 +936,8 @@ REGION_DETAILS = {
             't2.micro',
             't2.small',
             't2.medium',
-            't2.large'
+            't2.large',
+            'x1.32xlarge'
         ]
     },
     # Asia Pacific (Singapore) Region
@@ -1040,7 +977,6 @@ REGION_DETAILS = {
             'c4.4xlarge',
             'c4.8xlarge',
             'hs1.8xlarge',
-            'hi1.4xlarge',
             'i2.xlarge',
             'i2.2xlarge',
             'i2.4xlarge',
@@ -1053,7 +989,8 @@ REGION_DETAILS = {
             't2.micro',
             't2.small',
             't2.medium',
-            't2.large'
+            't2.large',
+            'x1.32xlarge'
         ]
     },
     # Asia Pacific (Tokyo) Region
@@ -1095,7 +1032,6 @@ REGION_DETAILS = {
             'm4.4xlarge',
             'm4.10xlarge',
             'hs1.8xlarge',
-            'hi1.4xlarge',
             'i2.xlarge',
             'i2.2xlarge',
             'i2.4xlarge',
@@ -1113,13 +1049,14 @@ REGION_DETAILS = {
             't2.micro',
             't2.small',
             't2.medium',
-            't2.large'
+            't2.large',
+            'x1.32xlarge'
         ]
     },
     # Asia Pacific (Seoul) Region
     'ap-northeast-2': {
         'endpoint': 'ec2.ap-northeast-2.amazonaws.com',
-        'api_name': 'ec2_ap_northeast_2',
+        'api_name': 'ec2_ap_northeast',
         'country': 'South Korea',
         'signature_version': '4',
         'instance_types': [
@@ -1150,7 +1087,8 @@ REGION_DETAILS = {
             't2.micro',
             't2.small',
             't2.medium',
-            't2.large'
+            't2.large',
+            'x1.32xlarge'
         ]
     },
     # South America (Sao Paulo) Region
@@ -1218,7 +1156,6 @@ REGION_DETAILS = {
             'c4.4xlarge',
             'c4.8xlarge',
             'hs1.8xlarge',
-            'hi1.4xlarge',
             'i2.xlarge',
             'i2.2xlarge',
             'i2.4xlarge',
@@ -1235,7 +1172,8 @@ REGION_DETAILS = {
             't2.micro',
             't2.small',
             't2.medium',
-            't2.large'
+            't2.large',
+            'x1.32xlarge'
         ]
     },
     'us-gov-west-1': {
@@ -1272,7 +1210,6 @@ REGION_DETAILS = {
             'c4.8xlarge',
             'hs1.4xlarge',
             'hs1.8xlarge',
-            'hi1.4xlarge',
             'i2.xlarge',
             'i2.2xlarge',
             'i2.4xlarge',
@@ -2819,17 +2756,16 @@ class BaseEC2NodeDriver(NodeDriver):
         return nodes
 
     def list_sizes(self, location=None):
-        #available_types = REGION_DETAILS[self.region_name]['instance_types']
-        available_types = INSTANCE_TYPES.keys()
+        available_types = REGION_DETAILS[self.region_name]['instance_types']
         sizes = []
+
         for instance_type in available_types:
             attributes = INSTANCE_TYPES[instance_type]
             attributes = copy.deepcopy(attributes)
             price = self._get_size_price(size_id=instance_type)
-            attributes['name'] = "%s - %s" % (attributes['id'], attributes['name'])
             attributes.update({'price': price})
             sizes.append(NodeSize(driver=self, **attributes))
-        return sorted(sizes, key=lambda k: k.id)
+        return sizes
 
     def list_images(self, location=None, ex_image_ids=None, ex_owner=None,
                     ex_executableby=None, ex_filters=None):
@@ -3156,7 +3092,8 @@ class BaseEC2NodeDriver(NodeDriver):
         return self._get_terminate_boolean(res)
 
     def create_volume(self, size, name, location=None, snapshot=None,
-                      ex_volume_type='standard', ex_iops=None):
+                      ex_volume_type='standard', ex_iops=None,
+                      ex_encrypted=None, ex_kms_key_id=None):
         """
         Create a new volume.
 
@@ -3186,6 +3123,18 @@ class BaseEC2NodeDriver(NodeDriver):
                      is io1.
         :type iops: ``int``
 
+        :param ex_encrypted: Specifies whether the volume should be encrypted.
+        :type ex_encrypted: ``bool``
+
+        :param ex_kms_key_id: The full ARN of the AWS Key Management
+                            Service (AWS KMS) customer master key (CMK) to use
+                            when creating the encrypted volume.
+                            Example:
+                            arn:aws:kms:us-east-1:012345678910:key/abcd1234-a123
+                            -456a-a12b-a123b4cd56ef.
+                            Only used if encrypted is set to True.
+        :type ex_kms_key_id: ``str``
+
         :return: The newly created volume.
         :rtype: :class:`StorageVolume`
         """
@@ -3210,6 +3159,12 @@ class BaseEC2NodeDriver(NodeDriver):
 
         if ex_volume_type == 'io1' and ex_iops:
             params['Iops'] = ex_iops
+
+        if ex_encrypted is not None:
+            params['Encrypted'] = 1
+
+        if ex_kms_key_id is not None:
+            params['KmsKeyId'] = ex_kms_key_id
 
         volume = self._to_volume(
             self.connection.request(self.path, params=params).object,
@@ -4324,12 +4279,6 @@ class BaseEC2NodeDriver(NodeDriver):
                                       params=params.copy()).object
 
         return self._get_boolean(res)
-
-    def ex_rename_node(self, node, name):
-        """
-        Rename a Node
-        """
-        return self.ex_create_tags(node, {'Name': name})
 
     def ex_get_metadata_for_node(self, node):
         """
@@ -5493,15 +5442,7 @@ class BaseEC2NodeDriver(NodeDriver):
         # Add additional properties to our extra dictionary
         extra['block_device_mapping'] = self._to_device_mappings(element)
         extra['groups'] = self._get_security_groups(element)
-
-        try:
-            # return list of ids for network interfaces as str
-            network_interfaces = self._to_interfaces(element)
-            network_interfaces = [network_interface.id for network_interface in network_interfaces]
-            network_interfaces = ','.join(network_interfaces)
-        except:
-            network_interfaces = []
-        extra['network_interfaces'] = network_interfaces
+        extra['network_interfaces'] = self._to_interfaces(element)
         extra['product_codes'] = product_codes
         extra['tags'] = tags
 
@@ -6398,7 +6339,8 @@ class EC2NodeDriver(BaseEC2NodeDriver):
         if hasattr(self, '_region'):
             region = self._region
 
-        if region not in VALID_EC2_REGIONS:
+        valid_regions = self.list_regions()
+        if region not in valid_regions:
             raise ValueError('Invalid region: %s' % (region))
 
         details = REGION_DETAILS[region]
@@ -6414,6 +6356,10 @@ class EC2NodeDriver(BaseEC2NodeDriver):
                                             secure=secure, host=host,
                                             port=port, **kwargs)
 
+    @classmethod
+    def list_regions(cls):
+        return VALID_EC2_REGIONS
+
 
 class IdempotentParamError(LibcloudError):
     """
@@ -6423,83 +6369,6 @@ class IdempotentParamError(LibcloudError):
 
     def __str__(self):
         return repr(self.value)
-
-
-class EC2EUNodeDriver(EC2NodeDriver):
-    """
-    Driver class for EC2 in the Western Europe Region.
-    """
-    name = 'Amazon EC2 (eu-west-1)'
-    _region = 'eu-west-1'
-
-
-
-class EC2EUCentralNodeDriver(EC2NodeDriver):
-    """
-    Driver class for EC2 in the Central Europe Region.
-    """
-    name = 'Amazon EC2 (eu-central-1)'
-    _region = 'eu-central-1'
-
-
-
-class EC2USWestNodeDriver(EC2NodeDriver):
-    """
-    Driver class for EC2 in the Western US Region
-    """
-    name = 'Amazon EC2 (us-west-1)'
-    _region = 'us-west-1'
-
-
-class EC2USWestOregonNodeDriver(EC2NodeDriver):
-    """
-    Driver class for EC2 in the US West Oregon region.
-    """
-    name = 'Amazon EC2 (us-west-2)'
-    _region = 'us-west-2'
-
-
-class EC2APSENodeDriver(EC2NodeDriver):
-    """
-    Driver class for EC2 in the Southeast Asia Pacific Region.
-    """
-    name = 'Amazon EC2 (ap-southeast-1)'
-    _region = 'ap-southeast-1'
-
-
-class EC2APNE1NodeDriver(EC2NodeDriver):
-    """
-    Driver class for EC2 in the Northeast Asia Pacific 1(Tokyo) Region.
-    """
-    name = 'Amazon EC2 (ap-northeast-1)'
-    _region = 'ap-northeast-1'
-
-
-EC2APNENodeDriver = EC2APNE1NodeDriver  # fallback
-
-
-class EC2APNE2NodeDriver(EC2NodeDriver):
-    """
-    Driver class for EC2 in the Northeast Asia Pacific 2(Seoul) Region.
-    """
-    name = 'Amazon EC2 (ap-northeast-2)'
-    _region = 'ap-northeast-2'
-
-
-class EC2SAEastNodeDriver(EC2NodeDriver):
-    """
-    Driver class for EC2 in the South America (Sao Paulo) Region.
-    """
-    name = 'Amazon EC2 (sa-east-1)'
-    _region = 'sa-east-1'
-
-
-class EC2APSESydneyNodeDriver(EC2NodeDriver):
-    """
-    Driver class for EC2 in the Southeast Asia Pacific (Sydney) Region.
-    """
-    name = 'Amazon EC2 (ap-southeast-2)'
-    _region = 'ap-southeast-2'
 
 
 class EucConnection(EC2Connection):
