@@ -13,10 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
-import copy
 import base64
 import hmac
+import time
 import sys
 
 from hashlib import sha1
@@ -36,9 +35,11 @@ from libcloud.utils.xml import fixxpath, findtext
 from libcloud.utils.files import read_in_chunks
 from libcloud.common.types import InvalidCredsError, LibcloudError
 from libcloud.common.base import ConnectionUserAndKey, RawResponse
-from libcloud.common.aws import AWSBaseResponse, AWSDriver, AWSTokenConnection
+from libcloud.common.aws import AWSBaseResponse, AWSDriver, \
+    AWSTokenConnection, SignedAWSConnection
 
 from libcloud.storage.base import Object, Container, StorageDriver
+from libcloud.storage.types import ContainerError
 from libcloud.storage.types import ContainerIsNotEmptyError
 from libcloud.storage.types import InvalidContainerNameError
 from libcloud.storage.types import ContainerDoesNotExistError
@@ -54,7 +55,10 @@ S3_US_WEST_HOST = 's3-us-west-1.amazonaws.com'
 S3_US_WEST_OREGON_HOST = 's3-us-west-2.amazonaws.com'
 S3_EU_WEST_HOST = 's3-eu-west-1.amazonaws.com'
 S3_AP_SOUTHEAST_HOST = 's3-ap-southeast-1.amazonaws.com'
-S3_AP_NORTHEAST_HOST = 's3-ap-northeast-1.amazonaws.com'
+S3_AP_NORTHEAST1_HOST = 's3-ap-northeast-1.amazonaws.com'
+S3_AP_NORTHEAST2_HOST = 's3-ap-northeast-2.amazonaws.com'
+S3_AP_NORTHEAST_HOST = S3_AP_NORTHEAST1_HOST
+S3_SA_EAST_HOST = 's3-sa-east-1.amazonaws.com'
 
 API_VERSION = '2006-03-01'
 NAMESPACE = 'http://s3.amazonaws.com/doc/%s/' % (API_VERSION)
@@ -100,20 +104,9 @@ class BaseS3Connection(ConnectionUserAndKey):
     responseCls = S3Response
     rawResponseCls = S3RawResponse
 
-    def add_default_params(self, params):
-        expires = str(int(time.time()) + EXPIRATION_SECONDS)
-        params['AWSAccessKeyId'] = self.user_id
-        params['Expires'] = expires
-        return params
-
-    def pre_connect_hook(self, params, headers):
-        params['Signature'] = self._get_aws_auth_param(
-            method=self.method, headers=headers, params=params,
-            expires=params['Expires'], secret_key=self.key, path=self.action)
-        return params, headers
-
-    def _get_aws_auth_param(self, method, headers, params, expires,
-                            secret_key, path='/'):
+    @staticmethod
+    def get_auth_signature(method, headers, params, expires, secret_key, path,
+                           vendor_prefix):
         """
         Signature = URL-Encode( Base64( HMAC-SHA1( YourSecretAccessKeyID,
                                     UTF-8-Encoding-Of( StringToSign ) ) ) );
@@ -122,50 +115,34 @@ class BaseS3Connection(ConnectionUserAndKey):
             Content-MD5 + "\n" +
             Content-Type + "\n" +
             Expires + "\n" +
-            CanonicalizedAmzHeaders +
+            CanonicalizedVendorHeaders +
             CanonicalizedResource;
         """
-        special_header_keys = ['content-md5', 'content-type', 'date']
-        special_header_values = {'date': ''}
-        amz_header_values = {}
+        special_headers = {'content-md5': '', 'content-type': '', 'date': ''}
+        vendor_headers = {}
 
-        headers_copy = copy.deepcopy(headers)
-        for key, value in list(headers_copy.items()):
+        for key, value in list(headers.items()):
             key_lower = key.lower()
-            if key_lower in special_header_keys:
-                special_header_values[key_lower] = value.strip()
-            elif key_lower.startswith('x-amz-'):
-                amz_header_values[key.lower()] = value.strip()
-
-        if 'content-md5' not in special_header_values:
-            special_header_values['content-md5'] = ''
-
-        if 'content-type' not in special_header_values:
-            special_header_values['content-type'] = ''
+            if key_lower in special_headers:
+                special_headers[key_lower] = value.strip()
+            elif key_lower.startswith(vendor_prefix):
+                vendor_headers[key_lower] = value.strip()
 
         if expires:
-            special_header_values['date'] = str(expires)
-
-        keys_sorted = list(special_header_values.keys())
-        keys_sorted.sort()
+            special_headers['date'] = str(expires)
 
         buf = [method]
-        for key in keys_sorted:
-            value = special_header_values[key]
+        for _, value in sorted(special_headers.items()):
             buf.append(value)
         string_to_sign = '\n'.join(buf)
 
-        keys_sorted = list(amz_header_values.keys())
-        keys_sorted.sort()
-
-        amz_header_string = []
-        for key in keys_sorted:
-            value = amz_header_values[key]
-            amz_header_string.append('%s:%s' % (key, value))
-        amz_header_string = '\n'.join(amz_header_string)
+        buf = []
+        for key, value in sorted(vendor_headers.items()):
+            buf.append('%s:%s' % (key, value))
+        header_string = '\n'.join(buf)
 
         values_to_sign = []
-        for value in [string_to_sign, amz_header_string, path]:
+        for value in [string_to_sign, header_string, path]:
             if value:
                 values_to_sign.append(value)
 
@@ -174,6 +151,19 @@ class BaseS3Connection(ConnectionUserAndKey):
             hmac.new(b(secret_key), b(string_to_sign), digestmod=sha1).digest()
         )
         return b64_hmac.decode('utf-8')
+
+    def add_default_params(self, params):
+        expires = str(int(time.time()) + EXPIRATION_SECONDS)
+        params['AWSAccessKeyId'] = self.user_id
+        params['Expires'] = expires
+        return params
+
+    def pre_connect_hook(self, params, headers):
+        params['Signature'] = self.get_auth_signature(
+            method=self.method, headers=headers, params=params,
+            expires=params['Expires'], secret_key=self.key, path=self.action,
+            vendor_prefix=self.driver.http_vendor_prefix)
+        return params, headers
 
 
 class S3Connection(AWSTokenConnection, BaseS3Connection):
@@ -378,10 +368,10 @@ class BaseS3StorageDriver(StorageDriver):
                       'be unique among all the containers in the system',
                 container_name=container_name, driver=self)
         elif response.status == httplib.BAD_REQUEST:
-            raise InvalidContainerNameError(value='Container name contains ' +
-                                            'invalid characters.',
-                                            container_name=container_name,
-                                            driver=self)
+            raise ContainerError(
+                value='Bad request when creating container: %s' %
+                      response.body,
+                container_name=container_name, driver=self)
 
         raise LibcloudError('Unexpected status code: %s' % (response.status),
                             driver=self)
@@ -507,7 +497,7 @@ class BaseS3StorageDriver(StorageDriver):
     def _upload_from_iterator(self, iterator, object_path, upload_id,
                               calculate_hash=True):
         """
-        Uploads data from an interator in fixed sized chunks to S3
+        Uploads data from an iterator in fixed sized chunks to S3
 
         :param iterator: The generator for fetching the upload data
         :type iterator: ``generator``
@@ -720,15 +710,16 @@ class BaseS3StorageDriver(StorageDriver):
         if delimiter:
             params['delimiter'] = delimiter
 
-        finder = lambda node, text: node.findtext(fixxpath(xpath=text,
-                                                  namespace=self.namespace))
+        def finder(node, text):
+            return node.findtext(fixxpath(xpath=text,
+                                          namespace=self.namespace))
 
         while True:
             response = self.connection.request(request_path, params=params)
 
             if response.status != httplib.OK:
                 raise LibcloudError('Error fetching multipart uploads. '
-                                    'Got code: %s' % (response.status),
+                                    'Got code: %s' % response.status,
                                     driver=self)
 
             body = response.parse_body()
@@ -834,7 +825,7 @@ class BaseS3StorageDriver(StorageDriver):
         bytes_transferred = result_dict['bytes_transferred']
         headers = response.headers
         response = response.response
-        server_hash = headers['etag'].replace('"', '')
+        server_hash = headers.get('etag', '').replace('"', '')
 
         if (verify_hash and result_dict['data_hash'] != server_hash):
             raise ObjectHashMismatchError(
@@ -970,11 +961,46 @@ class S3APSEStorageDriver(S3StorageDriver):
     ex_location_name = 'ap-southeast-1'
 
 
-class S3APNEConnection(S3Connection):
-    host = S3_AP_NORTHEAST_HOST
+class S3APNE1Connection(S3Connection):
+    host = S3_AP_NORTHEAST1_HOST
+
+S3APNEConnection = S3APNE1Connection
 
 
-class S3APNEStorageDriver(S3StorageDriver):
+class S3APNE1StorageDriver(S3StorageDriver):
     name = 'Amazon S3 (ap-northeast-1)'
     connectionCls = S3APNEConnection
     ex_location_name = 'ap-northeast-1'
+
+S3APNEStorageDriver = S3APNE1StorageDriver
+
+
+class S3APNE2Connection(SignedAWSConnection, BaseS3Connection):
+    host = S3_AP_NORTHEAST2_HOST
+    service_name = 's3'
+    version = API_VERSION
+
+    def __init__(self, user_id, key, secure=True, host=None, port=None,
+                 url=None, timeout=None, proxy_url=None, token=None,
+                 retry_delay=None, backoff=None):
+        super(S3APNE2Connection, self).__init__(user_id, key, secure, host,
+                                                port, url, timeout, proxy_url,
+                                                token, retry_delay, backoff,
+                                                4)  # force version 4
+
+
+class S3APNE2StorageDriver(S3StorageDriver):
+    name = 'Amazon S3 (ap-northeast-2)'
+    connectionCls = S3APNE2Connection
+    ex_location_name = 'ap-northeast-2'
+    region_name = 'ap-northeast-2'
+
+
+class S3SAEastConnection(S3Connection):
+    host = S3_SA_EAST_HOST
+
+
+class S3SAEastStorageDriver(S3StorageDriver):
+    name = 'Amazon S3 (sa-east-1)'
+    connectionCls = S3SAEastConnection
+    ex_location_name = 'sa-east-1'
