@@ -58,6 +58,28 @@
                         "addr": "10.3.3.3",
                         "version": 4
                     }
+                ],
+                "pubnet": [
+                    {
+                        "OS-EXT-IPS-MAC:mac_addr": "fa:16:3e:79:90:aa",
+                        "OS-EXT-IPS:type": "fixed",
+                        "addr": "1.1.1.1",
+                        "version": 4
+                    },
+                    {
+                        "OS-EXT-IPS-MAC:mac_addr": "fa:16:3e:79:90:aa",
+                        "OS-EXT-IPS:type": "floating",
+                        "addr": "2.2.2.2",
+                        "version": 4
+                    }
+                ],
+                "privnet": [
+                    {
+                        "OS-EXT-IPS-MAC:mac_addr": "fa:16:3e:79:90:aa",
+                        "OS-EXT-IPS:type": "floating",
+                        "addr": "172.16.1.1",
+                        "version": 4
+                    }
                 ]
             },
             "tenant_id": "rs-reach-project",
@@ -85,10 +107,21 @@
                     }
                 ]
             },
+            "fault": {
+                "id": 1234,
+                "instance_uuid": "ec53630b-e4fb-442a-a748-c376f5c4345b",
+                "code": "500",
+                "message": "test message",
+                "details": "No valid host was found.",
+                "host": "912566d83a13fbb357ea3f13c629363d9f7e1ba3f925b49f3d2ab725"
+            },
             "config_drive": "",
             "id": 12065,
             "metadata": {},
-            "OS-DCF:diskConfig": "AUTO"
+            "OS-DCF:diskConfig": "AUTO",
+            "OS-EXT-STS:task_state": "spawning",
+            "OS-EXT-STS:vm_state": "active",
+            "OS-EXT-STS:power_state": 1
         },
         {
             "status": "ACTIVE",
@@ -156,7 +189,10 @@
             "config_drive": "",
             "id": 12064,
             "metadata": {},
-            "OS-DCF:diskConfig": "AUTO"
+            "OS-DCF:diskConfig": "AUTO",
+            "OS-EXT-STS:task_state": "spawning",
+            "OS-EXT-STS:vm_state": "active",
+            "OS-EXT-STS:power_state": 1
         }
     ]
 }

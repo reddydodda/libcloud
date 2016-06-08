@@ -20,7 +20,6 @@ import os.path                          # pylint: disable-msg=W0404
 import math
 import sys
 import copy
-import unittest
 
 import mock
 
@@ -31,7 +30,7 @@ from libcloud.utils.py3 import httplib
 from libcloud.utils.py3 import urlquote
 
 from libcloud.common.types import LibcloudError, MalformedResponseError
-from libcloud.storage.base import Container, Object
+from libcloud.storage.base import CHUNK_SIZE, Container, Object
 from libcloud.storage.types import ContainerAlreadyExistsError
 from libcloud.storage.types import ContainerDoesNotExistError
 from libcloud.storage.types import ContainerIsNotEmptyError
@@ -39,12 +38,11 @@ from libcloud.storage.types import ObjectDoesNotExistError
 from libcloud.storage.types import ObjectHashMismatchError
 from libcloud.storage.types import InvalidContainerNameError
 from libcloud.storage.drivers.cloudfiles import CloudFilesStorageDriver
-from libcloud.storage.drivers.cloudfiles import CloudFilesUSStorageDriver
-from libcloud.storage.drivers.cloudfiles import CloudFilesUKStorageDriver
 from libcloud.storage.drivers.dummy import DummyIterator
 
 from libcloud.test import StorageMockHttp, MockRawResponse  # pylint: disable-msg=E0611
 from libcloud.test import MockHttpTestCase  # pylint: disable-msg=E0611
+from libcloud.test import unittest
 from libcloud.test.file_fixtures import StorageFileFixtures  # pylint: disable-msg=E0611
 
 
@@ -61,8 +59,11 @@ class CloudFilesTests(unittest.TestCase):
             CloudFilesMockRawResponse
         CloudFilesMockHttp.type = None
         CloudFilesMockRawResponse.type = None
+
+        driver_kwargs = self.driver_kwargs.copy()
+        driver_kwargs['region'] = self.region
         self.driver = self.driver_klass(*self.driver_args,
-                                        **self.driver_kwargs)
+                                        **driver_kwargs)
 
         # normally authentication happens lazily, but we force it here
         self.driver.connection._populate_hosts_and_request_paths()
@@ -635,6 +636,107 @@ class CloudFilesTests(unittest.TestCase):
         self.assertEqual(func_kwargs['object_name'], expected_name)
         self.assertEqual(func_kwargs['container'], container)
 
+    def test_upload_object_via_stream_with_cors_headers(self):
+        """
+        Test we can add some ``Cross-origin resource sharing`` headers
+        to the request about to be sent.
+        """
+        cors_headers = {
+            'Access-Control-Allow-Origin': 'http://mozilla.com',
+            'Origin': 'http://storage.clouddrive.com',
+        }
+        expected_headers = {
+            # Automatically added headers
+            'Content-Type': 'application/octet-stream',
+            'Transfer-Encoding': 'chunked',
+        }
+        expected_headers.update(cors_headers)
+
+        def intercept_request(request_path,
+                              method=None, data=None,
+                              headers=None, raw=True):
+
+            # What we're actually testing
+            self.assertDictEqual(expected_headers, headers)
+
+            raise NotImplementedError('oops')
+        self.driver.connection.request = intercept_request
+
+        container = Container(name='CORS', extra={}, driver=self.driver)
+
+        try:
+            self.driver.upload_object_via_stream(
+                iterator=iter(b'blob data like an image or video'),
+                container=container,
+                object_name="test_object",
+                headers=cors_headers,
+            )
+        except NotImplementedError:
+            # Don't care about the response we'd have to mock anyway
+            # as long as we intercepted the request and checked its headers
+            pass
+        else:
+            self.fail('Expected NotImplementedError to be thrown to '
+                      'verify we actually checked the expected headers')
+
+    def test_upload_object_via_stream_python3_bytes_error(self):
+        container = Container(name='py3', extra={}, driver=self.driver)
+        bytes_blob = b'blob data like an image or video'
+
+        # This is mostly to check we didn't discover other errors along the way
+        mocked_response = container.upload_object_via_stream(
+            iterator=iter(bytes_blob),
+            object_name="img_or_vid",
+        )
+        self.assertEqual(len(bytes_blob), mocked_response.size)
+
+    def test_upload_object_via_stream_chunked_encoding(self):
+
+        # Create enough bytes it should get split into two chunks
+        bytes_blob = ''.join(['\0' for _ in range(CHUNK_SIZE + 1)])
+        hex_chunk_size = ('%X' % CHUNK_SIZE).encode('utf8')
+        expected = [
+            # Chunk 1
+            hex_chunk_size + b'\r\n',
+            bytes(bytes_blob[:CHUNK_SIZE].encode('utf8')),
+            b'\r\n',
+
+            # Chunk 2
+            b'1\r\n',
+            bytes(bytes_blob[CHUNK_SIZE:].encode('utf8')),
+            b'\r\n',
+
+            # If chunked, also send a final message
+            b'0\r\n\r\n',
+        ]
+        logged_data = []
+
+        class InterceptResponse(CloudFilesMockRawResponse):
+            def __init__(self, connection):
+                super(InterceptResponse, self).__init__(connection=connection)
+                old_send = self.connection.connection.send
+
+                def intercept_send(data):
+                    old_send(data)
+                    logged_data.append(data)
+                self.connection.connection.send = intercept_send
+
+            def _v1_MossoCloudFS_py3_img_or_vid2(self,
+                                                 method, url, body, headers):
+                headers = {'etag': 'd79fb00c27b50494a463e680d459c90c'}
+                headers.update(self.base_headers)
+                _201 = httplib.CREATED
+                return _201, '', headers, httplib.responses[_201]
+
+        self.driver_klass.connectionCls.rawResponseCls = InterceptResponse
+
+        container = Container(name='py3', extra={}, driver=self.driver)
+        container.upload_object_via_stream(
+            iterator=iter(bytes_blob),
+            object_name="img_or_vid2",
+        )
+        self.assertListEqual(expected, logged_data)
+
     def test__upload_object_manifest(self):
         hash_function = self.driver._get_hash_function()
         hash_function.update(b(''))
@@ -765,12 +867,12 @@ class CloudFilesTests(unittest.TestCase):
 
 
 class CloudFilesDeprecatedUSTests(CloudFilesTests):
-    driver_klass = CloudFilesUSStorageDriver
+    driver_klass = CloudFilesStorageDriver
     region = 'ord'
 
 
 class CloudFilesDeprecatedUKTests(CloudFilesTests):
-    driver_klass = CloudFilesUKStorageDriver
+    driver_klass = CloudFilesStorageDriver
     region = 'lon'
 
 
@@ -1039,6 +1141,11 @@ class CloudFilesMockRawResponse(MockRawResponse):
 
     fixtures = StorageFileFixtures('cloudfiles')
     base_headers = {'content-type': 'application/json; charset=UTF-8'}
+
+    def _v1_MossoCloudFS_py3_img_or_vid(self, method, url, body, headers):
+        headers = {'etag': 'e2378cace8712661ce7beec3d9362ef6'}
+        headers.update(self.base_headers)
+        return httplib.CREATED, '', headers, httplib.responses[httplib.CREATED]
 
     def _v1_MossoCloudFS_foo_bar_container_foo_test_upload(
             self, method, url, body, headers):

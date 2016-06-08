@@ -16,7 +16,9 @@
 import os
 import sys
 import os.path
+import socket
 
+import mock
 from mock import patch
 
 import libcloud.security
@@ -67,132 +69,6 @@ class TestHttpLibSSLTests(unittest.TestCase):
 
         self.assertEqual(libcloud.security.CA_CERTS_PATH, [file_path])
 
-    def test_verify_hostname(self):
-        # commonName
-        cert1 = {'notAfter': 'Feb 16 16:54:50 2013 GMT',
-                 'subject': ((('countryName', 'US'),),
-                             (('stateOrProvinceName', 'Delaware'),),
-                             (('localityName', 'Wilmington'),),
-                             (('organizationName', 'Python Software Foundation'),),
-                             (('organizationalUnitName', 'SSL'),),
-                             (('commonName', 'somemachine.python.org'),))}
-
-        # commonName
-        cert2 = {'notAfter': 'Feb 16 16:54:50 2013 GMT',
-                 'subject': ((('countryName', 'US'),),
-                             (('stateOrProvinceName', 'Delaware'),),
-                             (('localityName', 'Wilmington'),),
-                             (('organizationName', 'Python Software Foundation'),),
-                             (('organizationalUnitName', 'SSL'),),
-                             (('commonName', 'somemachine.python.org'),)),
-                 'subjectAltName': ((('DNS', 'foo.alt.name')),
-                                    (('DNS', 'foo.alt.name.1')))}
-
-        # commonName
-        cert3 = {'notAfter': 'Feb 16 16:54:50 2013 GMT',
-                 'subject': ((('countryName', 'US'),),
-                             (('stateOrProvinceName', 'Delaware'),),
-                             (('localityName', 'Wilmington'),),
-                             (('organizationName', 'Python Software Foundation'),),
-                             (('organizationalUnitName', 'SSL'),),
-                             (('commonName', 'python.org'),))}
-
-        # wildcard commonName
-        cert4 = {'notAfter': 'Feb 16 16:54:50 2013 GMT',
-                 'subject': ((('countryName', 'US'),),
-                             (('stateOrProvinceName', 'Delaware'),),
-                             (('localityName', 'Wilmington'),),
-                             (('organizationName', 'Python Software Foundation'),),
-                             (('organizationalUnitName', 'SSL'),),
-                             (('commonName', '*.api.joyentcloud.com'),))}
-
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='invalid', cert=cert1))
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='machine.python.org', cert=cert1))
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='foomachine.python.org', cert=cert1))
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='somesomemachine.python.org', cert=cert1))
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='somemachine.python.orga', cert=cert1))
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='somemachine.python.org.org', cert=cert1))
-        self.assertTrue(self.httplib_object._verify_hostname(
-                        hostname='somemachine.python.org', cert=cert1))
-
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='invalid', cert=cert2))
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='afoo.alt.name.1', cert=cert2))
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='a.foo.alt.name.1', cert=cert2))
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='foo.alt.name.1.2', cert=cert2))
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='afoo.alt.name.1.2', cert=cert2))
-        self.assertTrue(self.httplib_object._verify_hostname(
-                        hostname='foo.alt.name.1', cert=cert2))
-
-        self.assertTrue(self.httplib_object._verify_hostname(
-                        hostname='python.org', cert=cert3))
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='opython.org', cert=cert3))
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='ython.org', cert=cert3))
-
-        self.assertTrue(self.httplib_object._verify_hostname(
-                        hostname='us-east-1.api.joyentcloud.com', cert=cert4))
-        self.assertTrue(self.httplib_object._verify_hostname(
-                        hostname='useast-1.api.joyentcloud.com', cert=cert4))
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='t1.useast-1.api.joyentcloud.com', cert=cert4))
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='ponies.useast-1.api.joyentcloud.com', cert=cert4))
-        self.assertFalse(self.httplib_object._verify_hostname(
-                         hostname='api.useast-1.api.joyentcloud.com', cert=cert4))
-
-    def test_get_subject_alt_names(self):
-        cert1 = {'notAfter': 'Feb 16 16:54:50 2013 GMT',
-                 'subject': ((('countryName', 'US'),),
-                             (('stateOrProvinceName', 'Delaware'),),
-                             (('localityName', 'Wilmington'),),
-                             (('organizationName', 'Python Software Foundation'),),
-                             (('organizationalUnitName', 'SSL'),),
-                             (('commonName', 'somemachine.python.org'),))}
-
-        cert2 = {'notAfter': 'Feb 16 16:54:50 2013 GMT',
-                 'subject': ((('countryName', 'US'),),
-                             (('stateOrProvinceName', 'Delaware'),),
-                             (('localityName', 'Wilmington'),),
-                             (('organizationName', 'Python Software Foundation'),),
-                             (('organizationalUnitName', 'SSL'),),
-                             (('commonName', 'somemachine.python.org'),)),
-                 'subjectAltName': ((('DNS', 'foo.alt.name')),
-                                    (('DNS', 'foo.alt.name.1')))}
-
-        self.assertEqual(self.httplib_object._get_subject_alt_names(cert=cert1),
-                         [])
-
-        alt_names = self.httplib_object._get_subject_alt_names(cert=cert2)
-        self.assertEqual(len(alt_names), 2)
-        self.assertTrue('foo.alt.name' in alt_names)
-        self.assertTrue('foo.alt.name.1' in alt_names)
-
-    def test_get_common_name(self):
-        cert = {'notAfter': 'Feb 16 16:54:50 2013 GMT',
-                'subject': ((('countryName', 'US'),),
-                            (('stateOrProvinceName', 'Delaware'),),
-                            (('localityName', 'Wilmington'),),
-                            (('organizationName', 'Python Software Foundation'),),
-                            (('organizationalUnitName', 'SSL'),),
-                            (('commonName', 'somemachine.python.org'),))}
-
-        self.assertEqual(self.httplib_object._get_common_name(cert)[0],
-                         'somemachine.python.org')
-        self.assertEqual(self.httplib_object._get_common_name({}),
-                         None)
-
     @patch('warnings.warn')
     def test_setup_verify(self, _):
         libcloud.security.CA_CERTS_PATH = []
@@ -230,6 +106,51 @@ class TestHttpLibSSLTests(unittest.TestCase):
         expected_msg = libcloud.security.CA_CERTS_UNAVAILABLE_ERROR_MSG
         self.assertRaisesRegexp(RuntimeError, expected_msg,
                                 self.httplib_object._setup_ca_cert)
+
+    @mock.patch('socket.create_connection', mock.MagicMock())
+    @mock.patch('socket.socket', mock.MagicMock())
+    @mock.patch('ssl.wrap_socket')
+    def test_connect_throws_friendly_error_message_on_ssl_wrap_connection_reset_by_peer(self, mock_wrap_socket):
+        # Test that we re-throw a more friendly error message in case
+        # "connection reset by peer" error occurs when trying to establish a
+        # SSL connection
+        libcloud.security.VERIFY_SSL_CERT = True
+        self.httplib_object.verify = True
+        self.httplib_object.http_proxy_used = False
+
+        # No connection reset by peer, original exception should be thrown
+        mock_wrap_socket.side_effect = Exception('foo bar fail')
+
+        expected_msg = 'foo bar fail'
+        self.assertRaisesRegexp(Exception, expected_msg,
+                                self.httplib_object.connect)
+
+        # Connection reset by peer, wrapped exception with friendly error
+        # message should be thrown
+        mock_wrap_socket.side_effect = socket.error('Connection reset by peer')
+
+        expected_msg = 'Failed to establish SSL / TLS connection'
+        self.assertRaisesRegexp(socket.error, expected_msg,
+                                self.httplib_object.connect)
+
+        # Same error but including errno
+        with self.assertRaises(socket.error) as cm:
+            mock_wrap_socket.side_effect = socket.error(104, 'Connection reset by peer')
+            self.httplib_object.connect()
+
+        e = cm.exception
+        self.assertEqual(e.errno, 104)
+        self.assertTrue(expected_msg in str(e))
+
+        # Test original exception is propagated correctly on non reset by peer
+        # error
+        with self.assertRaises(socket.error) as cm:
+            mock_wrap_socket.side_effect = socket.error(105, 'Some random error')
+            self.httplib_object.connect()
+
+        e = cm.exception
+        self.assertEqual(e.errno, 105)
+        self.assertTrue('Some random error' in str(e))
 
 
 if __name__ == '__main__':
