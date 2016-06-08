@@ -83,7 +83,7 @@ class LoadBalancer(object):
         :param driver: Driver this loadbalancer belongs to.
         :type driver: :class:`.Driver`
 
-        :param extra: Provier specific attributes. (optional)
+        :param extra: Provider specific attributes. (optional)
         :type extra: ``dict``
         """
         self.id = str(id) if id else None
@@ -113,8 +113,9 @@ class LoadBalancer(object):
         return self.driver.destroy_balancer(balancer=self)
 
     def __repr__(self):
-        return ('<LoadBalancer: id=%s, name=%s, state=%s>' % (self.id,
-                self.name, self.state))
+        return ('<LoadBalancer: id=%s, name=%s, state=%s, ip=%s, '
+                'port=%s>' % (self.id, self.name, self.state, self.ip,
+                              self.port))
 
 
 class Algorithm(object):
@@ -127,6 +128,8 @@ class Algorithm(object):
     LEAST_CONNECTIONS = 2
     WEIGHTED_ROUND_ROBIN = 3
     WEIGHTED_LEAST_CONNECTIONS = 4
+    SHORTEST_RESPONSE = 5
+    PERSISTENT_IP = 6
 
 DEFAULT_ALGORITHM = Algorithm.ROUND_ROBIN
 
@@ -185,7 +188,7 @@ class Driver(BaseDriver):
         :type  members: ``list`` of :class:`Member`
 
         :param algorithm: Load balancing algorithm, defaults to ROUND_ROBIN.
-        :type algorithm: :class:`Algorithm`
+        :type algorithm: :class:`.Algorithm`
 
         :rtype: :class:`LoadBalancer`
         """
@@ -230,7 +233,7 @@ class Driver(BaseDriver):
         :type    name: ``str``
 
         :param algorithm: New load balancer algorithm
-        :type    algorithm: :class:`Algorithm`
+        :type    algorithm: :class:`.Algorithm`
 
         :param protocol: New load balancer protocol
         :type    protocol: ``str``
@@ -317,12 +320,12 @@ class Driver(BaseDriver):
 
     def _value_to_algorithm(self, value):
         """
-        Return :class`Algorithm` based on the value.
+        Return :class:`.Algorithm` based on the value.
 
         :param value: Algorithm name (e.g. http, tcp, ...).
         :type  value: ``str``
 
-        @rype :class:`Algorithm`
+        :rtype: :class:`.Algorithm`
         """
         try:
             return self._VALUE_TO_ALGORITHM_MAP[value]
@@ -337,7 +340,7 @@ class Driver(BaseDriver):
         :param value: Algorithm enum.
         :type  value: :class:`Algorithm`
 
-        @rype ``str``
+        :rtype: ``str``
         """
         try:
             return self._ALGORITHM_TO_VALUE_MAP[algorithm]

@@ -325,6 +325,10 @@ class RackspaceLBDriver(Driver, OpenStackDriverMixin):
                                                 secure=secure, host=host,
                                                 port=port, region=region)
 
+    @classmethod
+    def list_regions(cls):
+        return ENDPOINT_ARGS_MAP.keys()
+
     def _ex_connection_class_kwargs(self):
         endpoint_args = ENDPOINT_ARGS_MAP[self.region]
         kwargs = self.openstack_connection_kwargs()
@@ -1336,6 +1340,9 @@ class RackspaceLBDriver(Driver, OpenStackDriverMixin):
             "ipv6PublicSource": sourceAddresses.get("ipv6Public"),
             "ipv4PublicSource": sourceAddresses.get("ipv4Public"),
             "ipv4PrivateSource": sourceAddresses.get("ipv4Servicenet"),
+            "service_name": self.connection.get_service_name(),
+            "uri": "https://%s%s/loadbalancers/%s" % (
+                self.connection.host, self.connection.request_path, el["id"]),
         }
 
         if 'virtualIps' in el:
@@ -1522,9 +1529,3 @@ class RackspaceLBDriver(Driver, OpenStackDriverMixin):
                 break
 
         return date
-
-
-class RackspaceUKLBDriver(RackspaceLBDriver):
-    def __init__(self, *args, **kwargs):
-        kwargs['region'] = 'lon'
-        super(RackspaceUKLBDriver, self).__init__(*args, **kwargs)

@@ -40,7 +40,7 @@ class NewZoneVersion(object):
     In effect, this is a transaction.
 
     Any calls made inside this context manager will be applied to a new version
-    id. If your changes are succesful (and only if they are successful) they
+    id. If your changes are successful (and only if they are successful) they
     are activated.
     """
 
@@ -147,15 +147,24 @@ class GandiDNSDriver(BaseGandiDriver, DNSDriver):
         return res.object
 
     def _to_record(self, record, zone):
+        extra = {'ttl': int(record['ttl'])}
+        value = record['value']
+        if record['type'] == 'MX':
+            # Record is in the following form:
+            # <priority> <value>
+            # e.g. 15 aspmx.l.google.com
+            split = record['value'].split(' ')
+            extra['priority'] = int(split[0])
+            value = split[1]
         return Record(
             id='%s:%s' % (record['type'], record['name']),
             name=record['name'],
             type=self._string_to_record_type(record['type']),
-            data=record['value'],
+            data=value,
             zone=zone,
             driver=self,
-            extra={'ttl': record['ttl']}
-        )
+            ttl=record['ttl'],
+            extra=extra)
 
     def _to_records(self, records, zone):
         retval = []
