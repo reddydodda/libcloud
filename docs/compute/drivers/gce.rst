@@ -1,7 +1,7 @@
 Google Compute Engine Driver Documentation
 ==========================================
 
-`Google Cloud Platform Compute Engine`_ gives users the ability to run
+`Google Compute Engine`_ gives users the ability to run
 large-scale workloads on virtual machines hosted on Google's infrastructure.
 It is a part of Google Cloud Platform.
 
@@ -20,8 +20,9 @@ Google Compute Engine features:
 
 Connecting to Google Compute Engine
 -----------------------------------
+
 Libcloud supports three different methods for authenticating:
-`Service Account`_ and `Installed Application`_ and `Internal Authentication_`
+`Service Account`_, `Installed Application`_ and `Internal Authentication`_.
 
 Which one should I use?
 
@@ -36,29 +37,41 @@ Which one should I use?
 
 * If you are running your code on an instance inside Google Compute Engine,
   the GCE driver will consult the internal metadata service to obtain an
-  authorization token. The only parameter required for this type of
+  authorization token. The only value required for this type of
   authorization is your Project ID.
 
 Once you have set up the authentication as described below, you pass the
-authentication information to the driver as described in `Examples`_
+authentication information to the driver as described in `Examples`_. Also
+bear in mind that large clock drift (difference in time) between authenticating
+host and google will cause authentication to fail.
 
 
 Service Account
 ~~~~~~~~~~~~~~~
 
-To set up Service Account authentication:
+To set up Service Account authentication, you will need to download the
+corresponding private key file in either the new JSON (preferred) format, or
+the legacy P12 format.
 
-1. Follow the instructions at 
+1. Follow the instructions at
    https://developers.google.com/console/help/new/#serviceaccounts
-   to create and download a PKCS-12 private key.
-2. Convert the PKCS-12 private key to a .pem file using the following:
-   ``openssl pkcs12 -in YOURPRIVKEY.p12 -nodes -nocerts 
-   | openssl rsa -out PRIV.pem``
-3. Move the .pem file to a safe location
-4. You will need the Service Account's "Email Address" and the path to the
-   .pem file for authentication.
-5. You will also need your "Project ID" which can be found by clicking on the
-   "Overview" link on the left sidebar.
+   to create and download the private key.
+
+   a. If you opt for the new preferred JSON format, download the file and
+      save it to a secure location.
+
+   b. If you opt to use the legacy P12 format:
+
+      Convert the private key to a .pem file using the following:
+      ``openssl pkcs12 -in YOURPRIVKEY.p12 -nodes -nocerts
+      | openssl rsa -out PRIV.pem``
+
+      Move the .pem file to a safe location
+
+2. You will need the Service Account's "Email Address" and the path to the
+   key file for authentication.
+3. You will also need your "Project ID" (a string, not a numerical value) that
+   can be found by clicking on the "Overview" link on the left sidebar.
 
 Installed Application
 ~~~~~~~~~~~~~~~~~~~~~
@@ -71,15 +84,15 @@ To set up Installed Account authentication:
 4. Click on "Credentials" then "Create New Client ID"
 5. Select "Installed application" and "Other" then click "Create Client ID"
 6. For authentication, you will need the "Client ID" and the "Client Secret"
-7. You will also need your "Project ID" which can be found by clicking on the
-   "Overview" link on the left sidebar.
+7. You will also need your "Project ID" (a string, not a numerical value) that
+   can be found by clicking on the "Overview" link on the left sidebar.
 
 Internal Authentication
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 To use GCE's internal metadata service to authenticate, simply specify
-your Project ID and let the driver handle the rest.  See the `Examples`_
-below for a sample.
+your Project ID and let the driver handle the rest. See the
+`5. Using GCE Internal Authorization`_ example below.
 
 Accessing Google Cloud services from your Libcloud nodes
 --------------------------------------------------------
@@ -127,5 +140,5 @@ API Docs
     :members:
     :inherited-members:
 
-.. _`Google Cloud Platform Compute Engine`: https://cloud.google.com/products/compute-engine/
+.. _`Google Compute Engine`: https://cloud.google.com/products/compute-engine/
 .. _`Google Developers Console`: https://cloud.google.com/console
