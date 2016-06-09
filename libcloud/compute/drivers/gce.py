@@ -1105,7 +1105,7 @@ class GCENodeDriver(NodeDriver):
         self.project = project
         self.scopes = scopes
         self.credential_file = credential_file or \
-            GoogleOAuth2Credential.default_credential_file + '.' + self.project
+            GoogleOAuth2Credential.default_credential_file + '.' + self.project + '.' + user_id
 
         super(GCENodeDriver, self).__init__(user_id, key, **kwargs)
 
@@ -1672,6 +1672,16 @@ class GCENodeDriver(NodeDriver):
         list_networks = [self._to_network(n) for n in
                          response.get('items', [])]
         return list_networks
+
+    def ex_list_subnets(self):
+        """
+        Return the list of subnets
+        """
+
+        request = '/aggregated/subnetworks'
+        response = self.connection.request(request, method='GET').object
+        subnets = response.get('items', [])
+        return subnets
 
     def list_nodes(self, ex_zone=None):
         """
@@ -2439,7 +2449,7 @@ class GCENodeDriver(NodeDriver):
                     ex_network='default', ex_subnetwork=None,
                     ex_tags=None, ex_metadata=None,
                     ex_boot_disk=None, use_existing_disk=True,
-                    external_ip='ephemeral', ex_disk_type='pd-standard',
+                    external_ip='ephemeral', ex_disk_type='pd-ssd',
                     ex_disk_auto_delete=True, ex_service_accounts=None,
                     description=None, ex_can_ip_forward=None,
                     ex_disks_gce_struct=None, ex_nic_gce_struct=None,
@@ -3962,7 +3972,7 @@ class GCENodeDriver(NodeDriver):
         self.connection.async_request(request, method='POST')
         return True
 
-    def destroy_node(self, node, destroy_boot_disk=False):
+    def destroy_node(self, node, destroy_boot_disk=True):
         """
         Destroy a node.
 
