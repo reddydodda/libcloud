@@ -15,6 +15,7 @@
 
 import base64
 import datetime
+import socket
 
 try:
     import simplejson as json
@@ -142,6 +143,14 @@ class KubernetesContainerDriver(ContainerDriver):
 
         self.connection.host = host
         self.connection.port = port
+
+        try:
+            socket.setdefaulttimeout(15)
+            so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            so.connect((host, int(port)))
+            so.close()
+        except:
+            raise Exception("Make sure host is accessible and port %s is open" % port)
 
     def list_containers(self, image=None, all=True):
         """
