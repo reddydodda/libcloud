@@ -58,6 +58,7 @@ DISK_IMAGE_TYPES = ('.img','.raw','.qcow','.qcow2')
 # increase default timeout for libvirt connection
 libvirt_connection_timeout = 2*60
 
+
 class LibvirtNodeDriver(NodeDriver):
     """
     Libvirt (http://libvirt.org/) node driver.
@@ -118,7 +119,7 @@ class LibvirtNodeDriver(NodeDriver):
                     so.connect((host, ssh_port))
                     so.close()
                 except:
-                    raise Exception("Make sure host is accessible and ssh port %s is open" % ssh_port)
+                    raise Exception("Make sure host is accessible and ssh port is open")
 
                 uri = 'qemu+ssh://%s@%s:%s/system?keyfile=%s&no_tty=1&no_verify=1' % (user, host, ssh_port, self.secret)
             else:
@@ -205,9 +206,12 @@ class LibvirtNodeDriver(NodeDriver):
                 if is_public_subnet(socket.gethostbyname(self.host)):
                     public_ips.append(self.host)
                 else:
+                    # in case connection to a private IP is attempted. For now,
+                    # the cmd tries to grep any `virbr` interface, which is the
+                    # default for KVM
                     cmd = "/sbin/ifconfig | grep '^virbr' -A 1 | grep 'inet addr' | cut -d: -f2 | awk '{print $1}'"
                     addr = self._run_command(cmd).get('output')
-                    addr = addr.strip(' ').strip('\n')
+                    addr = addr.strip('\n')
                     private_ips.append(addr)
                     node_id = addr
             except:
