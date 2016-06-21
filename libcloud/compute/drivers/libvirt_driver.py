@@ -85,12 +85,19 @@ class LibvirtNodeDriver(NodeDriver):
         if 14 == sig_code:
             raise Exception('Timeout!')
 
-    def __init__(self, host, user='root', ssh_key=None, ssh_port=22, tcp_port=5000):
-        """Support the three ways to connect: local system, qemu+tcp, qemu+ssh
-        Host can be an ip address or hostname
-        ssh key should be a filename with the private key
-        if ssh key is a string we create a temp file with the string that will be deleted
-        on exit
+    def __init__(self, host, hypervisor='', user='root', ssh_key=None,
+                 ssh_port=22, tcp_port=5000):
+        """
+        Supports three ways to connect: local system, qemu+tcp, qemu+ssh
+        :param host: IP address or hostname to connect to (usually the
+        address of the KBM hypervisor)
+        :param hypervisor: the IP address of the KVM hypervisor. Useful in case
+        `host` has been substituted by a middleware
+        :param user: the username to connect to the KVM hypervisor as
+        :param ssh_key: a filename with the private key
+        :param ssh_port: the SSH port to connect to when qemu+ssh is chosen
+        :param tcp_port: the TCP port to connect to in case of qemu+tcp
+        :return:
         """
         self.temp_key = None
         self.secret = None
@@ -137,6 +144,7 @@ class LibvirtNodeDriver(NodeDriver):
         self._uri = uri
         self.key = user
         self.host = host
+        self.hypervisor = hypervisor
         self.ssh_port = ssh_port
 
         try:
@@ -199,26 +207,19 @@ class LibvirtNodeDriver(NodeDriver):
         nodes = [self._to_node(domain) for domain in domains]
 
         if show_hypervisor:
-            node_id, public_ips, private_ips = self.host, [], []
+            public_ips, private_ips = [], []
             # append hypervisor as well
             name = self.connection.getHostname()
             try:
-                if is_public_subnet(socket.gethostbyname(self.host)):
-                    public_ips.append(self.host)
+                if is_public_subnet(socket.gethostbyname(self.hypervisor)):
+                    public_ips.append(self.hypervisor)
                 else:
-                    # in case connection to a private IP is attempted. For now,
-                    # the cmd tries to grep any `virbr` interface, which is the
-                    # default for KVM
-                    cmd = "/sbin/ifconfig | grep '^virbr' -A 1 | grep 'inet addr' | cut -d: -f2 | awk '{print $1}'"
-                    addr = self._run_command(cmd).get('output')
-                    addr = addr.strip('\n')
-                    private_ips.append(addr)
-                    node_id = addr
+                    private_ips.append(self.hypervisor)
             except:
-                public_ips.append(self.host)
+                public_ips.append(self.hypervisor)
 
             extra = {'tags': {'type': 'hypervisor'}}
-            node = Node(id=node_id, name=name, state=NodeState.RUNNING,
+            node = Node(id=self.hypervisor, name=name, state=NodeState.RUNNING,
                         public_ips=public_ips, private_ips=private_ips,
                         driver=self, extra=extra)
             nodes.append(node)
