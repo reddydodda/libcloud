@@ -143,8 +143,7 @@ class LibvirtNodeDriver(NodeDriver):
 
         self._uri = uri
         self.key = user
-        self.host = host
-        self.hypervisor = hypervisor
+        self.host = hypervisor if hypervisor else host
         self.ssh_port = ssh_port
 
         try:
@@ -211,15 +210,15 @@ class LibvirtNodeDriver(NodeDriver):
             # append hypervisor as well
             name = self.connection.getHostname()
             try:
-                if is_public_subnet(socket.gethostbyname(self.hypervisor)):
-                    public_ips.append(self.hypervisor)
+                if is_public_subnet(socket.gethostbyname(self.host)):
+                    public_ips.append(self.host)
                 else:
-                    private_ips.append(self.hypervisor)
+                    private_ips.append(self.host)
             except:
-                public_ips.append(self.hypervisor)
+                public_ips.append(self.host)
 
             extra = {'tags': {'type': 'hypervisor'}}
-            node = Node(id=self.hypervisor, name=name, state=NodeState.RUNNING,
+            node = Node(id=self.host, name=name, state=NodeState.RUNNING,
                         public_ips=public_ips, private_ips=private_ips,
                         driver=self, extra=extra)
             nodes.append(node)
