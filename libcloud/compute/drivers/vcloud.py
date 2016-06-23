@@ -753,7 +753,11 @@ class VCloudNodeDriver(NodeDriver):
             )
         networks = []
         for network in network_elements:
-            network_object = self.connection.request(network.get('href')).object
+            # avoid exception: Unable to perform this action. Contact your cloud administrator.
+            try:
+                network_object = self.connection.request(network.get('href')).object
+            except:
+                continue
 
             #alloc_ips = network_object.findall(fixxpath(network_object, 'Configuration/IpScope/AllocatedIpAddresses'))
             #ips = []
