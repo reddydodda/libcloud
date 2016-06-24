@@ -85,12 +85,12 @@ class LibvirtNodeDriver(NodeDriver):
         if 14 == sig_code:
             raise Exception('Timeout!')
 
-    def __init__(self, host, hypervisor='', user='root', ssh_key=None,
-                 ssh_port=22, tcp_port=5000):
+    def __init__(self, host, user='root', ssh_key=None,
+                 ssh_port=22, tcp_port=5000, hypervisor=None):
         """
         Supports three ways to connect: local system, qemu+tcp, qemu+ssh
         :param host: IP address or hostname to connect to (usually the
-        address of the KBM hypervisor)
+        address of the KVM hypervisor)
         :param hypervisor: the IP address of the KVM hypervisor. Useful in case
         `host` has been substituted by a middleware
         :param user: the username to connect to the KVM hypervisor as
