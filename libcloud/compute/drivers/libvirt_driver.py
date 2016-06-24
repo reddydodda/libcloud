@@ -58,6 +58,7 @@ DISK_IMAGE_TYPES = ('.img','.raw','.qcow','.qcow2')
 # increase default timeout for libvirt connection
 libvirt_connection_timeout = 2*60
 
+
 class LibvirtNodeDriver(NodeDriver):
     """
     Libvirt (http://libvirt.org/) node driver.
@@ -84,13 +85,19 @@ class LibvirtNodeDriver(NodeDriver):
         if 14 == sig_code:
             raise Exception('Timeout!')
 
-
-    def __init__(self, host, user='root', ssh_key=None, ssh_port=22):
-        """Support the three ways to connect: local system, qemu+tcp, qemu+ssh
-        Host can be an ip address or hostname
-        ssh key should be a filename with the private key
-        if ssh key is a string we create a temp file with the string that will be deleted
-        on exit
+    def __init__(self, host, user='root', ssh_key=None,
+                 ssh_port=22, tcp_port=5000, hypervisor=None):
+        """
+        Supports three ways to connect: local system, qemu+tcp, qemu+ssh
+        :param host: IP address or hostname to connect to (usually the
+        address of the KVM hypervisor)
+        :param hypervisor: the IP address of the KVM hypervisor. Useful in case
+        `host` has been substituted by a middleware
+        :param user: the username to connect to the KVM hypervisor as
+        :param ssh_key: a filename with the private key
+        :param ssh_port: the SSH port to connect to when qemu+ssh is chosen
+        :param tcp_port: the TCP port to connect to in case of qemu+tcp
+        :return:
         """
         self.temp_key = None
         self.secret = None
@@ -119,7 +126,7 @@ class LibvirtNodeDriver(NodeDriver):
                     so.connect((host, ssh_port))
                     so.close()
                 except:
-                    raise Exception("Make sure host is accessible and ssh port %s is open" % ssh_port)
+                    raise Exception("Make sure host is accessible and ssh port is open")
 
                 uri = 'qemu+ssh://%s@%s:%s/system?keyfile=%s&no_tty=1&no_verify=1' % (user, host, ssh_port, self.secret)
             else:
@@ -127,16 +134,16 @@ class LibvirtNodeDriver(NodeDriver):
                 try:
                     socket.setdefaulttimeout(15)
                     so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    so.connect((host, 5000))
+                    so.connect((host, tcp_port))
                     so.close()
                 except:
                     raise Exception("If you don't specify an ssh key, libvirt will try to connect to port 5000 through qemu+tcp")
 
-                uri = 'qemu+tcp://%s:5000/system' % host
+                uri = 'qemu+tcp://%s:%s/system' % (host, tcp_port)
 
         self._uri = uri
         self.key = user
-        self.host = host
+        self.host = hypervisor if hypervisor else host
         self.ssh_port = ssh_port
 
         try:
@@ -199,17 +206,21 @@ class LibvirtNodeDriver(NodeDriver):
         nodes = [self._to_node(domain) for domain in domains]
 
         if show_hypervisor:
+            public_ips, private_ips = [], []
             # append hypervisor as well
             name = self.connection.getHostname()
             try:
-                public_ip = socket.gethostbyname(self.host)
+                if is_public_subnet(socket.gethostbyname(self.host)):
+                    public_ips.append(self.host)
+                else:
+                    private_ips.append(self.host)
             except:
-                public_ip = self.host
+                public_ips.append(self.host)
 
             extra = {'tags': {'type': 'hypervisor'}}
             node = Node(id=self.host, name=name, state=NodeState.RUNNING,
-                    public_ips=[public_ip], private_ips=[], driver=self,
-                    extra=extra)
+                        public_ips=public_ips, private_ips=private_ips,
+                        driver=self, extra=extra)
             nodes.append(node)
 
         return nodes
