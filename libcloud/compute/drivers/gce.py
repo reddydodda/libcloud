@@ -29,6 +29,7 @@ from libcloud.common.google import GoogleBaseError
 from libcloud.common.google import ResourceNotFoundError
 from libcloud.common.google import ResourceExistsError
 from libcloud.common.types import ProviderError
+from libcloud.pricing import get_size_price
 
 from libcloud.compute.base import Node, NodeDriver, NodeImage, NodeLocation
 from libcloud.compute.base import NodeSize, StorageVolume, VolumeSnapshot
@@ -6270,3 +6271,12 @@ class GCENodeDriver(NodeDriver):
         'compute#urlMap': _to_urlmap,
         'compute#zone': _to_zone,
     }
+
+    def _get_size_price(self, size_id):
+        """
+        Return pricing information for the provided size id.
+        """
+        return get_size_price(driver_type='compute',
+                              driver_name='gce',
+                              size_id=size_id)
+
