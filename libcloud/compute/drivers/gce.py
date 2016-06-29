@@ -5784,6 +5784,19 @@ class GCENodeDriver(NodeDriver):
         extra['scheduling'] = node.get('scheduling', {})
         extra['boot_disk'] = None
 
+        os_type = 'linux'
+        try:
+            license = node.get('disks', [])[0].get('licenses')[0]
+            if 'sles' in license:
+                os_type = 'sles'
+            if 'rhel' in license:
+                os_type = 'rhel'
+            if 'win' in license:
+                os_type = 'win'
+        except:
+            pass
+        extra['os_type'] = os_type
+
         for disk in extra['disks']:
             if disk.get('boot') and disk.get('type') == 'PERSISTENT':
                 bd = self._get_components_from_path(disk['source'])
