@@ -1703,7 +1703,6 @@ class GCENodeDriver(NodeDriver):
             request = '/zones/%s/instances' % (zone.name)
 
         response = self.connection.request(request, method='GET').object
-
         if 'items' in response:
             # The aggregated response returns a dict for each zone
             if zone is None:
@@ -5766,9 +5765,9 @@ class GCENodeDriver(NodeDriver):
         extra['status'] = node.get('status', "UNKNOWN")
         extra['statusMessage'] = node.get('statusMessage')
         extra['description'] = node.get('description')
-        extra['zone'] = self.ex_get_zone(node['zone'])
+        extra['location'] = self.ex_get_zone(node['zone']).name
         extra['image'] = node.get('image')
-        extra['machineType'] = node.get('machineType')
+        extra['machineType'] = node.get('machineType').split('/')[-1]
         extra['disks'] = node.get('disks', [])
         extra['networkInterfaces'] = node.get('networkInterfaces')
         extra['id'] = node['id']
