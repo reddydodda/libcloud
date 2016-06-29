@@ -5840,7 +5840,8 @@ class GCENodeDriver(NodeDriver):
             orig_api_name = self.api_name
             self.api_name = "%s_%s" % (self.api_name,
                                        extra['zone'].name.split("-")[0])
-            price = self._get_size_price(size_id=machine_type['name'])
+            driver_name = "google_" + extra['zone'].name.split('-')[0] # eg europe-west1-d
+            price = self._get_size_price(driver_name=driver_name, size_id=machine_type['name'])
             self.api_name = orig_api_name
         except:
             price = None
@@ -6271,11 +6272,11 @@ class GCENodeDriver(NodeDriver):
         'compute#zone': _to_zone,
     }
 
-    def _get_size_price(self, size_id):
+    def _get_size_price(self, driver_name, size_id):
         """
         Return pricing information for the provided size id.
         """
         return get_size_price(driver_type='compute',
-                              driver_name='gce',
+                              driver_name=driver_name,
                               size_id=size_id)
 
