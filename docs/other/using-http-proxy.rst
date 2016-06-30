@@ -5,7 +5,7 @@ Using an HTTP proxy
 
     Support for HTTP proxies is only available in Libcloud trunk and higher.
 
-Libcloud supports using an HTTP proxy for outgoing HTTP and HTTPS requests. 
+Libcloud supports using an HTTP proxy for outgoing HTTP and HTTPS requests.
 
 Proxy support has been tested with the following Python versions;
 
@@ -17,7 +17,7 @@ Proxy support has been tested with the following Python versions;
 * Python 3.4
 
 You can specify which HTTP proxy to use using one of the approaches described
-bellow:
+below:
 
 * By setting ``http_proxy`` environment variable (this setting is system /
   process wide)
@@ -47,13 +47,13 @@ or a script.
 
 Without authentication:
 
-.. sourcecode:: python
+.. sourcecode:: none
 
     http_proxy=http://<proxy hostname>:<proxy port> python my_script.py
 
 With basic auth authentication:
 
-.. sourcecode:: python
+.. sourcecode:: none
 
     http_proxy=http://<username>:<password>@<proxy hostname>:<proxy port> python my_script.py
 
@@ -74,7 +74,7 @@ Calling ``set_http_proxy`` method allows you to specify which proxy to use
 for all the outgoing requests which follow ``set_http_proxy`` method call.
 
 This method also allows you to use a different proxy for each request as shown
-in the example bellow.
+in the example below.
 
 .. literalinclude:: /examples/http_proxy/set_http_proxy_method.py
    :language: python

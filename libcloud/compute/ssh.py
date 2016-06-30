@@ -51,10 +51,6 @@ __all__ = [
 ]
 
 
-# Maximum number of bytes to read at once from a socket
-CHUNK_SIZE = 1024
-
-
 class SSHCommandTimeoutError(Exception):
     """
     Exception which is raised when an SSH command times out.
@@ -119,8 +115,8 @@ class BaseSSHClient(object):
         """
         Connect to the remote node over SSH.
 
-        :return: True if the connection has been successfuly established, False
-                 otherwise.
+        :return: True if the connection has been successfully established,
+                 False otherwise.
         :rtype: ``bool``
         """
         raise NotImplementedError(
@@ -155,7 +151,7 @@ class BaseSSHClient(object):
         :type path: ``str``
         :keyword path: File path on the remote node.
 
-        :return: True if the file has been successfuly deleted, False
+        :return: True if the file has been successfully deleted, False
                  otherwise.
         :rtype: ``bool``
         """
@@ -178,7 +174,7 @@ class BaseSSHClient(object):
         """
         Shutdown connection to the remote node.
 
-        :return: True if the connection has been successfuly closed, False
+        :return: True if the connection has been successfully closed, False
                  otherwise.
         :rtype: ``bool``
         """
@@ -199,10 +195,16 @@ class BaseSSHClient(object):
 
 
 class ParamikoSSHClient(BaseSSHClient):
-
     """
     A SSH Client powered by Paramiko.
     """
+
+    # Maximum number of bytes to read at once from a socket
+    CHUNK_SIZE = 4096
+
+    # How long to sleep while waiting for command to finish
+    SLEEP_DELAY = 1.5
+
     def __init__(self, hostname, port=22, username='root', password=None,
                  key=None, key_files=None, key_material=None, timeout=None):
         """
@@ -351,6 +353,12 @@ class ParamikoSSHClient(BaseSSHClient):
         # which is not ready will block for indefinitely.
         exit_status_ready = chan.exit_status_ready()
 
+        if exit_status_ready:
+            # It's possible that some data is already available when exit
+            # status is ready
+            stdout.write(self._consume_stdout(chan).getvalue())
+            stderr.write(self._consume_stderr(chan).getvalue())
+
         while not exit_status_ready:
             current_time = time.time()
             elapsed_time = (current_time - start_time)
@@ -361,39 +369,18 @@ class ParamikoSSHClient(BaseSSHClient):
 
                 raise SSHCommandTimeoutError(cmd=cmd, timeout=timeout)
 
-            if chan.recv_ready():
-                data = chan.recv(CHUNK_SIZE)
-
-                while data:
-                    stdout.write(b(data).decode('utf-8'))
-                    ready = chan.recv_ready()
-
-                    if not ready:
-                        break
-
-                    data = chan.recv(CHUNK_SIZE)
-
-            if chan.recv_stderr_ready():
-                data = chan.recv_stderr(CHUNK_SIZE)
-
-                while data:
-                    stderr.write(b(data).decode('utf-8'))
-                    ready = chan.recv_stderr_ready()
-
-                    if not ready:
-                        break
-
-                    data = chan.recv_stderr(CHUNK_SIZE)
+            stdout.write(self._consume_stdout(chan).getvalue())
+            stderr.write(self._consume_stderr(chan).getvalue())
 
             # We need to check the exist status here, because the command could
-            # print some output and exit during this sleep bellow.
+            # print some output and exit during this sleep below.
             exit_status_ready = chan.exit_status_ready()
 
             if exit_status_ready:
                 break
 
             # Short sleep to prevent busy waiting
-            time.sleep(1.5)
+            time.sleep(self.SLEEP_DELAY)
 
         # Receive the exit status code of the command we ran.
         status = chan.recv_exit_status()
@@ -412,6 +399,55 @@ class ParamikoSSHClient(BaseSSHClient):
         self.client.close()
         return True
 
+    def _consume_stdout(self, chan):
+        """
+        Try to consume stdout data from chan if it's receive ready.
+        """
+        stdout = self._consume_data_from_channel(
+            chan=chan,
+            recv_method=chan.recv,
+            recv_ready_method=chan.recv_ready)
+        return stdout
+
+    def _consume_stderr(self, chan):
+        """
+        Try to consume stderr data from chan if it's receive ready.
+        """
+        stderr = self._consume_data_from_channel(
+            chan=chan,
+            recv_method=chan.recv_stderr,
+            recv_ready_method=chan.recv_stderr_ready)
+        return stderr
+
+    def _consume_data_from_channel(self, chan, recv_method, recv_ready_method):
+        """
+        Try to consume data from the provided channel.
+
+        Keep in mind that data is only consumed if the channel is receive
+        ready.
+        """
+        result = StringIO()
+        result_bytes = bytearray()
+
+        if recv_ready_method():
+            data = recv_method(self.CHUNK_SIZE)
+            result_bytes += b(data)
+
+            while data:
+                ready = recv_ready_method()
+
+                if not ready:
+                    break
+
+                data = recv_method(self.CHUNK_SIZE)
+                result_bytes += b(data)
+
+        # We only decode data at the end because a single chunk could contain
+        # a part of multi byte UTF-8 character (whole multi bytes character
+        # could be split over two chunks)
+        result.write(result_bytes.decode('utf-8'))
+        return result
+
     def _get_pkey_object(self, key):
         """
         Try to detect private key type and return paramiko.PKey object.
@@ -426,7 +462,8 @@ class ParamikoSSHClient(BaseSSHClient):
             else:
                 return key
 
-        msg = 'Invalid or unsupported key type'
+        msg = ('Invalid or unsupported key type (only RSA, DSS and ECDSA keys'
+               ' are supported)')
         raise paramiko.ssh_exception.SSHException(msg)
 
 

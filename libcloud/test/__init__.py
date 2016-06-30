@@ -123,6 +123,9 @@ class BaseMockHttpObject(object):
             param = qs[use_param][0].replace('.', '_').replace('-', '_')
             meth_name = '%s_%s' % (meth_name, param)
 
+        if meth_name == '':
+            meth_name = 'root'
+
         return meth_name
 
 
@@ -166,6 +169,8 @@ class MockHttp(BaseMockHttpObject):
 
     test = None  # TestCase instance which is using this mock
 
+    proxy_url = None
+
     def __init__(self, host, port, *args, **kwargs):
         self.host = host
         self.port = port
@@ -200,6 +205,9 @@ class MockHttp(BaseMockHttpObject):
 
     def close(self):
         pass
+
+    def set_http_proxy(self, proxy_url):
+        self.proxy_url = proxy_url
 
     # Mock request/response example
     def _example(self, method, url, body, headers):
@@ -255,7 +263,7 @@ class MockHttpTestCase(MockHttp, unittest.TestCase):
 
 
 class StorageMockHttp(MockHttp):
-    def putrequest(self, method, action):
+    def putrequest(self, method, action, skip_host=0, skip_accept_encoding=0):
         pass
 
     def putheader(self, key, value):
@@ -311,24 +319,24 @@ class MockRawResponse(BaseMockHttpObject):
 
     @property
     def response(self):
-        return self._get_response_if_not_availale()
+        return self._get_response_if_not_available()
 
     @property
     def status(self):
-        self._get_response_if_not_availale()
+        self._get_response_if_not_available()
         return self._status
 
     @property
     def headers(self):
-        self._get_response_if_not_availale()
+        self._get_response_if_not_available()
         return self._headers
 
     @property
     def reason(self):
-        self._get_response_if_not_availale()
+        self._get_response_if_not_available()
         return self._reason
 
-    def _get_response_if_not_availale(self):
+    def _get_response_if_not_available(self):
         if not self._response:
             meth_name = self._get_method_name(type=self.type,
                                               use_param=False, qs=None,

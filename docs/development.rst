@@ -24,7 +24,7 @@ General contribution guidelines
   :doc:`Testing page </testing>`.
 * All the functions and methods must contain Sphinx docstrings which are used
   to generate the API documentation. For more information, refer to the
-  :ref:`Docstring conventions <docstring-conventions>` section bellow.
+  :ref:`Docstring conventions <docstring-conventions>` section below.
 * If you are adding a new feature, make sure to add a corresponding
   documentation.
 
@@ -36,9 +36,9 @@ Code style guide
 * Use 79 characters in a line
 * Make sure edited file doesn't contain any trailing whitespace
 * You can verify that your modifications don't break any rules by running the
-  ``flake8`` script - e.g. ``flake8 libcloud/edited_file.py.`` or
+  ``flake8`` script - e.g. ``flake8 libcloud/edited_file.py`` or
   ``tox -e lint``.
-  Second command fill run flake8 on all the files in the repository.
+  Second command will run flake8 on all the files in the repository.
 
 And most importantly, follow the existing style in the file you are editing and
 **be consistent**.
@@ -227,7 +227,7 @@ contains.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When checking if a variable is provided or defined, prefer to use
-``is foo is not None`` instead of ``if foo``.
+``if foo is not None`` instead of ``if foo``.
 
 If you use ``if foo`` approach, it's easy to make a mistake when a valid value
 can also be falsy (e.g. a number ``0``).
@@ -249,7 +249,7 @@ Docstring conventions
 ---------------------
 
 For documenting the API we we use Sphinx and reStructuredText syntax. Docstring
-conventions to which you should adhere to are described bellow.
+conventions to which you should adhere to are described below.
 
 * Docstrings should always be used to describe the purpose of methods,
   functions, classes, and modules.
@@ -318,6 +318,9 @@ For example:
 Make sure that all the code you have added or modified has appropriate test
 coverage. Also make sure all the tests including the existing ones still pass.
 
+Use ``libcloud.test.unittest`` as the unit testing package to ensure that
+your tests work with older versions of Python.
+
 For more information on how to write and run tests, please see
 :doc:`Testing page </testing>`.
 
@@ -349,7 +352,7 @@ pull request description contains link to the JIRA ticket.
 Wait for your changes to be reviewed and address any outstanding comments.
 
 10. Squash the commits and generate the patch
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Once the changes has been reviewed, all the outstanding issues have been
 addressed and the pull request has been +1'ed, close the pull request, squash
@@ -405,7 +408,7 @@ start working on a new branch and before you generate a final patch. If the
 repository is not in-sync, generated patch will be out of sync and we won't be
 able to cleanly merge it into trunk.
 
-To synchronize it, follow the steps bellow in your git clone:
+To synchronize it, follow the steps below in your git clone:
 
 1. Add upstream remote if you haven't added it yet
 
@@ -459,7 +462,7 @@ Libcloud supports a variety of Python versions so your code also needs to work
 with all the supported versions. This means that in some cases you will need to
 include extra code to make sure it works in all the supported versions.
 
-Some examples which show how to handle those cases are described bellow.
+Some examples which show how to handle those cases are described below.
 
 Context Managers
 ~~~~~~~~~~~~~~~~

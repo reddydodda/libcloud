@@ -274,11 +274,11 @@ class CloudSigma_1_0_NodeDriver(CloudSigmaNodeDriver):
         :type       name: ``str``
 
         :keyword    smp: Number of virtual processors or None to calculate
-        based on the cpu speed
+                         based on the cpu speed.
         :type       smp: ``int``
 
         :keyword    nic_model: e1000, rtl8139 or virtio (is not specified,
-        e1000 is used)
+                               e1000 is used)
         :type       nic_model: ``str``
 
         :keyword    vnc_password: If not set, VNC access is disabled.
@@ -984,10 +984,10 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
     NODE_STATE_MAP = {
         'starting': NodeState.PENDING,
         'stopping': NodeState.PENDING,
-        'unavailable': NodeState.PENDING,
+        'unavailable': NodeState.ERROR,
         'running': NodeState.RUNNING,
         'stopped': NodeState.STOPPED,
-        'paused': NodeState.STOPPED
+        'paused': NodeState.PAUSED
     }
 
     def __init__(self, key, secret, secure=True, host=None, port=None,
@@ -1724,7 +1724,7 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
 
     def ex_get_balance(self):
         """
-        Retrueve account balance information.
+        Retrieve account balance information.
 
         :return: Dictionary with two items ("balance" and "currency").
         :rtype: ``dict``
@@ -1735,7 +1735,7 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
 
     def ex_get_pricing(self):
         """
-        Retrive pricing information that are applicable to the cloud.
+        Retrieve pricing information that are applicable to the cloud.
 
         :return: Dictionary with pricing information.
         :rtype: ``dict``
@@ -1860,8 +1860,11 @@ class CloudSigma_2_0_NodeDriver(CloudSigmaNodeDriver):
         ipv4_conf = nic['ip_v4_conf']
         ipv6_conf = nic['ip_v6_conf']
 
-        ipv4 = ipv4_conf['ip'] if ipv4_conf else None
-        ipv6 = ipv6_conf['ip'] if ipv6_conf else None
+        ip_v4 = ipv4_conf['ip'] if ipv4_conf else None
+        ip_v6 = ipv6_conf['ip'] if ipv6_conf else None
+
+        ipv4 = ip_v4['uuid'] if ip_v4 else None
+        ipv6 = ip_v4['uuid'] if ip_v6 else None
 
         ips = []
 

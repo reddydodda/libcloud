@@ -8,11 +8,13 @@ a unified and easy to use API.
 Resource you can manage with Libcloud are divided in the following categories:
 
 * :doc:`Cloud Servers and Block Storage </compute/index>` - services such as Amazon EC2 and
-  RackSpace CloudServers
+  Rackspace CloudServers
 * :doc:`Cloud Object Storage and CDN </storage/index>` - services such as Amazon S3 and
   Rackspace CloudFiles
 * :doc:`Load Balancers as a Service </loadbalancer/index>` - services such as Amazon Elastic Load Balancer and GoGrid LoadBalancers
 * :doc:`DNS as a Service </dns/index>` - services such as Amazon Route 53 and Zerigo
+* :doc:`Container Services </container/index>` - container virtualization like Docker and Rkt as well as container based services
+* :doc:`Backup as a Service </backup/index>` - services such as Amazon EBS and OpenStack Freezer
 
 .. figure:: /_static/images/supported_providers.png
     :align: center
@@ -36,6 +38,8 @@ Main
     storage/index
     loadbalancer/index
     dns/index
+    container/index
+    backup/index
     troubleshooting
     api_docs
     faq

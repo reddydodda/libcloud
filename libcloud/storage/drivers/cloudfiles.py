@@ -138,8 +138,8 @@ class OpenStackSwiftConnection(OpenStackBaseConnection):
             endpoint = self.service_catalog.get_endpoint(
                 name=self._service_name, region=self._service_region)
 
-        if PUBLIC_ENDPOINT_KEY in endpoint:
-            return endpoint[PUBLIC_ENDPOINT_KEY]
+        if endpoint:
+            return endpoint.url
         else:
             raise LibcloudError('Could not find specified endpoint')
 
@@ -264,6 +264,10 @@ class CloudFilesStorageDriver(StorageDriver, OpenStackDriverMixin):
                                                       secure=secure, host=host,
                                                       port=port, region=region,
                                                       **kwargs)
+
+    @classmethod
+    def list_regions(cls):
+        return ['ord', 'dfw', 'iad', 'lon', 'hkg', 'syd']
 
     def iterate_containers(self):
         response = self.connection.request('')
@@ -414,7 +418,7 @@ class CloudFilesStorageDriver(StorageDriver, OpenStackDriverMixin):
                                 success_status_code=httplib.OK)
 
     def upload_object(self, file_path, container, object_name, extra=None,
-                      verify_hash=True):
+                      verify_hash=True, headers=None):
         """
         Upload an object.
 
@@ -427,10 +431,11 @@ class CloudFilesStorageDriver(StorageDriver, OpenStackDriverMixin):
                                 upload_func=upload_func,
                                 upload_func_kwargs=upload_func_kwargs,
                                 extra=extra, file_path=file_path,
-                                verify_hash=verify_hash)
+                                verify_hash=verify_hash, headers=headers)
 
     def upload_object_via_stream(self, iterator,
-                                 container, object_name, extra=None):
+                                 container, object_name, extra=None,
+                                 headers=None):
         if isinstance(iterator, file):
             iterator = iter(iterator)
 
@@ -440,7 +445,8 @@ class CloudFilesStorageDriver(StorageDriver, OpenStackDriverMixin):
         return self._put_object(container=container, object_name=object_name,
                                 upload_func=upload_func,
                                 upload_func_kwargs=upload_func_kwargs,
-                                extra=extra, iterator=iterator)
+                                extra=extra, iterator=iterator,
+                                headers=headers)
 
     def delete_object(self, obj):
         container_name = self._encode_container_name(obj.container.name)
@@ -752,7 +758,7 @@ class CloudFilesStorageDriver(StorageDriver, OpenStackDriverMixin):
 
     def _put_object(self, container, object_name, upload_func,
                     upload_func_kwargs, extra=None, file_path=None,
-                    iterator=None, verify_hash=True):
+                    iterator=None, verify_hash=True, headers=None):
         extra = extra or {}
         container_name_encoded = self._encode_container_name(container.name)
         object_name_encoded = self._encode_object_name(object_name)
@@ -760,7 +766,7 @@ class CloudFilesStorageDriver(StorageDriver, OpenStackDriverMixin):
         meta_data = extra.get('meta_data', None)
         content_disposition = extra.get('content_disposition', None)
 
-        headers = {}
+        headers = headers or {}
         if meta_data:
             for key, value in list(meta_data.items()):
                 key = 'X-Object-Meta-%s' % (key)
@@ -883,19 +889,6 @@ class CloudFilesStorageDriver(StorageDriver, OpenStackDriverMixin):
         return kwargs
 
 
-class CloudFilesUSStorageDriver(CloudFilesStorageDriver):
-    """
-    Cloudfiles storage driver for the US endpoint.
-    """
-
-    type = Provider.CLOUDFILES_US
-    name = 'CloudFiles (US)'
-
-    def __init__(self, *args, **kwargs):
-        kwargs['region'] = 'ord'
-        super(CloudFilesUSStorageDriver, self).__init__(*args, **kwargs)
-
-
 class OpenStackSwiftStorageDriver(CloudFilesStorageDriver):
     """
     Storage driver for the OpenStack Swift.
@@ -915,19 +908,6 @@ class OpenStackSwiftStorageDriver(CloudFilesStorageDriver):
                                                           port=port,
                                                           region=region,
                                                           **kwargs)
-
-
-class CloudFilesUKStorageDriver(CloudFilesStorageDriver):
-    """
-    Cloudfiles storage driver for the UK endpoint.
-    """
-
-    type = Provider.CLOUDFILES_UK
-    name = 'CloudFiles (UK)'
-
-    def __init__(self, *args, **kwargs):
-        kwargs['region'] = 'lon'
-        super(CloudFilesUKStorageDriver, self).__init__(*args, **kwargs)
 
 
 class FileChunkReader(object):

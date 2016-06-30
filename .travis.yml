@@ -1,21 +1,98 @@
-
 language: python
-python: 2.7
+sudo: false
+# Add or remove version for match with Travis support
+python:
+    - 2.6
+    - 2.7
+    - 3.2
+    - 3.3
+    - 3.4
+    - 3.5
+    - pypy
+    - pypy3
 os:
   - linux
-  - osx
-env:
-  - TOX_ENV=lint
-  - TOX_ENV=py26
-  - TOX_ENV=py27
-  - TOX_ENV=pypy
-  - TOX_ENV=py32
-  - TOX_ENV=py33
-  - TOX_ENV=py34
-  - TOX_ENV=docs
+
+# Note: graphviz is needed for grapgs embedded in the docs
+addons:
+  apt:
+    packages:
+      - graphviz
+
+matrix:
+  fast_finish: true
+  include:
+    - env: ENV=2.6-lxml
+      python: 2.6
+      before_script: TOX_ENV=py2.6-lxml
+    - env: ENV=2.7-lxml
+      python: 2.7
+      before_script: TOX_ENV=py2.7-lxml
+    - env: ENV=3.2-lxml
+      python: 3.2
+      before_script: TOX_ENV=py3.2-lxml
+    - env: ENV=3.3-lxml
+      python: 3.3
+      before_script: TOX_ENV=py3.3-lxml
+    - env: ENV=3.4-lxml
+      python: 3.4
+      before_script: TOX_ENV=py3.4-lxml
+    - env: ENV=3.5-lxml
+      python: 3.5
+      before_script: TOX_ENV=py3.5-lxml
+    - env: ENV=pypy-lxml
+      python: pypy
+      before_script: TOX_ENV=pypypy-lxml
+    - env: ENV=pypy3-lxml
+      python: pypy3
+      before_script: TOX_ENV=pypypy3-lxml
+    - env: ENV=lint
+      python: 2.7
+      before_script: TOX_ENV=lint
+    - env: ENV=pylint
+      python: 2.7
+      before_script: TOX_ENV=pylint
+    - env: ENV=docs
+      python: 2.7
+      before_script: TOX_ENV=docs-travis
+      # Note: graphviz is needed for grapgs embedded in the docs
+      addons:
+        apt:
+          packages:
+            - graphviz
+            - gcc
+  # For now allow failures of all the builds which use lxml
+  allow_failures:
+    - env: ENV=2.6-lxml
+    - env: ENV=2.7-lxml
+    - env: ENV=pypy-lxml
+    - env: ENV=pypy3-lxml
+    - env: ENV=py3.2-lxml
+    - env: ENV=3.2-lxml
+    - env: ENV=3.3-lxml
+    - env: ENV=3.4-lxml
+    - env: ENV=3.5-lxml
+      # Trigger ReadTheDocs build
+      after_success: ./contrib/trigger_rtd_build.py 8284
 
 install:
-  - pip install tox
+  - pip install --upgrade "pip<8.0.0"
+  - pip install "virtualenv<14.0.0"
+  - pip install "tox>=2.3.0,<2.4"
+  - TOX_ENV=py$TRAVIS_PYTHON_VERSION
 
 script:
   - tox -e $TOX_ENV
+
+cache:
+  apt: true
+  directories:
+    - $HOME/.cache/pip # pip cache
+
+notifications:
+  # Disabled until ASF switches to new mailing list software
+  # when we can whitelist addresses
+  #email:
+  #  - "notifications@libcloud.apache.org"
+  irc:
+    - "chat.freenode.net#libcloud"

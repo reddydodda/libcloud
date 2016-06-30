@@ -17,7 +17,7 @@ Subclass for httplib.HTTPSConnection with optional certificate name
 verification, depending on libcloud.security settings.
 """
 import os
-import re
+import sys
 import socket
 import ssl
 import base64
@@ -28,6 +28,9 @@ from libcloud.utils.py3 import b
 from libcloud.utils.py3 import httplib
 from libcloud.utils.py3 import urlparse
 from libcloud.utils.py3 import urlunquote
+from libcloud.utils.py3 import match_hostname
+from libcloud.utils.py3 import CertificateError
+
 
 __all__ = [
     'LibcloudBaseConnection',
@@ -36,6 +39,24 @@ __all__ = [
 ]
 
 HTTP_PROXY_ENV_VARIABLE_NAME = 'http_proxy'
+
+# Error message which is thrown when establishing SSL / TLS connection fails
+UNSUPPORTED_TLS_VERSION_ERROR_MSG = """
+Failed to establish SSL / TLS connection (%s). It is possible that the server \
+doesn't support requested SSL / TLS version (%s).
+For information on how to work around this issue, please see \
+https://libcloud.readthedocs.org/en/latest/other/\
+ssl-certificate-validation.html#changing-used-ssl-tls-version
+""".strip()
+
+# Maps ssl.PROTOCOL_* constant to the actual SSL / TLS version name
+SSL_CONSTANT_TO_TLS_VERSION_MAP = {
+    0: 'SSL v2',
+    2: 'SSLv3, TLS v1.0, TLS v1.1, TLS v1.2',
+    3: 'TLS v1.0',
+    4: 'TLS v1.1',
+    5: 'TLS v1.2'
+}
 
 
 class LibcloudBaseConnection(object):
@@ -161,9 +182,9 @@ class LibcloudBaseConnection(object):
             j = host.rfind(']')         # ipv6 addresses have [...]
             if i > j:
                 try:
-                    port = int(host[i+1:])
+                    port = int(host[i + 1:])
                 except ValueError:
-                    msg = "nonnumeric port: '%s'" % host[i+1:]
+                    msg = "nonnumeric port: '%s'" % (host[i + 1:])
                     raise httplib.InvalidURL(msg)
                 host = host[:i]
             else:
@@ -201,7 +222,6 @@ class LibcloudHTTPSConnection(httplib.HTTPSConnection, LibcloudBaseConnection):
         Constructor
         """
         self._setup_verify()
-
         # Support for HTTP proxy
         proxy_url_env = os.environ.get(HTTP_PROXY_ENV_VARIABLE_NAME, None)
         proxy_url = kwargs.pop('proxy_url', proxy_url_env)
@@ -270,62 +290,55 @@ class LibcloudHTTPSConnection(httplib.HTTPSConnection, LibcloudBaseConnection):
         if self.http_proxy_used:
             self._activate_http_proxy(sock=sock)
 
-        self.sock = ssl.wrap_socket(sock,
-                                    self.key_file,
-                                    self.cert_file,
-                                    cert_reqs=ssl.CERT_REQUIRED,
-                                    ca_certs=self.ca_cert,
-                                    ssl_version=ssl.PROTOCOL_TLSv1)
+        ssl_version = libcloud.security.SSL_VERSION
+
+        try:
+            self.sock = ssl.wrap_socket(
+                sock,
+                self.key_file,
+                self.cert_file,
+                cert_reqs=ssl.CERT_REQUIRED,
+                ca_certs=self.ca_cert,
+                ssl_version=ssl_version)
+        except socket.error:
+            exc = sys.exc_info()[1]
+            # Re-throw an exception with a more friendly error message
+            exc = get_socket_error_exception(ssl_version=ssl_version, exc=exc)
+            raise exc
+
         cert = self.sock.getpeercert()
-        if not self._verify_hostname(self.host, cert):
-            raise ssl.SSLError('Failed to verify hostname')
+        try:
+            match_hostname(cert, self.host)
+        except CertificateError:
+            e = sys.exc_info()[1]
+            raise ssl.SSLError('Failed to verify hostname: %s' % (str(e)))
 
-    def _verify_hostname(self, hostname, cert):
-        """
-        Verify hostname against peer cert
 
-        Check both commonName and entries in subjectAltName, using a
-        rudimentary glob to dns regex check to find matches
-        """
-        common_name = self._get_common_name(cert)
-        alt_names = self._get_subject_alt_names(cert)
+def get_socket_error_exception(ssl_version, exc):
+    """
+    Function which intercepts socket.error exceptions and re-throws an
+    exception with a more user-friendly message in case server doesn't support
+    requested SSL version.
+    """
+    exc_msg = str(exc)
 
-        # replace * with alphanumeric and dash
-        # replace . with literal .
-        # http://www.dns.net/dnsrd/trick.html#legal-hostnames
-        valid_patterns = [
-            re.compile('^' + pattern.replace(r".", r"\.")
-                                    .replace(r"*", r"[0-9A-Za-z\-]+") + '$')
-            for pattern in (set(common_name) | set(alt_names))]
+    # Re-throw an exception with a more friendly error message
+    if 'connection reset by peer' in exc_msg.lower():
+        ssl_version_name = SSL_CONSTANT_TO_TLS_VERSION_MAP[ssl_version]
+        msg = (UNSUPPORTED_TLS_VERSION_ERROR_MSG %
+               (exc_msg, ssl_version_name))
 
-        return any(
-            pattern.search(hostname)
-            for pattern in valid_patterns
-        )
+        # Note: In some cases arguments are (errno, message) and in
+        # other it's just (message,)
+        exc_args = getattr(exc, 'args', [])
 
-    def _get_subject_alt_names(self, cert):
-        """
-        Get SubjectAltNames
-
-        Retrieve 'subjectAltName' attributes from cert data structure
-        """
-        if 'subjectAltName' not in cert:
-            values = []
+        if len(exc_args) == 2:
+            new_exc_args = [exc.args[0], msg]
         else:
-            values = [value
-                      for field, value in cert['subjectAltName']
-                      if field == 'DNS']
-        return values
+            new_exc_args = [msg]
 
-    def _get_common_name(self, cert):
-        """
-        Get Common Name
-
-        Retrieve 'commonName' attribute from cert data structure
-        """
-        if 'subject' not in cert:
-            return None
-        values = [value[0][1]
-                  for value in cert['subject']
-                  if value[0][0] == 'commonName']
-        return values
+        new_exc = socket.error(*new_exc_args)
+        new_exc.original_exc = exc
+        return new_exc
+    else:
+        return exc

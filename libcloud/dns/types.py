@@ -23,23 +23,54 @@ __all__ = [
     'ZoneAlreadyExistsError',
     'RecordError',
     'RecordDoesNotExistError',
-    'RecordAlreadyExistsError'
+    'RecordAlreadyExistsError',
+
+    'OLD_CONSTANT_TO_NEW_MAPPING'
 ]
 
 
 class Provider(object):
-    DUMMY = 'dummy'
-    LINODE = 'linode'
-    RACKSPACE = 'rackspace'
-    ZERIGO = 'zerigo'
-    ROUTE53 = 'route53'
-    HOSTVIRTUAL = 'hostvirtual'
-    GANDI = 'gandi'
-    GOOGLE = 'google'
+    """
+    Defines for each of the supported providers
 
+    Non-Dummy drivers are sorted in alphabetical order. Please preserve this
+    ordering when adding new drivers.
+    """
+    DUMMY = 'dummy'
+    AURORADNS = 'auroradns'
+    BUDDYNS = 'buddyns'
+    CLOUDFLARE = 'cloudflare'
+    DIGITAL_OCEAN = 'digitalocean'
+    DNSIMPLE = 'dnsimple'
+    DURABLEDNS = 'durabledns'
+    GANDI = 'gandi'
+    GODADDY = 'godaddy'
+    GOOGLE = 'google'
+    HOSTVIRTUAL = 'hostvirtual'
+    LINODE = 'linode'
+    LIQUIDWEB = 'liquidweb'
+    LUADNS = 'luadns'
+    NFSN = 'nfsn'
+    NSONE = 'nsone'
+    POINTDNS = 'pointdns'
+    POWERDNS = 'powerdns'
+    RACKSPACE = 'rackspace'
+    ROUTE53 = 'route53'
+    SOFTLAYER = 'softlayer'
+    VULTR = 'vultr'
+    WORLDWIDEDNS = 'worldwidedns'
+    ZERIGO = 'zerigo'
+    ZONOMI = 'zonomi'
+    DNSPOD = 'dnspod'
     # Deprecated
     RACKSPACE_US = 'rackspace_us'
     RACKSPACE_UK = 'rackspace_uk'
+
+
+OLD_CONSTANT_TO_NEW_MAPPING = {
+    Provider.RACKSPACE_US: Provider.RACKSPACE,
+    Provider.RACKSPACE_UK: Provider.RACKSPACE,
+}
 
 
 class RecordType(object):
@@ -48,22 +79,34 @@ class RecordType(object):
     """
     A = 'A'
     AAAA = 'AAAA'
-    MX = 'MX'
-    NS = 'NS'
+    AFSDB = 'A'
+    ALIAS = 'ALIAS'
+    CERT = 'CERT'
     CNAME = 'CNAME'
     DNAME = 'DNAME'
-    TXT = 'TXT'
+    DNSKEY = 'DNSKEY'
+    DS = 'DS'
+    GEO = 'GEO'
+    HINFO = 'HINFO'
+    KEY = 'KEY'
+    LOC = 'LOC'
+    MX = 'MX'
+    NAPTR = 'NAPTR'
+    NS = 'NS'
+    NSEC = 'NSEC'
+    OPENPGPKEY = 'OPENPGPKEY'
     PTR = 'PTR'
+    REDIRECT = 'REDIRECT'
+    RP = 'RP'
+    RRSIG = 'RRSIG'
     SOA = 'SOA'
     SPF = 'SPF'
     SRV = 'SRV'
-    PTR = 'PTR'
-    NAPTR = 'NAPTR'
-    REDIRECT = 'REDIRECT'
-    GEO = 'GEO'
+    SSHFP = 'SSHFP'
+    TLSA = 'TLSA'
+    TXT = 'TXT'
     URL = 'URL'
     WKS = 'WKS'
-    LOC = 'LOC'
 
 
 class ZoneError(LibcloudError):

@@ -24,8 +24,17 @@ Usage:
 """
 
 import os
+import ssl
+
+__all__ = [
+    'VERIFY_SSL_CERT',
+    'SSL_VERSION',
+    'CA_CERTS_PATH'
+]
 
 VERIFY_SSL_CERT = True
+
+SSL_VERSION = ssl.PROTOCOL_TLSv1
 
 # File containing one or more PEM-encoded CA certificates
 # concatenated together.
@@ -47,6 +56,9 @@ CA_CERTS_PATH = [
 
     # homebrew: curl-ca-bundle (backward compatibility)
     '/usr/local/opt/curl-ca-bundle/share/ca-bundle.crt',
+
+    # opensuse/sles: openssl
+    '/etc/ssl/certs/YaST-CA.pem',
 ]
 
 # Allow user to explicitly specify which CA bundle to use, using an environment

@@ -15,7 +15,6 @@
 
 import copy
 import os
-import re
 import time
 import base64
 import hmac
@@ -32,8 +31,8 @@ except ImportError:
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.common.types import LibcloudError, MalformedResponseError
-from libcloud.common.base import ConnectionUserAndKey, RawResponse, \
-    CertificateConnection
+from libcloud.common.base import ConnectionUserAndKey, RawResponse
+from libcloud.common.base import CertificateConnection
 from libcloud.common.base import XmlResponse
 
 # Azure API version
@@ -43,17 +42,26 @@ API_VERSION = '2012-02-12'
 AZURE_TIME_FORMAT = '%a, %d %b %Y %H:%M:%S GMT'
 
 
+class AzureRedirectException(Exception):
+
+    def __init__(self, response):
+        self.location = response.headers['location']
+
+
 class AzureResponse(XmlResponse):
 
-
-    valid_response_codes = [httplib.NOT_FOUND, httplib.CONFLICT,
-                            # added TEMPORARY_REDIRECT as this can sometimes be
-                            # sent by azure instead of a success or fail response
-                            httplib.BAD_REQUEST, httplib.TEMPORARY_REDIRECT]
+    valid_response_codes = [
+        httplib.NOT_FOUND,
+        httplib.CONFLICT,
+        httplib.BAD_REQUEST,
+        httplib.TEMPORARY_REDIRECT
+        # added TEMPORARY_REDIRECT as this can sometimes be
+        # sent by azure instead of a success or fail response
+    ]
 
     def success(self):
         i = int(self.status)
-        return i >= 200 and i <= 299 or i in self.valid_response_codes
+        return 200 <= i <= 299 or i in self.valid_response_codes
 
     def parse_error(self, msg=None):
         error_msg = 'Unknown error'
@@ -63,17 +71,14 @@ class AzureResponse(XmlResponse):
             # Some APIs respond with an XML error. Others just dump HTML
             body = self.parse_body()
 
+            # pylint: disable=no-member
             if type(body) == ET.Element:
                 code = body.findtext(fixxpath(xpath='Code'))
                 message = body.findtext(fixxpath(xpath='Message'))
                 message = message.split('\n')[0]
                 error_msg = '%s: %s' % (code, message)
-            else:
-                error_txt = re.search(r"(<Message>)(.*?)(</Message>)", self.body)
-                if error_txt:
-                    error_msg = error_txt.group(2)
 
-        except:
+        except MalformedResponseError:
             pass
 
         if msg:
@@ -82,8 +87,18 @@ class AzureResponse(XmlResponse):
         if self.status in [httplib.UNAUTHORIZED, httplib.FORBIDDEN]:
             raise InvalidCredsError(error_msg)
 
-        raise LibcloudError('%s Status code: %d.' % (error_msg, self.status),
-                            driver=self)
+        raise LibcloudError(
+            '%s Status code: %d.' % (error_msg, self.status),
+            driver=self
+        )
+
+    def parse_body(self):
+        is_redirect = int(self.status) == httplib.TEMPORARY_REDIRECT
+
+        if is_redirect and self.connection.driver.follow_redirects:
+            raise AzureRedirectException(self)
+        else:
+            return super(AzureResponse, self).parse_body()
 
 
 class AzureRawResponse(RawResponse):
@@ -110,16 +125,26 @@ class AzureConnection(ConnectionUserAndKey):
 
         # Add the authorization header
         headers['Authorization'] = self._get_azure_auth_signature(
-            method=self.method, headers=headers, params=params,
-            account=self.user_id, secret_key=self.key, path=self.action)
+            method=self.method,
+            headers=headers,
+            params=params,
+            account=self.user_id,
+            secret_key=self.key,
+            path=self.action
+        )
 
         # Azure cribs about this in 'raw' connections
         headers.pop('Host', None)
 
         return params, headers
 
-    def _get_azure_auth_signature(self, method, headers, params,
-                                  account, secret_key, path='/'):
+    def _get_azure_auth_signature(self,
+                                  method,
+                                  headers,
+                                  params,
+                                  account,
+                                  secret_key,
+                                  path='/'):
         """
         Signature = Base64( HMAC-SHA1( YourSecretAccessKeyID,
                             UTF-8-Encoding-Of( StringToSign ) ) ) );
@@ -142,11 +167,19 @@ class AzureConnection(ConnectionUserAndKey):
         special_header_values = []
         xms_header_values = []
         param_list = []
-        special_header_keys = ['content-encoding', 'content-language',
-                               'content-length', 'content-md5',
-                               'content-type', 'date', 'if-modified-since',
-                               'if-match', 'if-none-match',
-                               'if-unmodified-since', 'range']
+        special_header_keys = [
+            'content-encoding',
+            'content-language',
+            'content-length',
+            'content-md5',
+            'content-type',
+            'date',
+            'if-modified-since',
+            'if-match',
+            'if-none-match',
+            'if-unmodified-since',
+            'range'
+        ]
 
         # Split the x-ms headers and normal headers and make everything
         # lower case
@@ -197,8 +230,10 @@ class AzureConnection(ConnectionUserAndKey):
 
         return 'SharedKey %s:%s' % (self.user_id, b64_hmac.decode('utf-8'))
 
+
 class AzureBaseDriver(object):
     name = "Microsoft Azure Service Management API"
+
 
 class AzureServiceManagementConnection(CertificateConnection):
     # This needs the following approach -
@@ -207,13 +242,18 @@ class AzureServiceManagementConnection(CertificateConnection):
     # 2. Depending on the type of operation use a PollingConnection
     # when the response id is returned
     # 3. The Response can be used in an AzureServiceManagementResponse
-    """Authentication class for "Service Account" authentication."""
+
+    """
+    Authentication class for "Service Account" authentication.
+    """
+
     driver = AzureBaseDriver
     responseCls = AzureResponse
     rawResponseCls = AzureRawResponse
     name = 'Azure Service Management API Connection'
     host = 'management.core.windows.net'
     keyfile = ""
+
     def __init__(self, subscription_id, key_file, *args, **kwargs):
         """
         Check to see if PyCrypto is available, and convert key file path into a
@@ -227,17 +267,21 @@ class AzureServiceManagementConnection(CertificateConnection):
         """
 
         super(AzureServiceManagementConnection, self).__init__(
-            key_file, *args, **kwargs)
+            key_file,
+            *args,
+            **kwargs
+        )
 
         self.subscription_id = subscription_id
 
         keypath = os.path.expanduser(key_file)
-        self.keyfile = keypath;
+        self.keyfile = keypath
         is_file_path = os.path.exists(keypath) and os.path.isfile(keypath)
         if not is_file_path:
             raise InvalidCredsError(
                 'You need an certificate PEM file to authenticate with '
-                'Microsoft Azure. This can be found in the portal.')
+                'Microsoft Azure. This can be found in the portal.'
+            )
         self.key_file = key_file
 
     def add_default_headers(self, headers):
@@ -247,10 +291,5 @@ class AzureServiceManagementConnection(CertificateConnection):
         """
         headers['x-ms-version'] = "2014-05-01"
         headers['x-ms-date'] = time.strftime(AZURE_TIME_FORMAT, time.gmtime())
-        #headers['host'] = self.host
+        #  headers['host'] = self.host
         return headers
-
-
-
-
-
