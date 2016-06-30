@@ -5766,6 +5766,7 @@ class GCENodeDriver(NodeDriver):
         extra['statusMessage'] = node.get('statusMessage')
         extra['description'] = node.get('description')
         extra['location'] = self.ex_get_zone(node['zone']).name
+        extra['zone'] = self.ex_get_zone(node['zone'])
         extra['image'] = node.get('image')
         extra['machineType'] = node.get('machineType').split('/')[-1]
         extra['disks'] = node.get('disks', [])
