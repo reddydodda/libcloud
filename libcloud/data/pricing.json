@@ -7,17 +7,6 @@
            "8gb": 0.45
         },
 
-        "rackspace": {
-            "1": {"linux": "$0.015/hour", "rhel": ""},
-            "2": {"linux": "$0.030/hour", "rhel": "$0.11/hour"},
-            "3": {"linux": "$0.060/hour", "mswin": "$0.08/hour", "rhel": "$0.14/hour"},
-            "4": {"linux": "$0.120/hour", "mswin": "$0.16/hour", "rhel": "$0.20/hour", "mswinSQL": "$0.88/hour", "mswinSQLWeb": "$0.22/hour"},
-            "5": {"linux": "$0.240/hour", "mswin": "$0.32/hour", "rhel": "$0.32/hour", "mswinSQL": "$1.04/hour", "mswinSQLWeb": "$0.38/hour"},
-            "6": {"linux": "$0.480/hour", "mswin": "$0.58/hour", "rhel": "$0.56/hour", "mswinSQL": "$1.30/hour", "mswinSQLWeb": "$0.64/hour"},
-            "7": {"linux": "$0.960/hour", "mswin": "$1.08/hour", "rhel": "$1.11/hour", "mswinSQL": "$1.80/hour", "mswinSQLWeb": "$1.14/hour"},
-            "8": {"linux": "$1.800/hour", "mswin": "$2.16/hour", "rhel": "$1.95/hour", "mswinSQL": "$3.24/hour", "mswinSQLWeb": "$2.25/hour"}
-        },
-
         "rackspacenovadfw": {
             "general1-8": {"redhat": 0.446, "windows": 0.376, "mssql-web": 0.496, "vyatta": 0.476, "mssql-standard": 1.576, "linux": 0.296},
             "io1-90": {"redhat": 3.48, "windows": 4.05, "mssql-web": 4.41, "vyatta": 3.5100000000000002, "mssql-standard": 7.3500000000000005, "linux": 3.33},
