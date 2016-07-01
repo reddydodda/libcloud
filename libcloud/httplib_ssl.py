@@ -240,6 +240,7 @@ class LibcloudHTTPSConnection(httplib.HTTPSConnection, LibcloudBaseConnection):
         inherited httplib.HTTPSConnection connect()
         """
         self.verify = libcloud.security.VERIFY_SSL_CERT
+        self.verify_match_hostname = libcloud.security.VERIFY_MATCH_HOSTNAME
 
         if self.verify:
             self._setup_ca_cert()
@@ -307,11 +308,12 @@ class LibcloudHTTPSConnection(httplib.HTTPSConnection, LibcloudBaseConnection):
             raise exc
 
         cert = self.sock.getpeercert()
-        try:
-            match_hostname(cert, self.host)
-        except CertificateError:
-            e = sys.exc_info()[1]
-            raise ssl.SSLError('Failed to verify hostname: %s' % (str(e)))
+        if self.verify_match_hostname:
+            try:
+                match_hostname(cert, self.host)
+            except CertificateError:
+                e = sys.exc_info()[1]
+                raise ssl.SSLError('Failed to verify hostname: %s' % (str(e)))
 
 
 def get_socket_error_exception(ssl_version, exc):

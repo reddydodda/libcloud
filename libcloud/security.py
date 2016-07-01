@@ -28,11 +28,13 @@ import ssl
 
 __all__ = [
     'VERIFY_SSL_CERT',
+    'VERIFY_MATCH_HOSTNAME',
     'SSL_VERSION',
     'CA_CERTS_PATH'
 ]
 
 VERIFY_SSL_CERT = True
+VERIFY_MATCH_HOSTNAME = True
 
 SSL_VERSION = ssl.PROTOCOL_TLSv1
 
