@@ -121,10 +121,17 @@ class DockerNodeDriver(NodeDriver):
     features = {'create_node': ['password']}
 
     def __init__(self, key=None, secret=None, host='localhost',
-                 port=4243, secure=False, key_file=None, cert_file=None):
+                 port=4243, secure=False, key_file=None, cert_file=None,
+                 ca_cert=None, verify_match_hostname=False):
 
-        super(DockerNodeDriver, self).__init__(key=key, secret=secret,
-                                               host=host, port=port, secure=secure, key_file=key_file, cert_file=cert_file)
+        super(DockerNodeDriver,
+              self).__init__(key=key, secret=secret,
+                             host=host, port=port,
+                             secure=secure,
+                             key_file=key_file,
+                             cert_file=cert_file,
+                             ca_cert=ca_cert,
+                             verify_match_hostname=verify_match_hostname)
         if host.startswith('https://'):
             secure = True
 
@@ -143,6 +150,9 @@ class DockerNodeDriver(NodeDriver):
             self.connection.key_file = key_file
             self.connection.cert_file = cert_file
             self.connection.secure = True
+            if ca_cert:
+                self.connection.ca_cert = ca_cert
+            self.connection.verify_match_hostname = verify_match_hostname
         else:
             self.connection.secure = secure
 

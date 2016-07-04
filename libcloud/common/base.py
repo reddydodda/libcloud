@@ -658,6 +658,12 @@ class Connection(object):
         if not hasattr(kwargs, 'cert_file') and hasattr(self, 'cert_file'):
             kwargs.update({'cert_file': self.cert_file})
 
+        if not hasattr(kwargs, 'ca_cert') and hasattr(self, 'ca_cert'):
+            kwargs.update({'ca_cert': self.ca_cert})
+
+        if not hasattr(kwargs, 'verify_match_hostname') and hasattr(self, 'verify_match_hostname'):
+            kwargs.update({'verify_match_hostname': self.verify_match_hostname})
+
         #  kwargs = {'host': host, 'port': int(port)}
 
         # Timeout is only supported in Python 2.6 and later

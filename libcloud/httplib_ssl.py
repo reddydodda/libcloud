@@ -225,6 +225,9 @@ class LibcloudHTTPSConnection(httplib.HTTPSConnection, LibcloudBaseConnection):
         # Support for HTTP proxy
         proxy_url_env = os.environ.get(HTTP_PROXY_ENV_VARIABLE_NAME, None)
         proxy_url = kwargs.pop('proxy_url', proxy_url_env)
+        if kwargs.get('ca_cert'):
+            self.ca_cert = kwargs.pop('ca_cert', None)
+        self.verify_match_hostname = kwargs.pop('verify_match_hostname', True)
 
         super(LibcloudHTTPSConnection, self).__init__(*args, **kwargs)
 
