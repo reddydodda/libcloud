@@ -413,7 +413,8 @@ class VCloudConnection(ConnectionUserAndKey):
     def _get_auth_token(self):
         if not self.token:
             conn = self.conn_classes[self.secure](self.host,
-                                                  self.port)
+                                                  self.port,
+                                                  verify_match_hostname=self.verify_match_hostname)
             conn.request(method='POST', url='/api/v0.8/login',
                          headers=self._get_auth_headers())
 
@@ -1002,7 +1003,7 @@ class VCloud_1_5_Connection(VCloudConnection):
         if not self.token:
             # Log In
             conn = self.conn_classes[self.secure](self.host,
-                                                  self.port)
+                                                  self.port, verify_match_hostname=self.verify_match_hostname)
             conn.request(method='POST', url='/api/sessions',
                          headers=self._get_auth_headers())
 

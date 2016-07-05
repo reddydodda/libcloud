@@ -534,7 +534,7 @@ class Connection(object):
     allow_insecure = True
 
     def __init__(self, secure=True, host=None, port=None, url=None,
-                 timeout=None, proxy_url=None, retry_delay=None, backoff=None):
+                 timeout=None, proxy_url=None, retry_delay=None, backoff=None, verify_match_hostname=True):
         self.secure = secure and 1 or 0
         self.ua = []
         self.context = {}
@@ -566,6 +566,7 @@ class Connection(object):
         self.retry_delay = retry_delay
         self.backoff = backoff
         self.proxy_url = proxy_url
+        self.verify_match_hostname = verify_match_hostname
 
     def set_http_proxy(self, proxy_url):
         """
@@ -632,7 +633,6 @@ class Connection(object):
         secure = self.secure
 
         # pylint: disable=no-member
-
         if getattr(self, 'base_url', None) and base_url is None:
             (host, port,
              secure, request_path) = self._tuple_from_url(self.base_url)
@@ -1057,7 +1057,8 @@ class ConnectionKey(Connection):
     Base connection class which accepts a single ``key`` argument.
     """
     def __init__(self, key, secure=True, host=None, port=None, url=None,
-                 timeout=None, proxy_url=None, backoff=None, retry_delay=None):
+                 timeout=None, proxy_url=None, backoff=None, retry_delay=None,
+                 verify_match_hostname=True):
         """
         Initialize `user_id` and `key`; set `secure` to an ``int`` based on
         passed value.
@@ -1067,7 +1068,8 @@ class ConnectionKey(Connection):
                                             timeout=timeout,
                                             proxy_url=proxy_url,
                                             backoff=backoff,
-                                            retry_delay=retry_delay)
+                                            retry_delay=retry_delay,
+                                            verify_match_hostname=verify_match_hostname)
         self.key = key
 
 
@@ -1076,7 +1078,8 @@ class CertificateConnection(Connection):
     Base connection class which accepts a single ``cert_file`` argument.
     """
     def __init__(self, cert_file, secure=True, host=None, port=None, url=None,
-                 proxy_url=None, timeout=None, backoff=None, retry_delay=None):
+                 proxy_url=None, timeout=None, backoff=None, retry_delay=None,
+                 verify_match_hostname=True):
         """
         Initialize `cert_file`; set `secure` to an ``int`` based on
         passed value.
@@ -1086,7 +1089,8 @@ class CertificateConnection(Connection):
                                                     timeout=timeout,
                                                     backoff=backoff,
                                                     retry_delay=retry_delay,
-                                                    proxy_url=proxy_url)
+                                                    proxy_url=proxy_url,
+                                                    verify_match_hostname=verify_match_hostname)
 
         self.cert_file = cert_file
 
@@ -1100,13 +1104,14 @@ class ConnectionUserAndKey(ConnectionKey):
 
     def __init__(self, user_id, key, secure=True, host=None, port=None,
                  url=None, timeout=None, proxy_url=None,
-                 backoff=None, retry_delay=None):
+                 backoff=None, retry_delay=None, verify_match_hostname=True):
         super(ConnectionUserAndKey, self).__init__(key, secure=secure,
                                                    host=host, port=port,
                                                    url=url, timeout=timeout,
                                                    backoff=backoff,
                                                    retry_delay=retry_delay,
-                                                   proxy_url=proxy_url)
+                                                   proxy_url=proxy_url,
+                                                   verify_match_hostname=verify_match_hostname)
         self.user_id = user_id
 
 
@@ -1180,6 +1185,13 @@ class BaseDriver(object):
             if value is not None or kwarg_name not in conn_kwargs:
                 conn_kwargs[kwarg_name] = value
 
+        # We want to pass verify_match_hostname on Connection objects but since
+        # some drivers initiate their own Connections, we either have to add this
+        # to all these drivers or make sure it is passed only to those that
+        # initiate the driver with verify_match_hostname kwarg
+        verify_match_hostname = kwargs.pop('verify_match_hostname', None)
+        if verify_match_hostname in [False, True]:
+            conn_kwargs['verify_match_hostname'] = verify_match_hostname
         self.connection = self.connectionCls(*args, **conn_kwargs)
 
         self.connection.driver = self
