@@ -200,7 +200,7 @@ class LibcloudHTTPConnection(httplib.HTTPConnection, LibcloudBaseConnection):
         # Support for HTTP proxy
         proxy_url_env = os.environ.get(HTTP_PROXY_ENV_VARIABLE_NAME, None)
         proxy_url = kwargs.pop('proxy_url', proxy_url_env)
-
+        self.verify_match_hostname = kwargs.pop('verify_match_hostname', True)
         super(LibcloudHTTPConnection, self).__init__(*args, **kwargs)
 
         if proxy_url:
