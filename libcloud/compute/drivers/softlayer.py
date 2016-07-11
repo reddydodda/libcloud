@@ -167,6 +167,23 @@ for i, template in enumerate(SL_BASE_TEMPLATES):
     local['local_disk'] = True
     SL_TEMPLATES[i] = local
 
+# Virtual Server ram prices
+
+VS_RAM_PRICES = {
+    1024: 0.015,
+    2048: 0.03,
+    4096: 0.06,
+    6144: 0.87,
+    8192: 0.115,
+    12288: 0.163,
+    16384: 0.211,
+    32768: 0.356,
+    49152: 0.476,
+    65536: 0.597,
+    131072: 0.934,
+    247808: 1.278
+}
+
 
 class SoftLayerException(LibcloudError):
     """
