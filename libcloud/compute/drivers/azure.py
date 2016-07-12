@@ -36,6 +36,8 @@ from libcloud.compute.base import NodeImage, StorageVolume
 from libcloud.compute.base import KeyPair
 from libcloud.compute.types import NodeState
 from libcloud.common.types import LibcloudError
+from libcloud.pricing import get_size_price
+
 from datetime import datetime
 from xml.dom import minidom
 from xml.sax.saxutils import escape as xml_escape
@@ -72,7 +74,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 768,
         'disk': 20,
         'bandwidth': None,
-        'price': '$0.02/hr',
         'max_data_disks': None,
         'cores': '1'
     },
@@ -82,7 +83,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 1792,
         'disk': 70,
         'bandwidth': None,
-        'price': '$0.06/hr',
         'max_data_disks': None,
         'cores': 1
     },
@@ -92,7 +92,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 3584,
         'disk': 135,
         'bandwidth': None,
-        'price': '$0.12/hr',
         'max_data_disks': None,
         'cores': 2
     },
@@ -102,7 +101,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 7168,
         'disk': 285,
         'bandwidth': None,
-        'price': '$0.24/hr',
         'max_data_disks': None,
         'cores': 4
     },
@@ -112,7 +110,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 14336,
         'disk': 605,
         'bandwidth': None,
-        'price': '$0.48/hr',
         'max_data_disks': None,
         'cores': 8
     },
@@ -122,7 +119,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 14336,
         'disk': 135,
         'bandwidth': None,
-        'price': '$0.25/hr',
         'max_data_disks': None,
         'cores': 2
     },
@@ -132,7 +128,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 28672,
         'disk': 285,
         'bandwidth': None,
-        'price': '$0.50/hr',
         'max_data_disks': None,
         'cores': 4
     },
@@ -142,7 +137,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 57344,
         'disk': 605,
         'bandwidth': None,
-        'price': '$1/hr',
         'max_data_disks': None,
         'cores': 8
     },
@@ -152,7 +146,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 57344,
         'disk': 382,
         'bandwidth': None,
-        'price': '$1.97/hr',
         'max_data_disks': None,
         'cores': 8
     },
@@ -162,7 +155,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 114688,
         'disk': 382,
         'bandwidth': None,
-        'price': '$4.47/hr',
         'max_data_disks': None,
         'cores': 16
     },
@@ -172,7 +164,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 768,
         'disk': 20.00,
         'bandwidth': None,
-        'price': '$0.018/hr',
         'max_data_disks': None,
         'cores': 1
     },
@@ -182,7 +173,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 1792,
         'disk': 40.00,
         'bandwidth': None,
-        'price': '$0.047/hr',
         'max_data_disks': None,
         'cores': 1
     },
@@ -192,7 +182,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 3584,
         'disk': 60.00,
         'bandwidth': None,
-        'price': '$0.094/hr',
         'max_data_disks': None,
         'cores': 2
     },
@@ -202,7 +191,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 7168,
         'disk': 120.00,
         'bandwidth': None,
-        'price': '$0.188/hr',
         'max_data_disks': None,
         'cores': 4
     },
@@ -212,7 +200,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 14336,
         'disk': 240.00,
         'bandwidth': None,
-        'price': '$0.376/hr',
         'max_data_disks': None,
         'cores': 8
     },
@@ -222,9 +209,8 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 3584,
         'disk': 127,
         'bandwidth': None,
-        'price': None,
         'max_data_disks': None,
-        'cores': 8
+        'cores': 1
     },
     {
         'id': 'Standard_D2',
@@ -232,9 +218,8 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 7168,
         'disk': 102,
         'bandwidth': None,
-        'price': None,
         'max_data_disks': None,
-        'cores': 8
+        'cores': 2
     },
     {
         'id': 'Standard_D3',
@@ -242,9 +227,8 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 14336,
         'disk': 256,
         'bandwidth': None,
-        'price': None,
         'max_data_disks': None,
-        'cores': 8
+        'cores': 4
     },
     {
         'id': 'Standard_D4',
@@ -252,7 +236,6 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'ram': 28672,
         'disk': 512,
         'bandwidth': None,
-        'price': None,
         'max_data_disks': None,
         'cores': 8
     },
@@ -260,29 +243,26 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'id': 'Standard_D11',
         'name': 'Standard_D11 (2 cores, 14336 MB)',
         'ram': 14336,
-        'disk': 102,
+        'disk': 100,
         'bandwidth': None,
-        'price': None,
         'max_data_disks': None,
-        'cores': 8
+        'cores': 2
     },
     {
         'id': 'Standard_D12',
         'name': 'Standard_D12 (4 cores, 28672 MB)',
         'ram': 28672,
-        'disk': 256,
+        'disk': 200,
         'bandwidth': None,
-        'price': None,
         'max_data_disks': None,
-        'cores': 8
+        'cores': 4
     },
     {
         'id': 'Standard_D13',
         'name': 'Standard_D13 (8 cores, 57344 MB)',
         'ram': 57344,
-        'disk': 512,
+        'disk': 400,
         'bandwidth': None,
-        'price': None,
         'max_data_disks': None,
         'cores': 8
     },
@@ -290,12 +270,149 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'id': 'Standard_D14',
         'name': 'Standard_D14 (16 cores, 114688 MB)',
         'ram': 114688,
-        'disk': 1024,
+        'disk': 800,
         'bandwidth': None,
-        'price': None,
+        'max_data_disks': None,
+        'cores': 16
+    },
+
+
+    {
+        'id': 'Standard_D1_v2',
+        'name': 'Standard_D1_v2 (1 cores, 3584 MB)',
+        'ram': 3584,
+        'disk': 50,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 1
+    },
+    {
+        'id': 'Standard_D2_v2',
+        'name': 'Standard_D2_v2 (2 cores, 7168 MB)',
+        'ram': 7168,
+        'disk': 102,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 2
+    },
+    {
+        'id': 'Standard_D3_v2',
+        'name': 'Standard_D3_v2 (4 cores, 14336 MB)',
+        'ram': 14336,
+        'disk': 256,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 4
+    },
+    {
+        'id': 'Standard_D4_v2',
+        'name': 'Standard_D4_v2 (8 cores, 28672 MB)',
+        'ram': 28672,
+        'disk': 512,
+        'bandwidth': None,
         'max_data_disks': None,
         'cores': 8
-    }
+    },
+    {
+        'id': 'Standard_D5_v2',
+        'name': 'Standard_D5_v2 (16 cores, 57344 MB)',
+        'ram': 57344,
+        'disk': 100,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 16
+    },
+
+    {
+        'id': 'Standard_D11_v2',
+        'name': 'Standard_D11_v2 (2 cores, 14336 MB)',
+        'ram': 14336,
+        'disk': 100,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 2
+    },
+    {
+        'id': 'Standard_D12_v2',
+        'name': 'Standard_D12_v2 (4 cores, 28672 MB)',
+        'ram': 28672,
+        'disk': 200,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 4
+    },
+    {
+        'id': 'Standard_D13_v2',
+        'name': 'Standard_D13_v2 (8 cores, 57344 MB)',
+        'ram': 57344,
+        'disk': 400,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 8
+    },
+    {
+        'id': 'Standard_D14_v2',
+        'name': 'Standard_D14_v2 (16 cores, 114688 MB)',
+        'ram': 114688,
+        'disk': 800,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 16
+    },
+    {
+        'id': 'Standard_D15_v2',
+        'name': 'Standard_D15_v2 (20 cores, 140000 MB)',
+        'ram': 114688,
+        'disk': 1000,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 20
+    },
+    {
+        'id': 'F1',
+        'name': 'F1 (1 core, 2000 MB)',
+        'ram': 2000,
+        'disk': 16,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 1
+    },
+    {
+        'id': 'F2',
+        'name': 'F2 (2 cores, 4000 MB)',
+        'ram': 4000,
+        'disk': 32,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 2
+    },
+    {
+        'id': 'F4',
+        'name': 'F4 (4 cores, 8000 MB)',
+        'ram': 8000,
+        'disk': 64,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 4
+    },
+    {
+        'id': 'F8',
+        'name': 'F8 (8 cores, 16000 MB)',
+        'ram': 16000,
+        'disk': 128,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 8
+    },
+    {
+        'id': 'F16',
+        'name': 'F16 (16 cores, 32000 MB)',
+        'ram': 32000,
+        'disk': 256,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 16
+    },
 ]
 
 _KNOWN_SERIALIZATION_XFORMS = {
@@ -359,6 +476,14 @@ class AzureNodeDriver(NodeDriver):
         self.key_file = key_file
         super(AzureNodeDriver, self).__init__(self.subscription_id, self.key_file,
                                               secure=True, **kwargs)
+
+    def _get_size_price(self, size_id):
+        """
+        Return pricing information for the provided size id.
+        """
+        return get_size_price(driver_type='compute',
+                              driver_name='azure',
+                              size_id=size_id)
 
     def ex_list_cloud_services(self):
         """
@@ -1169,7 +1294,7 @@ class AzureNodeDriver(NodeDriver):
             ram=data["ram"],
             disk=data["disk"],
             bandwidth=data["bandwidth"],
-            price=data["price"],
+            price = self._get_size_price(size_id=data["id"]),
             driver=self.connection.driver,
             extra={
                 'max_data_disks': data["max_data_disks"],
@@ -3071,3 +3196,5 @@ class AzureNodeLocation(NodeLocation):
                 % (self.id, self.name, self.country,
                    self.driver.name, ','.join(self.available_services),
                    ','.join(self.virtual_machine_role_sizes)))
+
+
