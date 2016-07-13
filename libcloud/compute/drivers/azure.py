@@ -159,6 +159,24 @@ AZURE_COMPUTE_INSTANCE_TYPES = [
         'cores': 16
     },
     {
+        'id': 'A10',
+        'name': 'A10 (8 cores, 56000 MB)',
+        'ram': 56000,
+        'disk': 382,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 8
+    },
+    {
+        'id': 'A11',
+        'name': 'A11 (16 cores, 112000 MB)',
+        'ram': 112000,
+        'disk': 382,
+        'bandwidth': None,
+        'max_data_disks': None,
+        'cores': 16
+    },
+    {
         'id': 'Basic_A0',
         'name': 'Basic_A0 (1 cores, 768 MB)',
         'ram': 768,

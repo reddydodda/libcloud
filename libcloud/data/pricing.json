@@ -1175,8 +1175,11 @@
             "A5": {"linux": "0.248", "windows": "0.30"},
             "A6": {"linux": "0.496", "windows": "0.60"},
             "A7": {"linux": "0.992", "windows": "1.20"},
-            "A8": {"linux": "", "windows": ""},
-            "A9": {"linux": "", "windows": ""},
+            "A8": {"linux": "0.975", "windows": "1.35"},
+            "A9": {"linux": "1.95", "windows": "2.70"},
+            "A10": {"linux": "0.78", "windows": "1.08"},
+            "A11": {"linux": "1.56", "windows": "2.16"},
+
             "Basic_A0": {"linux": "0.018", "windows": "0.018"},
             "Basic_A1": {"linux": "0.047", "windows": "0.075"},
             "Basic_A2": {"linux": "0.094", "windows": "0.15"},
