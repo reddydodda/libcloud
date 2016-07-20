@@ -625,7 +625,7 @@ class AzureNodeDriver(NodeDriver):
             for node in nodes:
                 node.extra['cloud_service_name'] = ex_cloud_service_name
                 node.extra['location'] = data.hosted_service_properties.location
-                node.created = data.deployments[0].created_time
+                node.created_at = data.deployments[0].created_time
             return nodes
         except IndexError:
             return []
