@@ -541,6 +541,7 @@ class DockerNodeDriver(NodeDriver):
                      public_ips=public_ips,
                      private_ips=private_ips,
                      driver=self.connection.driver,
+                     created_at=data.get('Created'),
                      extra=extra))
         return node
 

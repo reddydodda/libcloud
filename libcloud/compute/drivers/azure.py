@@ -621,6 +621,7 @@ class AzureNodeDriver(NodeDriver):
         try:
             nodes = [self._to_node(n) for n in
                     data.deployments[0].role_instance_list]
+
             for node in nodes:
                 node.extra['cloud_service_name'] = ex_cloud_service_name
                 node.extra['location'] = data.hosted_service_properties.location
