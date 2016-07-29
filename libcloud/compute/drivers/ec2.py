@@ -2501,6 +2501,7 @@ class EC2Connection(SignedAWSConnection):
     host = REGION_DETAILS['us-east-1']['endpoint']
     responseCls = EC2Response
     service_name = 'ec2'
+    timeout = 20
 
 
 class ExEC2AvailabilityZone(object):
