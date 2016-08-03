@@ -297,14 +297,8 @@ class DockerNodeDriver(NodeDriver):
         """
         Start a container
         """
-
-        payload = {
-            'Binds': [],
-            'PublishAllPorts': True,
-        }
-        data = json.dumps(payload)
         result = self.connection.request('/containers/%s/start' % (node.id),
-                                         method='POST', data=data)
+                                         method='POST')
         return result.status in VALID_RESPONSE_CODES
 
     def ex_stop_node(self, node):
