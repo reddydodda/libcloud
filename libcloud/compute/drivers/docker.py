@@ -32,6 +32,7 @@ except:
 from libcloud.utils.py3 import httplib
 from libcloud.utils.py3 import b
 from libcloud.utils.networking import is_private_subnet
+from libcloud.utils.networking import is_public_subnet
 
 from libcloud.compute.providers import Provider
 from libcloud.common.base import JsonResponse, ConnectionUserAndKey
@@ -195,7 +196,7 @@ class DockerNodeDriver(NodeDriver):
                 driver=self)]
         )
 
-    def list_nodes(self, show_all=True):
+    def list_nodes(self, show_all=True, show_host=True):
         """
         List running and stopped containers
         show_all=False will show only running containers
@@ -209,6 +210,27 @@ class DockerNodeDriver(NodeDriver):
             raise
 
         nodes = [self._to_node(value) for value in result]
+        if show_host:
+            # append docker host as well
+
+            public_ips, private_ips = [], []
+
+            host = self.connection.host
+
+            try:
+                if is_public_subnet(socket.gethostbyname(host)):
+                    public_ips.append(host)
+                else:
+                    private_ips.append(host)
+            except:
+                public_ips.append(host)
+
+            extra = {}
+            node = Node(id=host, name=host, state=NodeState.RUNNING,
+                        public_ips=public_ips, private_ips=private_ips,
+                        driver=self, extra=extra)
+            nodes.append(node)
+
         return nodes
 
     def inspect_node(self, node):
