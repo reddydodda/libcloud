@@ -32,7 +32,6 @@ except:
 from libcloud.utils.py3 import httplib
 from libcloud.utils.py3 import b
 from libcloud.utils.networking import is_private_subnet
-from libcloud.utils.networking import is_public_subnet
 
 from libcloud.compute.providers import Provider
 from libcloud.common.base import JsonResponse, ConnectionUserAndKey
@@ -123,14 +122,7 @@ class DockerNodeDriver(NodeDriver):
 
     def __init__(self, key=None, secret=None, host='localhost',
                  port=4243, secure=False, key_file=None, cert_file=None,
-                 ca_cert=None, verify_match_hostname=False, docker_host=None):
-        """
-        :param host: IP address or hostname to connect to (usually the
-        address of the docker host)
-        :param docker_host: the IP address of the docker host. Useful in case
-        `host` has been substituted by a middleware
-        """
-        host = docker_host if docker_host else host
+                 ca_cert=None, verify_match_hostname=False):
 
         super(DockerNodeDriver,
               self).__init__(key=key, secret=secret,
@@ -163,6 +155,7 @@ class DockerNodeDriver(NodeDriver):
             self.connection.verify_match_hostname = verify_match_hostname
         else:
             self.connection.secure = secure
+
         self.connection.host = host
         self.connection.port = port
 
@@ -196,7 +189,7 @@ class DockerNodeDriver(NodeDriver):
                 driver=self)]
         )
 
-    def list_nodes(self, show_all=True, show_host=True):
+    def list_nodes(self, show_all=True):
         """
         List running and stopped containers
         show_all=False will show only running containers
@@ -210,27 +203,6 @@ class DockerNodeDriver(NodeDriver):
             raise
 
         nodes = [self._to_node(value) for value in result]
-        if show_host:
-            # append docker host as well
-
-            public_ips, private_ips = [], []
-
-            host = self.connection.host
-
-            try:
-                if is_public_subnet(socket.gethostbyname(host)):
-                    public_ips.append(host)
-                else:
-                    private_ips.append(host)
-            except:
-                public_ips.append(host)
-
-            extra = {}
-            node = Node(id=host, name=host, state=NodeState.RUNNING,
-                        public_ips=public_ips, private_ips=private_ips,
-                        driver=self, extra=extra)
-            nodes.append(node)
-
         return nodes
 
     def inspect_node(self, node):
