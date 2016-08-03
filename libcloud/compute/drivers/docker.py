@@ -409,15 +409,8 @@ class DockerNodeDriver(NodeDriver):
 
         id_ = result.object['Id']
 
-        payload = {
-            'Binds': [],
-            'PublishAllPorts': True,
-            'PortBindings': port_bindings,
-        }
-
-        data = json.dumps(payload)
         result = self.connection.request(
-            '/containers/%s/start' % id_, data=data,
+            '/containers/%s/start' % id_,
             method='POST')
 
         return Node(id=id_, name=id_, state=NodeState.RUNNING,
