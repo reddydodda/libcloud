@@ -225,7 +225,7 @@ class DockerNodeDriver(NodeDriver):
             except:
                 public_ips.append(host)
 
-            extra = {}
+            extra = {'tags': {'type': 'docker_host'}}
             node = Node(id=host, name=host, state=NodeState.RUNNING,
                         public_ips=public_ips, private_ips=private_ips,
                         driver=self, extra=extra)
