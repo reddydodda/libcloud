@@ -31,8 +31,7 @@ except:
 
 from libcloud.utils.py3 import httplib
 from libcloud.utils.py3 import b
-from libcloud.utils.networking import is_private_subnet
-from libcloud.utils.networking import is_public_subnet
+from libcloud.utils.networking import is_private_subnet, is_public_subnet
 
 from libcloud.compute.providers import Provider
 from libcloud.common.base import JsonResponse, ConnectionUserAndKey
@@ -124,6 +123,7 @@ class DockerNodeDriver(NodeDriver):
     def __init__(self, key=None, secret=None, host='localhost',
                  port=4243, secure=False, key_file=None, cert_file=None,
                  ca_cert=None, verify_match_hostname=False, docker_host=None):
+
         """
         :param host: IP address or hostname to connect to (usually the
         address of the docker host)
@@ -163,6 +163,7 @@ class DockerNodeDriver(NodeDriver):
             self.connection.verify_match_hostname = verify_match_hostname
         else:
             self.connection.secure = secure
+
         self.connection.host = host
         self.connection.port = port
 
@@ -210,6 +211,7 @@ class DockerNodeDriver(NodeDriver):
             raise
 
         nodes = [self._to_node(value) for value in result]
+
         if show_host:
             # append docker host as well
 
