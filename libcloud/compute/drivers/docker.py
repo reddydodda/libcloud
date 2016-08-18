@@ -124,16 +124,20 @@ class DockerNodeDriver(NodeDriver):
                  secure=False, key_file=None, cert_file=None, ca_cert=None,
                  verify_match_hostname=False, docker_host=None):
         """
-        :param key:
-        :param secret:
+        :param key: username, when using http basic auth protected host
+        :param secret: password, when using http basic auth protected host
         :param host: IP address or hostname to connect to (usually the address
         of the docker host)
-        :param port:
-        :param secure:
-        :param key_file:
-        :param cert_file:
-        :param ca_cert:
-        :param verify_match_hostname:
+        :param port: the docker host port to connect, eg 2376
+        :param secure: if connecting to https this should be True
+        :param key_file: the private key for the docker client certificate, when
+        connecting through docker tls authentication
+        :param cert_file: the docker server certificate file, when
+        connecting through docker tls authentication
+        :param ca_cert: the CA certificate file, when
+        connecting through docker tls authentication
+        :param verify_match_hostname: whether to check if the CN matches the certificate.
+        If using self signed certificate, need to be False, otherwise connection will fail
         :param docker_host: the IP address of the docker host. Useful in case
         `host` has been substituted by a middleware
         :return:
@@ -209,6 +213,8 @@ class DockerNodeDriver(NodeDriver):
         """
         List running and stopped containers
         show_all=False will show only running containers
+        show_host=True will also show the docker host along
+        with the containers
         """
         try:
             result = self.connection.request("/containers/json?all=%s" %
