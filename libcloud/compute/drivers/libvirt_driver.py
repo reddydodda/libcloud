@@ -43,8 +43,8 @@ try:
     import libvirt
     have_libvirt = True
 except ImportError:
-    raise RuntimeError('Missing "libvirt" dependency. You can install it '
-                       'using pip. For example ./bin/pip install libvirt-python ')
+    raise RuntimeError('Missing "libvirt" dependency. You can install it using '
+                       'pip. For example ./bin/pip install libvirt-python')
 
 ALLOW_LIBVIRT_LOCALHOST = False
 IMAGES_LOCATION = "/var/lib/libvirt/images"
@@ -53,10 +53,10 @@ IMAGES_LOCATION = "/var/lib/libvirt/images"
 LIBCLOUD_DIRECTORY = "/var/lib/libvirt/libcloud"
 
 # disk image types to create VMs from
-DISK_IMAGE_TYPES = ('.img','.raw','.qcow','.qcow2')
+DISK_IMAGE_TYPES = ('.img', '.raw', '.qcow', '.qcow2')
 
 # increase default timeout for libvirt connection
-libvirt_connection_timeout = 2*60
+libvirt_connection_timeout = 2 * 60
 
 
 class LibvirtNodeDriver(NodeDriver):
@@ -106,7 +106,8 @@ class LibvirtNodeDriver(NodeDriver):
             if ALLOW_LIBVIRT_LOCALHOST:
                 uri = 'qemu:///system'
             else:
-                raise Exception("In order to connect to local libvirt enable ALLOW_LIBVIRT_LOCALHOST variable")
+                raise Exception("In order to connect to local libvirt enable "
+                                "ALLOW_LIBVIRT_LOCALHOST variable")
         else:
             if ssh_key:
                 # if ssh key is string create temp file
@@ -119,7 +120,8 @@ class LibvirtNodeDriver(NodeDriver):
                 else:
                     self.secret = ssh_key
                 # ssh connection
-                # initially attempt to connect to host/port and raise exception on failure
+                # initially attempt to connect to host/port and raise
+                # exception on failure
                 try:
                     socket.setdefaulttimeout(15)
                     so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -137,30 +139,35 @@ class LibvirtNodeDriver(NodeDriver):
                     so.connect((host, tcp_port))
                     so.close()
                 except:
-                    raise Exception("If you don't specify an ssh key, libvirt will try to connect to port 5000 through qemu+tcp")
+                    raise Exception("If you don't specify an ssh key, libvirt "
+                                    "will try to connect to port 5000 through "
+                                    "qemu+tcp")
 
                 uri = 'qemu+tcp://%s:%s/system' % (host, tcp_port)
 
         self._uri = uri
-        self.key = user
-        self.host = hypervisor if hypervisor else host
+        self.host = host
+        self.hypervisor = hypervisor if hypervisor else host
         self.ssh_port = ssh_port
+        self.key = user
 
         try:
             signal.signal(signal.SIGALRM, self.timeout_handler)
             signal.alarm(libvirt_connection_timeout)
             self.connection = libvirt.open(uri)
-            signal.alarm(0)      # Disable the alarm
+            signal.alarm(0)  # Disable the alarm
         except Exception as exc:
-            signal.alarm(0)      # Disable the alarm
+            signal.alarm(0)  # Disable the alarm
             if 'Could not resolve' in exc.message:
                 raise Exception("Make sure hostname is accessible")
             if 'Connection refused' in exc.message:
-                raise Exception("Make sure hostname is accessible and libvirt is running")
+                raise Exception("Make sure hostname is accessible and libvirt "
+                                "is running")
             if 'Permission denied' in exc.message:
                 raise Exception("Make sure ssh key and username are valid")
             if 'End of file while reading data' in exc.message:
-                raise Exception("Make sure libvirt is running and user %s is authorised to connect" % user)
+                raise Exception("Make sure libvirt is running and user %s is "
+                                "authorised to connect" % user)
             raise Exception("Connection error")
 
             atexit.register(self.disconnect)
@@ -189,7 +196,8 @@ class LibvirtNodeDriver(NodeDriver):
         domain_ids = self.connection.listDomainsID()
         domains = [self.connection.lookupByID(id) for id in domain_ids]
         # non active domains
-        inactive_domains = map(self.connection.lookupByName, self.connection.listDefinedDomains())
+        inactive_domains = map(self.connection.lookupByName,
+                               self.connection.listDefinedDomains())
         domains.extend(inactive_domains)
 
         # get the arp table of the hypervisor. Try to connect with provided
@@ -210,15 +218,15 @@ class LibvirtNodeDriver(NodeDriver):
             # append hypervisor as well
             name = self.connection.getHostname()
             try:
-                if is_public_subnet(socket.gethostbyname(self.host)):
-                    public_ips.append(self.host)
+                if is_public_subnet(socket.gethostbyname(self.hypervisor)):
+                    public_ips.append(self.hypervisor)
                 else:
-                    private_ips.append(self.host)
+                    private_ips.append(self.hypervisor)
             except:
-                public_ips.append(self.host)
+                public_ips.append(self.hypervisor)
 
             extra = {'tags': {'type': 'hypervisor'}}
-            node = Node(id=self.host, name=name, state=NodeState.RUNNING,
+            node = Node(id=self.hypervisor, name=name, state=NodeState.RUNNING,
                         public_ips=public_ips, private_ips=private_ips,
                         driver=self, extra=extra)
             nodes.append(node)
@@ -262,7 +270,6 @@ class LibvirtNodeDriver(NodeDriver):
                     driver=self, extra=extra)
         node._uuid = domain.UUIDString()  # we want to use a custom UUID
         return node
-
 
     def _get_ip_addresses_for_domain(self, domain):
         """
@@ -313,7 +320,7 @@ class LibvirtNodeDriver(NodeDriver):
         size_id = "1:512"
         name = "CPU 1, RAM 512 MB"
         size = NodeSize(id=size_id, name=name, ram=512, disk=1, bandwidth=None,
-           price=None, driver=self, extra={'cpu': 1})
+                        price=None, driver=self, extra={'cpu': 1})
         sizes.append(size)
 
         try:
@@ -322,12 +329,13 @@ class LibvirtNodeDriver(NodeDriver):
             total_ram = info[1]
             total_cores = info[2]
 
-            for core in range(1, total_cores+1):
-                for ram in range(1024, total_ram+1, 1024):
+            for core in range(1, total_cores + 1):
+                for ram in range(1024, total_ram + 1, 1024):
                     size_id = "%s:%s" % (core, ram)
                     name = "CPU %s, RAM %s GB" % (core, str(ram / 1024))
-                    size = NodeSize(id=size_id, name=name, ram=ram, disk=1, bandwidth=None,
-                       price=None, driver=self, extra={'cpu': core})
+                    size = NodeSize(id=size_id, name=name, ram=ram, disk=1,
+                                    bandwidth=None, price=None, driver=self,
+                                    extra={'cpu': core})
                     sizes.append(size)
         except:
             pass
@@ -347,7 +355,7 @@ class LibvirtNodeDriver(NodeDriver):
 
         if output:
             for image in output.strip().split('\n'):
-                name = image.replace(IMAGES_LOCATION+'/', '')
+                name = image.replace(IMAGES_LOCATION + '/', '')
                 nodeimage = NodeImage(id=image, name=name, driver=self, extra={})
                 images.append(nodeimage)
 
@@ -578,9 +586,11 @@ local-hostname: %s''' % (name, name)
         # TODO: get available ram, cpu and disk and inform if not available
         if create_from_existing:
             # create_from_existing case
-            # if create_from_existing is specified but the path does not exist fail with error
+            # if create_from_existing is specified but the path does not exist
+            # fail with error
             if not self.ex_validate_disk(create_from_existing):
-                raise Exception("You have specified to create from an existing disk path that does not exist")
+                raise Exception("You have specified to create from an existing "
+                                "disk path that does not exist")
             else:
                 disk_path = create_from_existing
         if image:
@@ -596,7 +606,8 @@ local-hostname: %s''' % (name, name)
 
             if image.endswith(DISK_IMAGE_TYPES):
                 if self.ex_validate_disk(disk_path):
-                    raise Exception("You have specified to copy %s to a path that exists" %  image)
+                    raise Exception("You have specified to copy %s to a "
+                                    "path that exists" % image)
                 else:
                     cmd = "sudo qemu-img convert %s %s" % (image, disk_path)
                     run_cmd = self._run_command(cmd)
@@ -638,7 +649,6 @@ local-hostname: %s''' % (name, name)
             net_type = 'bridge'
             net_name = network
 
-
         conf = XML_CONF_TEMPLATE % (emu, name, ram, cpu, disk_path, image_conf, net_type, net_type, net_name)
 
         self.connection.defineXML(conf)
@@ -655,7 +665,6 @@ local-hostname: %s''' % (name, name)
 
         return True
 
-
     def ex_clone_vm(self, node, new_name=None):
         """
         Clones a VM
@@ -670,7 +679,6 @@ local-hostname: %s''' % (name, name)
         # step5: start new node
 
         return None
-
 
     def ex_name_validator(self, name):
         """
@@ -745,7 +753,6 @@ local-hostname: %s''' % (name, name)
             pass
         return bridges
 
-
     def ex_list_networks(self):
         networks = [Network('default', 'default')]
         try:
@@ -781,7 +788,6 @@ local-hostname: %s''' % (name, name)
 
         return arp_table
 
-
     def _run_command(self, cmd):
         """
         Run a command on a local or remote hypervisor
@@ -791,12 +797,13 @@ local-hostname: %s''' % (name, name)
         error = ''
         if self.secret:
             try:
-                ssh=paramiko.SSHClient()
+                ssh = paramiko.SSHClient()
                 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
                 ssh.connect(self.host, username=self.key, key_filename=self.secret,
-                            port=self.ssh_port, timeout=None, allow_agent=False, look_for_keys=False)
-                stdin,stdout,stderr = ssh.exec_command(cmd)
+                            port=self.ssh_port, timeout=None, allow_agent=False,
+                            look_for_keys=False)
+                stdin, stdout, stderr = ssh.exec_command(cmd)
 
                 output = stdout.read()
                 error = stderr.read()
@@ -813,6 +820,7 @@ local-hostname: %s''' % (name, name)
                 except:
                     pass
         return {'output': output, 'error': error}
+
 
 class Network(object):
 
@@ -868,4 +876,3 @@ IMAGE_TEMPLATE = '''
      <readonly/>
     </disk>
 '''
-

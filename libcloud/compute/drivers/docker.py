@@ -31,7 +31,7 @@ except:
 
 from libcloud.utils.py3 import httplib
 from libcloud.utils.py3 import b
-from libcloud.utils.networking import is_private_subnet
+from libcloud.utils.networking import is_private_subnet, is_public_subnet
 
 from libcloud.compute.providers import Provider
 from libcloud.common.base import JsonResponse, ConnectionUserAndKey
@@ -120,18 +120,35 @@ class DockerNodeDriver(NodeDriver):
     connectionCls = DockerConnection
     features = {'create_node': ['password']}
 
-    def __init__(self, key=None, secret=None, host='localhost',
-                 port=4243, secure=False, key_file=None, cert_file=None,
-                 ca_cert=None, verify_match_hostname=False):
+    def __init__(self, key=None, secret=None, host='localhost', port=4243,
+                 secure=False, key_file=None, cert_file=None, ca_cert=None,
+                 verify_match_hostname=False, docker_host=None):
+        """
+        :param key: username, when using http basic auth protected host
+        :param secret: password, when using http basic auth protected host
+        :param host: IP address or hostname to connect to (usually the address
+        of the docker host)
+        :param port: the docker host port to connect, eg 2376
+        :param secure: if connecting to https this should be True
+        :param key_file: the private key for the docker client certificate, when
+        connecting through docker tls authentication
+        :param cert_file: the docker server certificate file, when
+        connecting through docker tls authentication
+        :param ca_cert: the CA certificate file, when
+        connecting through docker tls authentication
+        :param verify_match_hostname: whether to check if the CN matches the certificate.
+        If using self signed certificate, need to be False, otherwise connection will fail
+        :param docker_host: the IP address of the docker host. Useful in case
+        `host` has been substituted by a middleware
+        :return:
+        """
 
-        super(DockerNodeDriver,
-              self).__init__(key=key, secret=secret,
-                             host=host, port=port,
-                             secure=secure,
-                             key_file=key_file,
-                             cert_file=cert_file,
-                             ca_cert=ca_cert,
-                             verify_match_hostname=verify_match_hostname)
+        super(DockerNodeDriver, self).__init__(key=key, secret=secret,
+                                               host=host, port=port,
+                                               secure=secure, key_file=key_file,
+                                               cert_file=cert_file,
+                                               ca_cert=ca_cert,
+                                               verify_match_hostname=verify_match_hostname)
         if host.startswith('https://'):
             secure = True
 
@@ -146,7 +163,8 @@ class DockerNodeDriver(NodeDriver):
             # We pass two files, a key_file with the private key and cert_file with the certificate
             # libcloud will handle them through LibcloudHTTPSConnection
             if not (key_file and cert_file):
-                    raise Exception('Needs both private key file and certificate file for tls authentication')
+                    raise Exception('Needs both private key file and '
+                                    'certificate file for tls authentication')
             self.connection.key_file = key_file
             self.connection.cert_file = cert_file
             self.connection.secure = True
@@ -158,6 +176,7 @@ class DockerNodeDriver(NodeDriver):
 
         self.connection.host = host
         self.connection.port = port
+        self.docker_host = docker_host if docker_host else host
 
         try:
             socket.setdefaulttimeout(15)
@@ -165,7 +184,8 @@ class DockerNodeDriver(NodeDriver):
             so.connect((host, int(port)))
             so.close()
         except:
-            raise Exception("Make sure host is accessible and docker port %s is open" % port)
+            raise Exception("Make sure host is accessible and docker port "
+                            "%s is open" % port)
 
     def _get_api_version(self):
         """
@@ -189,28 +209,48 @@ class DockerNodeDriver(NodeDriver):
                 driver=self)]
         )
 
-    def list_nodes(self, show_all=True):
+    def list_nodes(self, show_all=True, show_host=True):
         """
         List running and stopped containers
         show_all=False will show only running containers
+        show_host=True will also show the docker host along
+        with the containers
         """
         try:
             result = self.connection.request("/containers/json?all=%s" %
-                                         str(show_all)).object
+                                             str(show_all)).object
         except Exception as exc:
-            if hasattr(exc,'errno') and exc.errno == 111:
-                raise Exception('Make sure docker host is accessible and the API port is correct')
+            if hasattr(exc, 'errno') and exc.errno == 111:
+                raise Exception('Make sure docker host is accessible and the '
+                                'API port is correct')
             raise
 
         nodes = [self._to_node(value) for value in result]
+
+        if show_host:
+            # append docker host as well
+            public_ips, private_ips = [], []
+            try:
+                if is_public(self.docker_host):
+                    public_ips.append(self.docker_host)
+                else:
+                    private_ips.append(self.docker_host)
+            except:
+                public_ips.append(self.docker_host)
+
+            extra = {'tags': {'type': 'docker_host'}}
+            node = Node(id=self.docker_host, name=self.docker_host,
+                        state=NodeState.RUNNING, public_ips=public_ips,
+                        private_ips=private_ips, driver=self, extra=extra)
+            nodes.append(node)
+
         return nodes
 
     def inspect_node(self, node):
         """
         Inspect a container
         """
-        result = self.connection.request("/containers/%s/json" %
-                                         node.id).object
+        result = self.connection.request("/containers/%s/json" % node.id).object
 
         name = result.get('Name').strip('/')
         if result['State']['Running']:
@@ -226,14 +266,17 @@ class DockerNodeDriver(NodeDriver):
             'network_settings': result.get('NetworkSettings', {}),
             'exit_code': result['State'].get("ExitCode")
         }
+
         node_id = result.get('Id')
         if not node_id:
             node_id = result.get('ID', '')
-        node = (Node(id=node_id ,
+        public_ips = [self.connection.host] if is_public(self.connection.host) else []
+        private_ips = [self.connection.host] if not public_ips else []
+        node = (Node(id=node_id,
                      name=name,
                      state=state,
-                     public_ips=[self.connection.host],
-                     private_ips=[],
+                     public_ips=public_ips,
+                     private_ips=private_ips,
                      driver=self.connection.driver,
                      extra=extra))
         return node
@@ -251,7 +294,7 @@ class DockerNodeDriver(NodeDriver):
         Restart a container
         """
         data = json.dumps({'t': 10})
-        #number of seconds to wait before killing the container
+        # number of seconds to wait before killing the container
         result = self.connection.request('/containers/%s/restart' % (node.id),
                                          data=data, method='POST')
         return result.status in VALID_RESPONSE_CODES
@@ -269,14 +312,8 @@ class DockerNodeDriver(NodeDriver):
         """
         Start a container
         """
-
-        payload = {
-            'Binds': [],
-            'PublishAllPorts': True,
-        }
-        data = json.dumps(payload)
         result = self.connection.request('/containers/%s/start' % (node.id),
-                                         method='POST', data=data)
+                                         method='POST')
         return result.status in VALID_RESPONSE_CODES
 
     def ex_stop_node(self, node):
@@ -294,7 +331,6 @@ class DockerNodeDriver(NodeDriver):
         result = self.connection.request('/containers/%s/rename?name=%s' % (node.id, name),
                                          method='POST')
         return result.status in VALID_RESPONSE_CODES
-
 
     def get_logs(self, node, stream=False):
         """
@@ -318,8 +354,6 @@ class DockerNodeDriver(NodeDriver):
             logs = result.body
 
         return logs
-
-
 
     def create_node(self, name, image, command=None, hostname=None, user='',
                     detach=False, stdin_open=True, tty=True,
@@ -373,7 +407,7 @@ class DockerNodeDriver(NodeDriver):
             result = self.connection.request('/containers/create', data=data,
                                              params=params, method='POST')
         except Exception as e:
-            #if image not found, try to pull it
+            # if image not found, try to pull it
             if e.message.startswith('No such image:'):
                 try:
                     self.pull_image(image=image)
@@ -387,15 +421,8 @@ class DockerNodeDriver(NodeDriver):
 
         id_ = result.object['Id']
 
-        payload = {
-            'Binds': [],
-            'PublishAllPorts': True,
-            'PortBindings': port_bindings,
-        }
-
-        data = json.dumps(payload)
         result = self.connection.request(
-            '/containers/%s/start' % id_, data=data,
+            '/containers/%s/start' % id_,
             method='POST')
 
         return Node(id=id_, name=id_, state=NodeState.RUNNING,
@@ -474,7 +501,7 @@ class DockerNodeDriver(NodeDriver):
         if "errorDetail" in result.body:
             raise Exception(result.body)
         try:
-            #get image id
+            # get image id
             image_id = re.findall(r'{"status":"Download complete","progressDetail":{},"id":"\w+"}', result.body)[-1]
             image_id = json.loads(image_id).get('id')
         except:
@@ -528,8 +555,7 @@ class DockerNodeDriver(NodeDriver):
             'sizerootfs': data.get('SizeRootFs'),
         }
 
-        public_ips = []
-        private_ips = []
+        public_ips, private_ips = [], []
         if is_private(self.connection.host):
             private_ips.append(self.connection.host)
         else:
