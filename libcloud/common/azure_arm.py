@@ -18,7 +18,7 @@ import time
 import urllib
 
 from libcloud.common.base import ConnectionUserAndKey, JsonResponse, RawResponse
-from libcloud.httplib_ssl import LibcloudConnection
+from libcloud.httplib_ssl import LibcloudHTTPSConnection
 
 class AzureBaseDriver(object):
     name = "Microsoft Azure Resource Management API"
@@ -52,7 +52,7 @@ class AzureResourceManagementConnection(ConnectionUserAndKey):
     Represents a single connection to Azure
     """
 
-    conn_classes = (None, LibcloudConnection)
+    conn_classes = (None, LibcloudHTTPSConnection)
     driver = AzureBaseDriver
     name = 'Azure AD Auth'
     responseCls = AzureJsonResponse
