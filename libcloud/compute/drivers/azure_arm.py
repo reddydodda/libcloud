@@ -471,15 +471,9 @@ class AzureNodeDriver(NodeDriver):
         auth = self._get_and_check_auth(auth)
 
         target = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/virtualMachines/%s" % (self.subscription_id, ex_resource_group, name)
-
-        n = 0
-        while True:
-            try:
-                instance_vhd = "https://%s.blob.core.windows.net/%s/%s-os_%i.vhd" % (ex_storage_account, ex_blob_container, name, n)
-                self._ex_delete_old_vhd(ex_resource_group, instance_vhd)
-                break
-            except LibcloudError as e:
-                n += 1
+        import random
+        n = 'mistio%s' % (str(random.randint(1,1000000000)))
+        instance_vhd = "https://%s.blob.core.windows.net/%s/%s-os_%s.vhd" % (ex_storage_account, ex_blob_container, name, n)
 
         if isinstance(image, AzureVhdImage):
             storageProfile = {
@@ -842,7 +836,7 @@ class AzureNodeDriver(NodeDriver):
         :rtype: ``list`` of :class:`.AzureIPAddress`
         """
 
-        action = "/subscriptions/%s/providers/Microsoft.Network/publicIPAddresses" % (self.subscription_id, resource_group)
+        action = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/publicIPAddresses" % (self.subscription_id, resource_group)
         r = self.connection.request(action,
                                     params={"api-version": "2015-06-15"})
         return [self._to_ip_address(net) for net in r.object["value"]]
