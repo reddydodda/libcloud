@@ -61,9 +61,13 @@ class AzureResourceManagementConnection(ConnectionUserAndKey):
     login_host = 'login.windows.net'
     login_resource = 'https://management.core.windows.net/'
 
-    def __init__(self, key, secret, secure=True, tenant_id=None, subscription_id=None, **kwargs):
+    def __init__(self, key, secret, secure=True, tenant_id=None, subscription_id=None, access_token=None, expires_on=None, **kwargs):
+
         super(AzureResourceManagementConnection, self).__init__(key, secret, **kwargs)
         self.tenant_id = tenant_id
+        self.access_token = access_token
+        self.expires_on = expires_on
+
         self.subscription_id = subscription_id
 
     def add_default_headers(self, headers):
@@ -77,7 +81,6 @@ class AzureResourceManagementConnection(ConnectionUserAndKey):
 
     def get_token_from_credentials(self):
         """Log in and get bearer token used to authorize API requests."""
-
         conn = self.conn_classes[1](self.login_host, 443)
         conn.connect()
         params = urllib.urlencode({
@@ -93,7 +96,9 @@ class AzureResourceManagementConnection(ConnectionUserAndKey):
         self.expires_on = js.object["expires_on"]
 
     def connect(self, **kwargs):
-        self.get_token_from_credentials()
+        if (time.time()+300) >= self.expires_on:
+            self.get_token_from_credentials()
+
         return super(AzureResourceManagementConnection, self).connect(**kwargs)
 
     def request(self, action, params=None, data=None, headers=None,
@@ -102,7 +107,7 @@ class AzureResourceManagementConnection(ConnectionUserAndKey):
         # Log in again if the token has expired or is going to expire soon
         # (next 5 minutes).
         if (time.time()+300) >= self.expires_on:
-            self.get_token_from_credentials(self)
+            self.get_token_from_credentials()
 
         return super(AzureResourceManagementConnection, self).request(action, params=params,
                                                                data=data, headers=headers,

@@ -23,9 +23,10 @@ import base64
 import binascii
 import os
 import time
+import multiprocessing.pool
 
 from libcloud.common.azure_arm import AzureResourceManagementConnection
-from libcloud.compute.providers import Provider
+from libcloud.compute.providers import Provider, get_driver
 from libcloud.compute.base import Node, NodeDriver, NodeLocation, NodeSize
 from libcloud.compute.base import NodeImage, NodeAuthSSHKey
 from libcloud.compute.base import NodeAuthPassword
@@ -170,7 +171,10 @@ class AzureNodeDriver(NodeDriver):
 
     def __init__(self, tenant_id, subscription_id, key, secret,
                  secure=True, host=None, port=None,
-                 api_version=None, region=None, **kwargs):
+                 api_version=None, region=None, access_token=None, expires_on=None, **kwargs):
+
+        self.access_token = access_token
+        self.expires_on = expires_on
         self.tenant_id = tenant_id
         self.subscription_id = subscription_id
 
@@ -343,8 +347,31 @@ class AzureNodeDriver(NodeDriver):
             action = "/subscriptions/%s/providers/Microsoft.Compute/virtualMachines" % (self.subscription_id)
         r = self.connection.request(action,
                                     params={"api-version": "2015-06-15"})
-        return [self._to_node(n, fetch_nic=ex_fetch_nic)
-                for n in r.object["value"]]
+
+        # sounds like a bad joke BUT azure arm won't return the ips
+        # (public and private ones) of the VMs. Need to ask seperate for this
+        # So for each VM you have to make 2 separate calls (ex_get_nic and ex_get_public_ip)
+        # This will take ages for big numbers of VMs so we have to do that through
+        # multiprocessing with initiating a new driver each time because it will compain
+        # and fail if we try to use multiprocessing within the same driver.
+
+        nodes_data = r.object["value"]
+        def _list_one(node):
+            driver = get_driver(self.type)(self.tenant_id, self.subscription_id, self.key, self.secret,
+                                access_token=self.connection.access_token, expires_on=self.connection.expires_on)
+
+            try:
+                return driver._to_node(node)
+            except:
+                return []
+        pool = multiprocessing.pool.ThreadPool(8)
+        results = pool.map(_list_one, nodes_data)
+        pool.terminate()
+        machines = []
+        for result in results:
+            machines.append(result)
+
+        return machines
 
     def create_node(self,
                     name,
@@ -619,57 +646,27 @@ class AzureNodeDriver(NodeDriver):
             self.connection.request(node.id,
                                     params={"api-version": "2015-06-15"},
                                     method='DELETE')
-        except BaseHTTPError as h:
-            if h.code == 202:
-                pass
-            else:
-                return False
-
-        # Need to poll until the node actually goes away.
-        while True:
-            try:
-                time.sleep(10)
-                self.connection.request(node.id, params={"api-version": "2015-06-15"})
-            except BaseHTTPError as h:
-                if h.code == 404:
-                    break
-                else:
-                    return False
+        except:
+            pass
 
         # Optionally clean up the network interfaces that were attached to this node.
         if ex_destroy_nic:
             for nic in node.extra["properties"]["networkProfile"]["networkInterfaces"]:
-                while True:
-                    try:
-                        self.connection.request(nic["id"],
-                                                params={"api-version": "2015-06-15"},
-                                                method='DELETE')
-                        break
-                    except BaseHTTPError as h:
-                        if h.code == 202:
-                            break
-                        if h.code == 400 and h.message.startswith("[NicInUse]"):
-                            time.sleep(10)
-                        else:
-                            return False
+                try:
+                    self.connection.request(nic["id"],
+                                            params={"api-version": "2015-06-15"},
+                                            method='DELETE')
+                except:
+                    pass
 
         # Optionally clean up OS disk VHD.
         if ex_destroy_vhd:
-            while True:
-                try:
-                    resourceGroup = node.id.split("/")[4]
-                    self._ex_delete_old_vhd(resourceGroup,
-                                            node.extra["properties"]["storageProfile"]["osDisk"]["vhd"]["uri"])
-                    break
-                except LibcloudError as e:
-                    if "LeaseIdMissing" in str(e):
-                        # Unfortunately lease errors (which occur if the vhd blob
-                        # hasn't yet been released by the VM being destroyed) get raised as plain
-                        # LibcloudError.  Wait a bit and try again.
-                        time.sleep(10)
-                    else:
-                        raise
-
+            try:
+                resourceGroup = node.id.split("/")[4]
+                self._ex_delete_old_vhd(resourceGroup,
+                                        node.extra["properties"]["storageProfile"]["osDisk"]["vhd"]["uri"])
+            except LibcloudError as e:
+                pass
         return True
 
     def ex_list_publishers(self, location=None):
@@ -807,7 +804,6 @@ class AzureNodeDriver(NodeDriver):
         :return: The NIC object
         :rtype: :class:`.AzureNic`
         """
-
         r = self.connection.request(id, params={"api-version": "2015-06-15"})
         return self._to_nic(r.object)
 
@@ -1179,6 +1175,8 @@ class AzureNodeDriver(NodeDriver):
     def _ex_connection_class_kwargs(self):
         kwargs = super(AzureNodeDriver, self)._ex_connection_class_kwargs()
         kwargs['tenant_id'] = self.tenant_id
+        kwargs['access_token'] = self.access_token
+        kwargs['expires_on'] = self.expires_on
         kwargs['subscription_id'] = self.subscription_id
         return kwargs
 
@@ -1198,16 +1196,15 @@ class AzureNodeDriver(NodeDriver):
                         addr = pub_addr.extra.get("ipAddress")
                         if addr:
                             public_ips.append(addr)
-                except BaseHTTPError as h:
-                    pass
-
+                except Exception as e:
+                    pass # can't do much can we?
         state = NodeState.UNKNOWN
         try:
             action = "%s/InstanceView" % (data["id"])
             r = self.connection.request(action,
                                         params={"api-version": "2015-06-15"})
             for status in r.object["statuses"]:
-                if status["code"] == "ProvisioningState/creating":
+                if status["code"] in ["ProvisioningState/creating", "ProvisioningState/updating"]:
                     state = NodeState.PENDING
                     break
                 elif status["code"] == "ProvisioningState/deleting":
@@ -1237,7 +1234,6 @@ class AzureNodeDriver(NodeDriver):
                     private_ips,
                     driver=self.connection.driver,
                     extra=data)
-
         return node
 
     def _to_node_size(self, data):
