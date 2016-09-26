@@ -876,4 +876,3 @@ IMAGE_TEMPLATE = '''
      <readonly/>
     </disk>
 '''
-
