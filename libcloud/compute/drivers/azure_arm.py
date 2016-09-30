@@ -22,6 +22,7 @@ http://azure.microsoft.com/en-us/services/virtual-machines/
 import base64
 import binascii
 import os
+import re
 import time
 import multiprocessing.pool
 
@@ -651,7 +652,7 @@ class AzureNodeDriver(NodeDriver):
 
         # Optionally clean up the network interfaces that were attached to this node.
         if ex_destroy_nic:
-            for nic in node.extra["properties"]["networkProfile"]["networkInterfaces"]:
+            for nic in node.extra["networkProfile"]["networkInterfaces"]:
                 try:
                     self.connection.request(nic["id"],
                                             params={"api-version": "2015-06-15"},
@@ -664,7 +665,7 @@ class AzureNodeDriver(NodeDriver):
             try:
                 resourceGroup = node.id.split("/")[4]
                 self._ex_delete_old_vhd(resourceGroup,
-                                        node.extra["properties"]["storageProfile"]["osDisk"]["vhd"]["uri"])
+                                        node.extra["storageProfile"]["osDisk"]["vhd"]["uri"])
             except LibcloudError as e:
                 pass
         return True
@@ -1034,7 +1035,7 @@ class AzureNodeDriver(NodeDriver):
         r = self.connection.request(target,
                                     params={"api-version": "2015-06-15"},
                                     method='POST')
-        return r.object
+        return True
 
     def ex_stop_node(self, node, deallocate=True):
         """
@@ -1058,7 +1059,7 @@ class AzureNodeDriver(NodeDriver):
         r = self.connection.request(target,
                                     params={"api-version": "2015-06-15"},
                                     method='POST')
-        return r.object
+        return True
 
     def ex_get_storage_account_keys(self, resource_group, storage_account):
         """
@@ -1184,9 +1185,9 @@ class AzureNodeDriver(NodeDriver):
         private_ips = []
         public_ips = []
         if fetch_nic:
-            for nic in data["properties"]["networkProfile"]["networkInterfaces"]:
+            for nic in data['properties']['networkProfile']['networkInterfaces']:
                 try:
-                    n = self.ex_get_nic(nic["id"])
+                    n = self.ex_get_nic(nic['id'])
                     priv = n.extra["ipConfigurations"][0]["properties"].get("privateIPAddress")
                     if priv:
                         private_ips.append(priv)
@@ -1227,13 +1228,39 @@ class AzureNodeDriver(NodeDriver):
         except BaseHTTPError as h:
             pass
 
+        extra = {}
+        extra['location'] = data.get('name','')
+        try:
+            extra['storageUri'] = data['properties']['diagnosticsProfile']['bootDiagnostics']['storageUri']
+        except:
+            pass
+        try:
+            extra['storageProfile'] = data['properties']['storageProfile']
+        except:
+            pass
+
+        extra['size'] = data['properties'].get('hardwareProfile', {}).get('vmSize')
+        extra['osProfile'] = data['properties'].get('osProfile')
+        extra['vmId'] = data['properties'].get('vmId')
+        extra['osDisk'] = data['properties'].get('storageProfile', {}).get('osDisk')
+        extra["networkProfile"] = data['properties']["networkProfile"]["networkInterfaces"]
+
+        subscription = re.search(r"/subscriptions/(.*?)/resourceGroups", data['id'])
+        if subscription:
+            extra['subscription'] = subscription.group(1)
+
+        resource_group = re.search(r"/resourceGroups/(.*?)/providers", data['id'])
+        if resource_group:
+            extra['resource_group'] = resource_group.group(1)
+
+
         node = Node(data["id"],
                     data["name"],
                     state,
                     public_ips,
                     private_ips,
                     driver=self.connection.driver,
-                    extra=data)
+                    extra=extra)
         return node
 
     def _to_node_size(self, data):
