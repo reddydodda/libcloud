@@ -610,7 +610,7 @@ class AzureNodeDriver(NodeDriver):
         :rtype: ``bool``
         """
 
-        target = "%s/restart" % node.id
+        target = "%s/restart" % node.extra['id']
         try:
             self.connection.request(target,
                                     params={"api-version": "2015-06-15"},
@@ -644,7 +644,7 @@ class AzureNodeDriver(NodeDriver):
         # This returns a 202 (Accepted) which means that the delete happens
         # asynchronously.
         try:
-            self.connection.request(node.id,
+            self.connection.request(node.extra['id'],
                                     params={"api-version": "2015-06-15"},
                                     method='DELETE')
         except:
@@ -663,7 +663,7 @@ class AzureNodeDriver(NodeDriver):
         # Optionally clean up OS disk VHD.
         if ex_destroy_vhd:
             try:
-                resourceGroup = node.id.split("/")[4]
+                resourceGroup = node.extra['resource_group']
                 self._ex_delete_old_vhd(resourceGroup,
                                         node.extra["storageProfile"]["osDisk"]["vhd"]["uri"])
             except LibcloudError as e:
@@ -1031,7 +1031,7 @@ class AzureNodeDriver(NodeDriver):
         :type node: :class:`.Node`
         """
 
-        target = "%s/start" % node.id
+        target = "%s/start" % node.extra['id']
         r = self.connection.request(target,
                                     params={"api-version": "2015-06-15"},
                                     method='POST')
@@ -1053,9 +1053,9 @@ class AzureNodeDriver(NodeDriver):
         """
 
         if deallocate:
-            target = "%s/deallocate" % node.id
+            target = "%s/deallocate" % node.extra['id']
         else:
-            target = "%s/stop" % node.id
+            target = "%s/stop" % node.extra['id']
         r = self.connection.request(target,
                                     params={"api-version": "2015-06-15"},
                                     method='POST')
@@ -1131,7 +1131,7 @@ class AzureNodeDriver(NodeDriver):
 
         name = "init"
 
-        target = node.id + "/extensions/" + name
+        target = node.extra['id'] + "/extensions/" + name
 
         data = {
             "location": location.id,
@@ -1234,7 +1234,7 @@ class AzureNodeDriver(NodeDriver):
             pass
 
         extra = {}
-        extra['location'] = data.get('name','')
+        extra['location'] = data.get('location','')
         try:
             extra['storageUri'] = data['properties']['diagnosticsProfile']['bootDiagnostics']['storageUri']
         except:
@@ -1246,7 +1246,6 @@ class AzureNodeDriver(NodeDriver):
 
         extra['size'] = data['properties'].get('hardwareProfile', {}).get('vmSize')
         extra['osProfile'] = data['properties'].get('osProfile')
-        extra['vmId'] = data['properties'].get('vmId')
         extra['osDisk'] = data['properties'].get('storageProfile', {}).get('osDisk')
         extra["networkProfile"] = data['properties']["networkProfile"]["networkInterfaces"]
 
@@ -1258,9 +1257,9 @@ class AzureNodeDriver(NodeDriver):
         if resource_group:
             extra['resource_group'] = resource_group.group(1)
 
-
-        node = Node(data["id"],
-                    data["name"],
+        extra['id'] = data["id"]
+        node = Node(data['properties']['vmId'],
+                    data['name'],
                     state,
                     public_ips,
                     private_ips,
