@@ -1182,6 +1182,7 @@ class AzureNodeDriver(NodeDriver):
         return kwargs
 
     def _to_node(self, data, fetch_nic=True):
+        created_at = None
         private_ips = []
         public_ips = []
         if fetch_nic:
@@ -1203,28 +1204,32 @@ class AzureNodeDriver(NodeDriver):
         try:
             action = "%s/InstanceView" % (data["id"])
             r = self.connection.request(action,
-                                        params={"api-version": "2015-06-15"})
-            for status in r.object["statuses"]:
-                if status["code"] in ["ProvisioningState/creating", "ProvisioningState/updating"]:
+                                        params={'api-version': '2015-06-15'})
+            for status in r.object['statuses']:
+                if status['code'] in ['ProvisioningState/creating', 'ProvisioningState/updating']:
                     state = NodeState.PENDING
                     break
-                elif status["code"] == "ProvisioningState/deleting":
+                elif status['code'] == 'ProvisioningState/deleting':
                     state = NodeState.TERMINATED
                     break
-                elif status["code"].startswith("ProvisioningState/failed"):
+                elif status['code'].startswith('ProvisioningState/failed'):
                     state = NodeState.ERROR
                     break
-                elif status["code"] == "ProvisioningState/succeeded":
+                elif status['code'] == 'ProvisioningState/succeeded':
                     pass
 
-                if status["code"] == "PowerState/deallocated":
+                if status['code'] == 'PowerState/deallocated':
                     state = NodeState.STOPPED
                     break
-                elif status["code"] == "PowerState/deallocating":
+                elif status['code'] == 'PowerState/deallocating':
                     state = NodeState.PENDING
                     break
-                elif status["code"] == "PowerState/running":
+                elif status['code'] == 'PowerState/running':
                     state = NodeState.RUNNING
+                # as close as we can to get the start date. Unfortunately
+                # this seems not be be a unique date
+                if status.get('time'):
+                    created_at = status.get('time')
         except BaseHTTPError as h:
             pass
 
@@ -1260,6 +1265,7 @@ class AzureNodeDriver(NodeDriver):
                     public_ips,
                     private_ips,
                     driver=self.connection.driver,
+                    created_at=created_at,
                     extra=extra)
         return node
 
