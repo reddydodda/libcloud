@@ -408,7 +408,7 @@ class DockerNodeDriver(NodeDriver):
                                              params=params, method='POST')
         except Exception as e:
             # if image not found, try to pull it
-            if e.message.startswith('No such image:'):
+            if 'No such image' in e.message:
                 try:
                     self.pull_image(image=image)
                     result = self.connection.request('/containers/create',
