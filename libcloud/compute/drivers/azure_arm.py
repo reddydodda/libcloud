@@ -640,33 +640,28 @@ class AzureNodeDriver(NodeDriver):
         :return: True if the destroy was successful, False otherwise.
         :rtype: ``bool``
         """
-
         # This returns a 202 (Accepted) which means that the delete happens
         # asynchronously.
-        try:
-            self.connection.request(node.extra['id'],
+        self.connection.request(node.extra['id'],
                                     params={"api-version": "2015-06-15"},
                                     method='DELETE')
-        except:
-            pass
 
         # Optionally clean up the network interfaces that were attached to this node.
         if ex_destroy_nic:
-            for nic in node.extra["networkProfile"]["networkInterfaces"]:
-                try:
+            try:
+                for nic in node.extra["networkProfile"]:
                     self.connection.request(nic["id"],
-                                            params={"api-version": "2015-06-15"},
-                                            method='DELETE')
-                except:
-                    pass
-
+                                                params={"api-version": "2015-06-15"},
+                                                method='DELETE')
+            except:
+                pass
         # Optionally clean up OS disk VHD.
         if ex_destroy_vhd:
             try:
                 resourceGroup = node.extra['resource_group']
                 self._ex_delete_old_vhd(resourceGroup,
                                         node.extra["storageProfile"]["osDisk"]["vhd"]["uri"])
-            except LibcloudError as e:
+            except:
                 pass
         return True
 
@@ -1170,8 +1165,8 @@ class AzureNodeDriver(NodeDriver):
             blobdriver.delete_object(blobdriver.get_object(blobContainer,
                                                            blob))
             return True
-        except ObjectDoesNotExistError:
-            return True
+        except:
+            return False
 
     def _ex_connection_class_kwargs(self):
         kwargs = super(AzureNodeDriver, self)._ex_connection_class_kwargs()
