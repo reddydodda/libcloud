@@ -1244,9 +1244,32 @@ class AzureNodeDriver(NodeDriver):
         except:
             pass
 
+
         extra['size'] = data['properties'].get('hardwareProfile', {}).get('vmSize')
         extra['osProfile'] = data['properties'].get('osProfile')
         extra['osDisk'] = data['properties'].get('storageProfile', {}).get('osDisk')
+        try:
+            extra['system_vhd'] = extra['osDisk']['vhd']['uri']
+        except:
+            pass
+        try:
+            extra['os_type'] = extra['osDisk']['osType']
+        except:
+            pass
+        try:
+            extra['adminUsername'] = extra['osProfile']['adminUsername']
+        except:
+            pass
+        try:
+            extra['image'] = extra['storageProfile']['imageReference']['offer']
+        except:
+            pass
+        for datadisk in extra['storageProfile']['dataDisks']:
+            try:
+                extra['disk-%s' % datadisk['name']] = "%sGB - %s" % (datadisk['diskSizeGB'], datadisk['vhd']['uri'])
+            except:
+                pass
+
         extra["networkProfile"] = data['properties']["networkProfile"]["networkInterfaces"]
 
         subscription = re.search(r"/subscriptions/(.*?)/resourceGroups", data['id'])
