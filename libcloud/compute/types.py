@@ -102,6 +102,7 @@ class Provider(Type):
     :cvar PROFIT_BRICKS: ProfitBricks driver.
     """
     AZURE = 'azure'
+    AZURE_ARM = 'azure_arm'
     DUMMY = 'dummy'
     EC2 = 'ec2_us_east'
     RACKSPACE = 'rackspace'
