@@ -1317,7 +1317,7 @@ class AzureNodeDriver(NodeDriver):
             disk=data["disk"],
             bandwidth=data["bandwidth"],
             price = get_size_price(driver_type='compute', driver_name='azure_%s' % os_type,
-                               size_id=data['id'])
+                               size_id=data['id']),
             driver=self.connection.driver,
             extra={
                 'max_data_disks': data["max_data_disks"],
