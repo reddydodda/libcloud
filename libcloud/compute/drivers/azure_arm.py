@@ -379,7 +379,6 @@ class AzureNodeDriver(NodeDriver):
         # This will take ages for big numbers of VMs so we have to do that through
         # multiprocessing with initiating a new driver each time because it will compain
         # and fail if we try to use multiprocessing within the same driver.
-
         nodes_data = r.object["value"]
         def _list_one(node):
             driver = get_driver(self.type)(self.tenant_id, self.subscription_id, self.key, self.secret,
@@ -1074,7 +1073,7 @@ class AzureNodeDriver(NodeDriver):
         if deallocate:
             target = "%s/deallocate" % node.extra['id']
         else:
-            target = "%s/stop" % node.extra['id']
+            target = "%s/powerOff" % node.extra['id']
         r = self.connection.request(target,
                                     params={"api-version": "2015-06-15"},
                                     method='POST')
@@ -1239,6 +1238,10 @@ class AzureNodeDriver(NodeDriver):
 
                 if status['code'] == 'PowerState/deallocated':
                     state = NodeState.STOPPED
+                    break
+                elif status['code'] == 'PowerState/stopped':
+                    # this is stopped without resources deallocated
+                    state = NodeState.PAUSED
                     break
                 elif status['code'] == 'PowerState/deallocating':
                     state = NodeState.PENDING
