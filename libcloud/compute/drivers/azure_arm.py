@@ -36,7 +36,31 @@ from libcloud.common.types import LibcloudError
 from libcloud.storage.types import ObjectDoesNotExistError
 from libcloud.common.exceptions import BaseHTTPError
 from libcloud.storage.drivers.azure_blobs import AzureBlobsStorageDriver
+from libcloud.pricing import get_size_price
 
+locations_mapping = {
+    "eastus": "us-east",
+    "eastus2": "us-east2",
+    "ukwest": "united-kingdom-west",
+    "uksouth": "united-kingdom-south",
+    "westcentralus": "us-west-central",
+    "westus2": "us-west-2",
+    "westus": "us-west",
+    "canadaeast": "canada-east",
+    "canadacenstral": "canada-central",
+    "brazilsouth": "brazil-south",
+    "australiasoutheast": "australia-southeast",
+    "australiaeast": "australia-east",
+    "japanwest": "japan-west",
+    "japaneast": "japan-east",
+    "southeastasia": "asia-pacific-southeast",
+    "eastasia": "asia-pacific-east",
+    "westeurope": "europe-west",
+    "northeurope": "europe-north",
+    "southcentralus": "us-south-central",
+    "northcentralus": "us-north-central",
+    "centralus": "us-central",
+}
 
 class AzureImage(NodeImage):
     """Represents a Marketplace node image that an Azure VM can boot from."""
@@ -355,7 +379,6 @@ class AzureNodeDriver(NodeDriver):
         # This will take ages for big numbers of VMs so we have to do that through
         # multiprocessing with initiating a new driver each time because it will compain
         # and fail if we try to use multiprocessing within the same driver.
-
         nodes_data = r.object["value"]
         def _list_one(node):
             driver = get_driver(self.type)(self.tenant_id, self.subscription_id, self.key, self.secret,
@@ -1050,7 +1073,7 @@ class AzureNodeDriver(NodeDriver):
         if deallocate:
             target = "%s/deallocate" % node.extra['id']
         else:
-            target = "%s/stop" % node.extra['id']
+            target = "%s/powerOff" % node.extra['id']
         r = self.connection.request(target,
                                     params={"api-version": "2015-06-15"},
                                     method='POST')
@@ -1216,6 +1239,10 @@ class AzureNodeDriver(NodeDriver):
                 if status['code'] == 'PowerState/deallocated':
                     state = NodeState.STOPPED
                     break
+                elif status['code'] == 'PowerState/stopped':
+                    # this is stopped without resources deallocated
+                    state = NodeState.PAUSED
+                    break
                 elif status['code'] == 'PowerState/deallocating':
                     state = NodeState.PENDING
                     break
@@ -1276,6 +1303,16 @@ class AzureNodeDriver(NodeDriver):
             extra['resource_group'] = resource_group.group(1)
 
         extra['id'] = data["id"]
+        os_type = extra.get('os_type', 'linux').lower()
+        price = get_size_price(driver_type='compute', driver_name='azure_%s' % os_type,
+                               size_id=extra['size'])
+        cost_per_hour = None
+        if price:
+            location = extra.get('location', 'eastus')
+            location = locations_mapping.get(location, 'eastus')
+            cost_per_hour = price.get(location)
+        extra['cost_per_hour'] = cost_per_hour
+
         node = Node(data['properties']['vmId'],
                     data['name'],
                     state,

@@ -42,6 +42,7 @@ from datetime import datetime
 from xml.dom import minidom
 from xml.sax.saxutils import escape as xml_escape
 from httplib import (HTTPSConnection)
+from libcloud.compute.drivers.azure_arm import locations_mapping
 
 if sys.version_info < (3,):
     _unicode_type = unicode
@@ -494,14 +495,6 @@ class AzureNodeDriver(NodeDriver):
         self.key_file = key_file
         super(AzureNodeDriver, self).__init__(self.subscription_id, self.key_file,
                                               secure=True, **kwargs)
-
-    def _get_size_price(self, size_id):
-        """
-        Return pricing information for the provided size id.
-        """
-        return get_size_price(driver_type='compute',
-                              driver_name='azure',
-                              size_id=size_id)
 
     def ex_list_cloud_services(self):
         """
@@ -1256,6 +1249,15 @@ class AzureNodeDriver(NodeDriver):
         for endpoint in data.instance_endpoints:
             endpoints[endpoint.name] = '%s:%s %s' % (endpoint.local_port, endpoint.public_port, endpoint.protocol)
 
+        price = get_size_price(driver_type='compute', driver_name='azure_%s' % os_type,
+                               size_id=data.instance_size)
+        cost_per_hour = None
+        if price:
+            # TODO: get location from metadata!
+            location = 'eastus'
+            location = locations_mapping.get(location, 'eastus')
+            cost_per_hour = price.get(location)
+
         return Node(
             id=data.role_name,
             name=data.role_name,
@@ -1268,6 +1270,7 @@ class AzureNodeDriver(NodeDriver):
                 'remote_desktop_port': remote_desktop_port,
                 'powershell_port': powershell_port,
                 'ssh_port': ssh_port,
+                'cost_per_hour': cost_per_hour,
                 'os_type': os_type,
                 'power_state': data.power_state,
                 'instance_size': data.instance_size,
@@ -1306,14 +1309,15 @@ class AzureNodeDriver(NodeDriver):
         """
         Convert the AZURE_COMPUTE_INSTANCE_TYPES into NodeSize
         """
-
+        os_type = 'linux'
         return NodeSize(
             id=data["id"],
             name=data["name"],
             ram=data["ram"],
             disk=data["disk"],
             bandwidth=data["bandwidth"],
-            price = self._get_size_price(size_id=data["id"]),
+            price = get_size_price(driver_type='compute', driver_name='azure_%s' % os_type,
+                               size_id=data['id']),
             driver=self.connection.driver,
             extra={
                 'max_data_disks': data["max_data_disks"],
