@@ -373,13 +373,13 @@ class AzureNodeDriver(NodeDriver):
         r = self.connection.request(action,
                                     params={"api-version": "2015-06-15"})
         nodes_data = r.object["value"]
-
-        while True:
-            if r.object.get('nextLink'):
-                r = self.connection.request(r.object.get('nextLink'),
+        if r.object.get("nextLink"):
+            while True:
+                r = self.connection.request(r.object.get("nextLink"),
                                             params={"api-version": "2015-06-15"})
                 nodes_data.extend(r.object["value"])
-            break
+                if not r.object.get("nextLink"):
+                    break
 
         # sounds like a bad joke BUT azure arm won't return the ips
         # (public and private ones) of the VMs. Need to ask seperate for this
