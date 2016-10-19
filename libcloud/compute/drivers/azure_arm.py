@@ -377,7 +377,7 @@ class AzureNodeDriver(NodeDriver):
         while True:
             if r.object.get('nextLink'):
                 r = self.connection.request(r.object.get('nextLink'),
-                                                                   params={"api-version": "2015-06-15"})
+                                            params={"api-version": "2015-06-15"})
                 nodes_data.extend(r.object["value"])
             break
 
