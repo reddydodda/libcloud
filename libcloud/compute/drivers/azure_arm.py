@@ -372,6 +372,14 @@ class AzureNodeDriver(NodeDriver):
             action = "/subscriptions/%s/providers/Microsoft.Compute/virtualMachines" % (self.subscription_id)
         r = self.connection.request(action,
                                     params={"api-version": "2015-06-15"})
+        nodes_data = r.object["value"]
+
+        while True:
+            if r.object.get('nextLink'):
+                r = self.connection.request(r.object.get('nextLink'),
+                                                                   params={"api-version": "2015-06-15"})
+                nodes_data.extend(r.object["value"])
+            break
 
         # sounds like a bad joke BUT azure arm won't return the ips
         # (public and private ones) of the VMs. Need to ask seperate for this
@@ -379,7 +387,6 @@ class AzureNodeDriver(NodeDriver):
         # This will take ages for big numbers of VMs so we have to do that through
         # multiprocessing with initiating a new driver each time because it will compain
         # and fail if we try to use multiprocessing within the same driver.
-        nodes_data = r.object["value"]
         def _list_one(node):
             driver = get_driver(self.type)(self.tenant_id, self.subscription_id, self.key, self.secret,
                                 access_token=self.connection.access_token, expires_on=self.connection.expires_on)
