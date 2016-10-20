@@ -1233,7 +1233,6 @@ class AzureNodeDriver(NodeDriver):
             for status in r.object['statuses']:
                 if status['code'] in ['ProvisioningState/creating', 'ProvisioningState/updating']:
                     state = NodeState.PENDING
-                    break
                 elif status['code'] == 'ProvisioningState/deleting':
                     state = NodeState.TERMINATED
                     break
@@ -1241,7 +1240,7 @@ class AzureNodeDriver(NodeDriver):
                     state = NodeState.ERROR
                     break
                 elif status['code'] == 'ProvisioningState/succeeded':
-                    pass
+                    state = NodeState.RUNNING
 
                 if status['code'] == 'PowerState/deallocated':
                     state = NodeState.STOPPED
