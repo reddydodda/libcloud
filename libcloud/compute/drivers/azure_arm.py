@@ -1278,8 +1278,10 @@ class AzureNodeDriver(NodeDriver):
         except:
             pass
         try:
-            extra['os_type'] = extra['osDisk']['osType']
+            # not sure if this is Linux/Windows or if other values exist
+            extra['os_type'] = extra['osDisk']['osType'].lower()
         except:
+            extra['os_type'] = 'linux'
             pass
         try:
             extra['adminUsername'] = extra['osProfile']['adminUsername']
@@ -1306,7 +1308,7 @@ class AzureNodeDriver(NodeDriver):
             extra['resource_group'] = resource_group.group(1)
 
         extra['id'] = data["id"]
-        os_type = extra.get('os_type', 'linux').lower()
+        os_type = extra['os_type']
         price = get_size_price(driver_type='compute', driver_name='azure_%s' % os_type,
                                size_id=extra['size'])
         cost_per_hour = None
