@@ -3972,7 +3972,7 @@ class GCENodeDriver(NodeDriver):
         self.connection.async_request(request, method='POST')
         return True
 
-    def destroy_node(self, node, destroy_boot_disk=True):
+    def destroy_node(self, node, destroy_boot_disk=False):
         """
         Destroy a node.
 
