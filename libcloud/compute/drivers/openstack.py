@@ -2222,7 +2222,10 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
                     is_public_ip = True
 
                 if is_public_ip:
-                    public_ips.append(ip)
+                    if explicit_ip_type == 'floating':
+                        public_ips.insert(0, ip)
+                    else:
+                        public_ips.append(ip)
                 else:
                     private_ips.append(ip)
 
