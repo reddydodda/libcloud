@@ -373,6 +373,10 @@ class LinodeNodeDriver(NodeDriver):
             "Comments": comments,
             "DiskList": disks
         }
+        if "ex_private" in kwargs and kwargs["ex_private"]:
+            params['helper_network'] = True
+            params['helper_distro'] = True
+
         data = self.connection.request(API_ROOT, params=params).objects[0]
         linode["config"] = data["ConfigID"]
 
