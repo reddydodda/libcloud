@@ -8108,8 +8108,6 @@ class GCENodeDriver(NodeDriver):
                 if disk.get('boot') and disk.get('type') == 'PERSISTENT':
                     bd = self._get_components_from_path(disk['source'])
                     extra['boot_disk'] = self.ex_get_volume(bd['name'], bd['zone'])
-        else:
-            extra['boot_disk'] = None
 
         if 'items' in node['tags']:
             tags = node['tags']['items']
