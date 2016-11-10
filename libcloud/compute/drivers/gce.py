@@ -119,7 +119,6 @@ class GCEConnection(GoogleBaseConnection):
         @inherits: :class:`GoogleBaseConnection.request`
         """
         response = super(GCEConnection, self).request(*args, **kwargs)
-        print args, kwargs
         # If gce_params has been set, then update the pageToken with the
         # nextPageToken so it can be used in the next request.
         if self.gce_params:
@@ -8083,6 +8082,7 @@ class GCENodeDriver(NodeDriver):
         extra['status'] = node.get('status', "UNKNOWN")
         extra['statusMessage'] = node.get('statusMessage')
         extra['description'] = node.get('description')
+        extra['location'] = self.ex_get_zone(node['zone']).name
         extra['zone'] = self.ex_get_zone(node['zone'])
         extra['image'] = node.get('image')
         extra['machineType'] = node.get('machineType')
@@ -8102,12 +8102,26 @@ class GCENodeDriver(NodeDriver):
         extra['scheduling'] = node.get('scheduling', {})
         extra['boot_disk'] = None
 
-        show_boot_disk_info = None
-        if show_boot_disk_info:
-            for disk in extra['disks']:
-                if disk.get('boot') and disk.get('type') == 'PERSISTENT':
-                    bd = self._get_components_from_path(disk['source'])
-                    extra['boot_disk'] = self.ex_get_volume(bd['name'], bd['zone'])
+        for disk in extra['disks']:
+            if disk.get('boot') and disk.get('type') == 'PERSISTENT':
+                extra['boot_disk_url'] = disk.get('source')
+                try:
+                    extra['license'] = disk.get('licenses')[0]
+                    if not extra['image']:
+                       extra['image'] = disk.get('licenses')[0].split('/')[-1]
+                except:
+                    pass
+        image = extra['image']
+        os_type = 'linux'
+        license = extra.get('license')
+        if license:
+            if 'sles' in license:
+                os_type = 'sles'
+            if 'rhel' in license:
+                os_type = 'rhel'
+            if 'win' in license:
+                os_type = 'win'
+        extra['os_type'] = os_type
 
         if 'items' in node['tags']:
             tags = node['tags']['items']
@@ -8120,19 +8134,6 @@ class GCENodeDriver(NodeDriver):
             for access_config in network_interface.get('accessConfigs', []):
                 public_ips.append(access_config.get('natIP'))
 
-        # For the node attributes, use just machine and image names, not full
-        # paths.  Full paths are available in the "extra" dict.
-        image = None
-        if extra['image']:
-            image = self._get_components_from_path(extra['image'])['name']
-        else:
-            if extra['boot_disk'] and \
-                    hasattr(extra['boot_disk'], 'extra') and \
-                    'sourceImage' in extra['boot_disk'].extra and \
-                    extra['boot_disk'].extra['sourceImage'] is not None:
-                src_image = extra['boot_disk'].extra['sourceImage']
-                image = self._get_components_from_path(src_image)['name']
-            extra['image'] = image
         size = self._get_components_from_path(node['machineType'])['name']
 
         return Node(id=node['id'], name=node['name'],
