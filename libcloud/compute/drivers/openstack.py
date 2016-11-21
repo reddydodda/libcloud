@@ -1776,7 +1776,7 @@ class OpenStack_1_1_NodeDriver(OpenStackNodeDriver):
         """
 
         response = self.connection.request(self._neutron_subnets_url_prefix +
-                                           "/%s" % subnet_id, method='DELETE').onject
+                                           "/%s" % subnet_id, method='DELETE').object
 
         return response
 
