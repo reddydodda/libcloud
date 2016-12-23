@@ -561,6 +561,14 @@ class DockerNodeDriver(NodeDriver):
         else:
             public_ips.append(self.connection.host)
 
+        networks = data['NetworkSettings'].get('Networks', {})
+        for network in networks:
+            network_ip = networks[network].get('IPAddress')
+            if is_private(network_ip):
+                private_ips.append(network_ip)
+            else:
+                public_ips.append(network_ip)
+
         node = (Node(id=data['Id'],
                      name=name,
                      state=state,
