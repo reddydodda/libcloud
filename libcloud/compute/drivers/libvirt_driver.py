@@ -22,7 +22,6 @@ import time
 import platform
 import subprocess
 import mimetypes
-import signal
 import paramiko
 import atexit
 from tempfile import NamedTemporaryFile
@@ -152,12 +151,8 @@ class LibvirtNodeDriver(NodeDriver):
         self.key = user
 
         try:
-            signal.signal(signal.SIGALRM, self.timeout_handler)
-            signal.alarm(libvirt_connection_timeout)
             self.connection = libvirt.open(uri)
-            signal.alarm(0)  # Disable the alarm
         except Exception as exc:
-            signal.alarm(0)  # Disable the alarm
             if 'Could not resolve' in exc.message:
                 raise Exception("Make sure hostname is accessible")
             if 'Connection refused' in exc.message:
