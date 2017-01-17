@@ -350,7 +350,7 @@ class LibvirtNodeDriver(NodeDriver):
         Searches inside IMAGES_LOCATION, unless other location is specified
         """
         images = []
-        cmd = "sudo find %s -name '*.iso' -o -name '*.img' -o -name '*.raw' -o -name '*.qcow' -o -name '*.qcow2'" % location
+        cmd = "find %s -name '*.iso' -o -name '*.img' -o -name '*.raw' -o -name '*.qcow' -o -name '*.qcow2'" % location
         output = self._run_command(cmd).get('output')
 
         if output:
@@ -370,9 +370,9 @@ class LibvirtNodeDriver(NodeDriver):
         return domain.destroy() == 0
 
     def ex_undefine_node(self, node):
-        cmd = "sudo virsh destroy %s" % node.id
+        cmd = "virsh destroy %s" % node.id
         output = self._run_command(cmd).get('output')
-        cmd = "sudo virsh undefine %s" % node.id
+        cmd = "virsh undefine %s" % node.id
         output = self._run_command(cmd).get('output')
 
         return True
@@ -547,7 +547,7 @@ class LibvirtNodeDriver(NodeDriver):
                     # suppose the img is cloudinit based, create user-data and meta-data,
                     # gen an isoimage through it and specify it
                     directory = pjoin(LIBCLOUD_DIRECTORY, name)
-                    output = self._run_command('sudo mkdir -p %s' % directory).get('output')
+                    output = self._run_command('mkdir -p %s' % directory).get('output')
                     if public_key:
                         metadata = \
 '''instance-id: %s
@@ -560,15 +560,15 @@ public-keys:
 local-hostname: %s''' % (name, name)
 
                     metadata_file = pjoin(directory, 'meta-data')
-                    output = self._run_command('sudo echo "%s" > %s' % (metadata, metadata_file)).get('output')
+                    output = self._run_command('echo "%s" > %s' % (metadata, metadata_file)).get('output')
 
                     if not cloud_init:
                         cloud_init = "#!/bin/bash\ntouch /tmp/hello"
                     userdata_file = pjoin(directory, 'user-data')
-                    output = self._run_command('sudo echo "%s" > %s' % (cloud_init, userdata_file)).get('output')
+                    output = self._run_command('echo "%s" > %s' % (cloud_init, userdata_file)).get('output')
                     cloudinit_files = '%s %s' % (metadata_file, userdata_file)
                     configiso_file = pjoin(directory, 'config.iso')
-                    error_output = self._run_command('sudo genisoimage -o %s -V cidata -r -J %s' % (configiso_file, cloudinit_files)).get('error')
+                    error_output = self._run_command('genisoimage -o %s -V cidata -r -J %s' % (configiso_file, cloudinit_files)).get('error')
                     if "command not found" in error_output:
                         image_conf = ''
                     else:
@@ -609,14 +609,14 @@ local-hostname: %s''' % (name, name)
                     raise Exception("You have specified to copy %s to a "
                                     "path that exists" % image)
                 else:
-                    cmd = "sudo qemu-img convert %s %s" % (image, disk_path)
+                    cmd = "qemu-img convert %s %s" % (image, disk_path)
                     run_cmd = self._run_command(cmd)
                     output = run_cmd.get('output')
                     error = run_cmd.get('error')
                     if error:
                         raise Exception('Failed to copy disk %s: %s' % (image, error))
 
-                    cmd = "sudo qemu-img resize %s %s" % (disk_path, disk_size_gb)
+                    cmd = "qemu-img resize %s %s" % (disk_path, disk_size_gb)
                     run_cmd = self._run_command(cmd)
                     output = run_cmd.get('output')
                     error = run_cmd.get('error')
@@ -712,7 +712,7 @@ local-hostname: %s''' % (name, name)
         """
         Create disk using qemu-img
         """
-        cmd = "sudo qemu-img create -f raw %s %s" % (disk_path, disk_size)
+        cmd = "qemu-img create -f raw %s %s" % (disk_path, disk_size)
 
         error = self._run_command(cmd).get('error')
         if error:
@@ -795,6 +795,9 @@ local-hostname: %s''' % (name, name)
         """
         output = ''
         error = ''
+        # run cmd with sudo prefix in case user is not root
+        if self.key != 'root':
+            cmd = 'sudo %s' % cmd
         if self.secret:
             try:
                 ssh = paramiko.SSHClient()
