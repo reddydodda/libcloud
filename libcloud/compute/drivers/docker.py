@@ -62,12 +62,13 @@ class DockerResponse(JsonResponse):
             else:
                 body = self.body
         except ValueError:
-            m = re.search('Error: (.+?)"', self.body)
+            # not necessarily an error, just not valid json response
+            m = re.search(r'"error":"(.+?)"', self.body)
             if m:
                 error_msg = m.group(1)
                 raise Exception(error_msg)
             else:
-                raise Exception('ConnectionError: Failed to parse JSON response')
+                return self.body
         return body
 
     def parse_error(self):
@@ -414,8 +415,8 @@ class DockerNodeDriver(NodeDriver):
                     result = self.connection.request('/containers/create',
                                                      data=data, params=params,
                                                      method='POST')
-                except:
-                    raise Exception('No such image: %s' % image)
+                except Exception as e:
+                    raise Exception(e)
             else:
                 raise Exception(e)
 
@@ -495,7 +496,6 @@ class DockerNodeDriver(NodeDriver):
         payload = {
         }
         data = json.dumps(payload)
-
         result = self.connection.request('/images/create?fromImage=%s' %
                                          (image), data=data, method='POST')
         if "errorDetail" in result.body:
@@ -560,6 +560,14 @@ class DockerNodeDriver(NodeDriver):
             private_ips.append(self.connection.host)
         else:
             public_ips.append(self.connection.host)
+
+        networks = data['NetworkSettings'].get('Networks', {})
+        for network in networks:
+            network_ip = networks[network].get('IPAddress')
+            if is_private(network_ip):
+                private_ips.append(network_ip)
+            else:
+                public_ips.append(network_ip)
 
         node = (Node(id=data['Id'],
                      name=name,

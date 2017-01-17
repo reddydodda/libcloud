@@ -97,7 +97,7 @@ class LinodeNodeDriver(NodeDriver):
         (-1): NodeState.PENDING,    # Being Created
         0: NodeState.PENDING,     # Brand New
         1: NodeState.RUNNING,     # Running
-        2: NodeState.TERMINATED,  # Powered Off
+        2: NodeState.STOPPED,  # Powered Off
         3: NodeState.REBOOTING,   # Shutting Down
         4: NodeState.UNKNOWN      # Reserved
     }
