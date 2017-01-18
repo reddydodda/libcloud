@@ -123,7 +123,7 @@ class DockerNodeDriver(NodeDriver):
 
     def __init__(self, key=None, secret=None, host='localhost', port=4243,
                  secure=False, key_file=None, cert_file=None, ca_cert=None,
-                 verify_match_hostname=False, docker_host=None):
+                 verify_match_hostname=False):
         """
         :param key: username, when using http basic auth protected host
         :param secret: password, when using http basic auth protected host
@@ -139,7 +139,6 @@ class DockerNodeDriver(NodeDriver):
         connecting through docker tls authentication
         :param verify_match_hostname: whether to check if the CN matches the certificate.
         If using self signed certificate, need to be False, otherwise connection will fail
-        :param docker_host: the IP address of the docker host. Useful in case
         `host` has been substituted by a middleware
         :return:
         """
@@ -177,7 +176,6 @@ class DockerNodeDriver(NodeDriver):
 
         self.connection.host = host
         self.connection.port = port
-        self.docker_host = docker_host if docker_host else host
 
         try:
             socket.setdefaulttimeout(15)
@@ -210,11 +208,10 @@ class DockerNodeDriver(NodeDriver):
                 driver=self)]
         )
 
-    def list_nodes(self, show_all=True, show_host=True):
+    def list_nodes(self, show_all=True):
         """
         List running and stopped containers
         show_all=False will show only running containers
-        show_host=True will also show the docker host along
         with the containers
         """
         try:
@@ -226,26 +223,7 @@ class DockerNodeDriver(NodeDriver):
                                 'API port is correct')
             raise
 
-        nodes = [self._to_node(value) for value in result]
-
-        if show_host:
-            # append docker host as well
-            public_ips, private_ips = [], []
-            try:
-                if is_public(self.docker_host):
-                    public_ips.append(self.docker_host)
-                else:
-                    private_ips.append(self.docker_host)
-            except:
-                public_ips.append(self.docker_host)
-
-            extra = {'tags': {'type': 'docker_host'}}
-            node = Node(id=self.docker_host, name=self.docker_host,
-                        state=NodeState.RUNNING, public_ips=public_ips,
-                        private_ips=private_ips, driver=self, extra=extra)
-            nodes.append(node)
-
-        return nodes
+        return [self._to_node(value) for value in result]
 
     def inspect_node(self, node):
         """
