@@ -6756,8 +6756,8 @@ class GCENodeDriver(NodeDriver):
         :param  name: The name, URL or object of the subnetwork
         :type   name: ``str`` or :class:`GCESubnetwork`
 
-        :param  name: The region object, name, or URL of the subnetwork
-        :type   name: ``str`` or :class:`GCERegion` or ``None``
+        :param  region: The region object, name, or URL of the subnetwork
+        :type   region: ``str`` or :class:`GCERegion` or ``None``
 
         :return:  True if successful
         :rtype:   ``bool``
@@ -6788,12 +6788,12 @@ class GCENodeDriver(NodeDriver):
         if not region_name:
             region = self._set_region(region)
             if not region:
-                raise ("Could not determine region for subnetwork.")
+                raise ValueError("Could not determine region for subnetwork.")
             else:
                 region_name = region.name
 
         request = '/regions/%s/subnetworks/%s' % (region_name, subnet_name)
-        self.connection.request(request, method='DELETE').object
+        self.connection.async_request(request, method='DELETE')
         return True
 
     def ex_get_subnetwork(self, name, region=None):
@@ -6803,8 +6803,8 @@ class GCENodeDriver(NodeDriver):
         :param  name: The name or URL of the subnetwork
         :type   name: ``str``
 
-        :param  name: The region of the subnetwork
-        :type   name: ``str`` or :class:`GCERegion` or ``None``
+        :param  region: The region of the subnetwork
+        :type   region: ``str`` or :class:`GCERegion` or ``None``
 
         :return:  A Subnetwork object
         :rtype:   :class:`GCESubnetwork`
@@ -6826,7 +6826,7 @@ class GCENodeDriver(NodeDriver):
         if not region_name:
             region = self._set_region(region)
             if not region:
-                raise ("Could not determine region for subnetwork.")
+                raise ValueError("Could not determine region for subnetwork.")
             else:
                 region_name = region.name
 
