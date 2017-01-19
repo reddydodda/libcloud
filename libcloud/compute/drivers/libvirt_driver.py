@@ -54,9 +54,6 @@ LIBCLOUD_DIRECTORY = "/var/lib/libvirt/libcloud"
 # disk image types to create VMs from
 DISK_IMAGE_TYPES = ('.img', '.raw', '.qcow', '.qcow2')
 
-# increase default timeout for libvirt connection
-libvirt_connection_timeout = 2 * 60
-
 
 class LibvirtNodeDriver(NodeDriver):
     """
@@ -79,10 +76,6 @@ class LibvirtNodeDriver(NodeDriver):
         6: NodeState.UNKNOWN,  # domain is crashed
         7: NodeState.UNKNOWN,  # domain is suspended by guest power management
     }
-
-    def timeout_handler(self, sig_code, frame):
-        if 14 == sig_code:
-            raise Exception('Timeout!')
 
     def __init__(self, host, user='root', ssh_key=None,
                  ssh_port=22, tcp_port=5000, hypervisor=None):
