@@ -22,7 +22,6 @@ import time
 import platform
 import subprocess
 import mimetypes
-import signal
 import paramiko
 import atexit
 from tempfile import NamedTemporaryFile
@@ -55,9 +54,6 @@ LIBCLOUD_DIRECTORY = "/var/lib/libvirt/libcloud"
 # disk image types to create VMs from
 DISK_IMAGE_TYPES = ('.img', '.raw', '.qcow', '.qcow2')
 
-# increase default timeout for libvirt connection
-libvirt_connection_timeout = 2 * 60
-
 
 class LibvirtNodeDriver(NodeDriver):
     """
@@ -80,10 +76,6 @@ class LibvirtNodeDriver(NodeDriver):
         6: NodeState.UNKNOWN,  # domain is crashed
         7: NodeState.UNKNOWN,  # domain is suspended by guest power management
     }
-
-    def timeout_handler(self, sig_code, frame):
-        if 14 == sig_code:
-            raise Exception('Timeout!')
 
     def __init__(self, host, user='root', ssh_key=None,
                  ssh_port=22, tcp_port=5000, hypervisor=None):
@@ -152,12 +144,8 @@ class LibvirtNodeDriver(NodeDriver):
         self.key = user
 
         try:
-            signal.signal(signal.SIGALRM, self.timeout_handler)
-            signal.alarm(libvirt_connection_timeout)
             self.connection = libvirt.open(uri)
-            signal.alarm(0)  # Disable the alarm
         except Exception as exc:
-            signal.alarm(0)  # Disable the alarm
             if 'Could not resolve' in exc.message:
                 raise Exception("Make sure hostname is accessible")
             if 'Connection refused' in exc.message:
