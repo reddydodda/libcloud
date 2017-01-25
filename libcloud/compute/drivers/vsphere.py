@@ -60,14 +60,14 @@ class VSphereNodeDriver(NodeDriver):
                                                    pwd=password)
             atexit.register(connect.Disconnect, self.connection)
         except Exception as exc:
-            if 'incorrect user name' in getattr(exc, 'msg', ''):
+            error_message = str(exc).lower()
+            if 'incorrect user name' in error_message:
                 raise InvalidCredsError('Check your username and password are valid')
-            message = str(exc.message)
-            if 'Connection refused' in message or 'is not a VIM server' in message:
+            if 'Connection refused' in error_message or 'is not a VIM server' in error_message:
                 raise Exception('Check that the host provided is a vSphere installation')
-            if 'Name or service not known' in message:
+            if 'Name or service not known' in error_message:
                 raise Exception('Check that the vSphere host is accessible')
-            if 'certificate verify failed' in message:
+            if 'certificate verify failed' in error_message:
                 # bypass self signed certificates
                 try:
                     import ssl
@@ -83,14 +83,14 @@ class VSphereNodeDriver(NodeDriver):
                                                            pwd=password, sslContext=context)
                     atexit.register(connect.Disconnect, self.connection)
                 except Exception as exc:
-                    if 'incorrect user name' in getattr(exc, 'msg', ''):
+                    error_message = str(exc).lower()
+                    if 'incorrect user name' in error_message:
                         raise InvalidCredsError('Check your username and password are valid')
-                    message = str(exc.message)
-                    if 'Connection refused' in message or 'is not a VIM server' in message:
+                    if 'Connection refused' in error_message or 'is not a VIM server' in error_message:
                         raise Exception('Check that the host provided is a vSphere installation')
-                    if 'Name or service not known' in message:
+                    if 'Name or service not known' in error_message:
                         raise Exception('Check that the vSphere host is accessible')
-
+                    raise Exception('Cannot connect to vSphere using self signed certs')
 
     def list_locations(self):
         """
@@ -182,10 +182,14 @@ class VSphereNodeDriver(NodeDriver):
             extra['annotation'] = annotation
 
         if ip_address:
-            if is_public_subnet(ip_address):
-                public_ips.append(ip_address)
-            else:
-                private_ips.append(ip_address)
+            try:
+                if is_public_subnet(ip_address):
+                    public_ips.append(ip_address)
+                else:
+                    private_ips.append(ip_address)
+            except:
+                # IPV6 not supported
+                pass
 
         node = Node(id=uuid, name=name, state=status,
                     public_ips=public_ips, private_ips=private_ips,
