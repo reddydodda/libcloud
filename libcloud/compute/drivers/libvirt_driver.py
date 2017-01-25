@@ -556,7 +556,6 @@ local-hostname: %s''' % (name, name)
                     if not cloud_init:
                         cloud_init = "#!/bin/bash\ntouch /tmp/hello"
                     userdata_file = pjoin(directory, 'user-data')
-                    output = self._run_command('echo "%s" > %s' % (cloud_init, userdata_file)).get('output')
                     output = self._run_command('echo "%s" | %s tee %s' % (cloud_init, sudo, userdata_file)).get('output')
                     cloudinit_files = '%s %s' % (metadata_file, userdata_file)
                     configiso_file = pjoin(directory, 'config.iso')
