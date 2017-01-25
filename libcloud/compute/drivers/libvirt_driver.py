@@ -548,10 +548,9 @@ public-keys:
 local-hostname: %s''' % (name, name)
 
                     metadata_file = pjoin(directory, 'meta-data')
-                    if self.key != 'root':
-                        sudo = 'sudo'
-                    else:
-                        sudo = ''
+
+                    sudo = 'sudo' if self.key != 'root' else ''
+
                     output = self._run_command('echo "%s" | %s tee %s' % (metadata, sudo, metadata_file)).get('output')
                     if not cloud_init:
                         cloud_init = "#!/bin/bash\ntouch /tmp/hello"
