@@ -63,9 +63,9 @@ class VSphereNodeDriver(NodeDriver):
             error_message = str(exc).lower()
             if 'incorrect user name' in error_message:
                 raise InvalidCredsError('Check your username and password are valid')
-            if 'Connection refused' in error_message or 'is not a VIM server' in error_message:
+            if 'connection refused' in error_message or 'is not a vim server' in error_message:
                 raise Exception('Check that the host provided is a vSphere installation')
-            if 'Name or service not known' in error_message:
+            if 'name or service not known' in error_message:
                 raise Exception('Check that the vSphere host is accessible')
             if 'certificate verify failed' in error_message:
                 # bypass self signed certificates
@@ -86,9 +86,9 @@ class VSphereNodeDriver(NodeDriver):
                     error_message = str(exc).lower()
                     if 'incorrect user name' in error_message:
                         raise InvalidCredsError('Check your username and password are valid')
-                    if 'Connection refused' in error_message or 'is not a VIM server' in error_message:
+                    if 'connection refused' in error_message or 'is not a vim server' in error_message:
                         raise Exception('Check that the host provided is a vSphere installation')
-                    if 'Name or service not known' in error_message:
+                    if 'name or service not known' in error_message:
                         raise Exception('Check that the vSphere host is accessible')
                     raise Exception('Cannot connect to vSphere using self signed certs')
 
