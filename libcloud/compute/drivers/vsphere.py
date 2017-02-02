@@ -91,6 +91,8 @@ class VSphereNodeDriver(NodeDriver):
                     if 'name or service not known' in error_message:
                         raise Exception('Check that the vSphere host is accessible')
                     raise Exception('Cannot connect to vSphere using self signed certs')
+            else:
+                raise Exception('Cannot connect to vSphere')
 
     def list_locations(self):
         """
