@@ -20,7 +20,7 @@ import multiprocessing.pool
 from libcloud.utils.py3 import httplib
 
 from libcloud.common.base import ConnectionKey, JsonResponse
-from libcloud.compute.types import Provider, NodeState, InvalidCredsError
+from libcloud.compute.types import Provider, NodeState, InvalidCredsError, LibcloudError
 from libcloud.compute.base import NodeDriver, Node
 from libcloud.compute.providers import Provider, get_driver
 from libcloud.compute.base import NodeImage, NodeSize, NodeLocation
@@ -41,9 +41,11 @@ class PacketResponse(JsonResponse):
             body = self.parse_body()
             if 'message' in body:
                 error = '%s (code: %s)' % (body.get('message'), self.status)
+            elif 'errors' in body:
+                error = body.get('errors')
             else:
                 error = body
-            return error
+            raise Exception(error)
 
     def success(self):
         return self.status in self.valid_response_codes
