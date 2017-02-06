@@ -536,6 +536,9 @@ class LibvirtNodeDriver(NodeDriver):
                     # gen an isoimage through it and specify it
                     directory = pjoin(LIBCLOUD_DIRECTORY, name)
                     output = self._run_command('mkdir -p %s' % directory).get('output')
+                    if self.key != 'root':
+                        output = self._run_command('chown -R %s %s' % (self.key, directory)).get('output')
+
                     if public_key:
                         metadata = \
 '''instance-id: %s
@@ -548,14 +551,12 @@ public-keys:
 local-hostname: %s''' % (name, name)
 
                     metadata_file = pjoin(directory, 'meta-data')
+                    output = self._run_command('echo "%s" > %s' % (metadata, metadata_file)).get('output')
 
-                    sudo = 'sudo' if self.key != 'root' else ''
-
-                    output = self._run_command('echo "%s" | %s tee %s' % (metadata, sudo, metadata_file)).get('output')
                     if not cloud_init:
                         cloud_init = "#!/bin/bash\ntouch /tmp/hello"
                     userdata_file = pjoin(directory, 'user-data')
-                    output = self._run_command('echo "%s" | %s tee %s' % (cloud_init, sudo, userdata_file)).get('output')
+                    output = self._run_command('echo "%s" > %s' % (cloud_init, userdata_file)).get('output')
                     cloudinit_files = '%s %s' % (metadata_file, userdata_file)
                     configiso_file = pjoin(directory, 'config.iso')
                     error_output = self._run_command('genisoimage -o %s -V cidata -r -J %s' % (configiso_file, cloudinit_files)).get('error')
