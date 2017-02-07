@@ -308,8 +308,18 @@ class DigitalOceanNodeDriver(NodeDriver):
         self.connection.secret = key
 
     def list_nodes(self):
-        data = self.connection.request('/droplets').object['droplets']
-        return list(map(self._to_node, data))
+        # get paginated results
+        # as per DO documentation: The maximum number of results per page is 200.
+        r = self.connection.request('/droplets?per_page=200')
+        droplets = r.object['droplets']
+        while r.object.get('links'):
+            if r.object['links']['pages'].get('next'):
+                url = r.object['links']['pages']['next'].replace('https://api.digitalocean.com/v2', '')
+                r = self.connection.request(url)
+                droplets.extend(r.object['droplets'])
+            else:
+                break
+        return list(map(self._to_node, droplets))
 
     def list_locations(self, available=True):
         """
