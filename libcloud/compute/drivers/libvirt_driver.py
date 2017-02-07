@@ -536,6 +536,9 @@ class LibvirtNodeDriver(NodeDriver):
                     # gen an isoimage through it and specify it
                     directory = pjoin(LIBCLOUD_DIRECTORY, name)
                     output = self._run_command('mkdir -p %s' % directory).get('output')
+                    if self.key != 'root':
+                        output = self._run_command('chown -R %s %s' % (self.key, directory)).get('output')
+
                     if public_key:
                         metadata = \
 '''instance-id: %s
