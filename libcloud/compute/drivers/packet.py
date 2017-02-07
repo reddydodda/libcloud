@@ -20,7 +20,7 @@ import multiprocessing.pool
 from libcloud.utils.py3 import httplib
 
 from libcloud.common.base import ConnectionKey, JsonResponse
-from libcloud.compute.types import Provider, NodeState, InvalidCredsError, LibcloudError
+from libcloud.compute.types import Provider, NodeState, InvalidCredsError
 from libcloud.compute.base import NodeDriver, Node
 from libcloud.compute.providers import Provider, get_driver
 from libcloud.compute.base import NodeImage, NodeSize, NodeLocation
